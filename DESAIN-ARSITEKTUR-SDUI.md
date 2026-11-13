@@ -1,4 +1,4 @@
-# Desain Arsitektur: @fajekrina/sdui — Library SDUI Berlapis
+# Desain Arsitektur: @fajekrina/sdui-r — Library SDUI Berlapis
 
 > **Catatan (2026-11-11):** dokumen ini menggambarkan arsitektur **0.3.0**. Sejak **0.4.0** acuannya adalah
 > *"Usulan Arsitektur SDUI: Selaras dengan Murti"* — spec di `spec/`, engine berstruktur MurtiEngine,
@@ -39,7 +39,7 @@
 | Global di core | `fetch` global di helper, `globalThis.localStorage` di cache, `globalThis.crypto` di sign | `src/core/index.ts:19-50`, `src/core/cache.ts:30`, `src/core/sign.ts:47` |
 | Yang sudah benar | resolver style tunggal (`buildLayoutStyle`, `applyThemeToStyle`), validasi + `SduiError`, `toErrorPage`, last-good cache, verifikasi Ed25519, builder headless tanpa DOM | `src/core/*`, `src/builder/builder.ts` |
 | Adapter vanilla | diklaim README, belum ada sebagai renderer | `README.md:14` |
-| Dokumentasi paket | README memakai nama `fajrina-sdui`, paket sebenarnya `@fajekrina/sdui` | `README.md`, `package.json` |
+| Dokumentasi paket | README memakai nama `fajrina-sdui`, paket sebenarnya `@fajekrina/sdui-r` | `README.md`, `package.json` |
 | Test | vitest: core (tree/style/validate/theme/cache/sign) + React; belum ada paritas React-vs-Vue | `tests` |
 
 Kesimpulan: core sudah memegang **style dan validasi**, tetapi **perilaku** (aksi, form, toast/modal) dan **keputusan render** (tag, atribut) masih tinggal di adapter, ditulis dua kali.
@@ -57,12 +57,12 @@ flowchart TB
   end
 
   subgraph ADAPTER[Adapter tipis: hanya view binding]
-    AR["@fajekrina/sdui/react<br/>&lt;Fajrina/&gt;"]
-    AV["@fajekrina/sdui/vue<br/>&lt;Fajrina/&gt;"]
-    AJ["@fajekrina/sdui/vanilla<br/>mount(el)"]
+    AR["@fajekrina/sdui-r/react<br/>&lt;Fajrina/&gt;"]
+    AV["@fajekrina/sdui-r/vue<br/>&lt;Fajrina/&gt;"]
+    AJ["@fajekrina/sdui-r/vanilla<br/>mount(el)"]
   end
 
-  subgraph CORE["@fajekrina/sdui (core murni, tanpa DOM/framework)"]
+  subgraph CORE["@fajekrina/sdui-r (core murni, tanpa DOM/framework)"]
     RT[Runtime<br/>createRuntime]
     PIPE[Pipeline<br/>load → verify → normalize → validate → resolve → view-model]
     DISP[Action dispatcher]
@@ -80,7 +80,7 @@ flowchart TB
   end
 
   subgraph IMPL["Implementasi port"]
-    BR["@fajekrina/sdui/browser<br/>localStorage · fetch · WebCrypto · window"]
+    BR["@fajekrina/sdui-r/browser<br/>localStorage · fetch · WebCrypto · window"]
     MEM[memory / noop<br/>SSR · test]
     CUS[implementasi aplikasi<br/>router, store, Moya-ala-murti]
   end
@@ -361,7 +361,7 @@ Alasan: payload datang dari jaringan (bisa dipalsukan bila tidak bertanda tangan
 ### 5.1 React (Vue analog)
 
 ```tsx
-import { Fajrina } from '@fajekrina/sdui/react'
+import { Fajrina } from '@fajekrina/sdui-r/react'
 
 // A. data sudah ada (kontrak 0.2.0, tetap berlaku)
 <Fajrina data={page} theme={brandTheme} policy={policy} mode="warn" onAction={handle} />
@@ -394,8 +394,8 @@ const runtime = useSduiRuntime({ theme, policy, ports })
 ### 5.2 Vanilla
 
 ```ts
-import { mount } from '@fajekrina/sdui/vanilla'
-import { browserPorts } from '@fajekrina/sdui/browser'
+import { mount } from '@fajekrina/sdui-r/vanilla'
+import { browserPorts } from '@fajekrina/sdui-r/browser'
 
 const view = mount(document.getElementById('app')!, {
   source: { merchantId: 'merchant_demo', pageKey: 'home' },
@@ -409,7 +409,7 @@ view.destroy()         // lepas listener + subscribe
 ### 5.3 Core (tanpa framework, mis. SSR)
 
 ```ts
-import { createRuntime } from '@fajekrina/sdui'
+import { createRuntime } from '@fajekrina/sdui-r'
 const rt = createRuntime({ theme, mode: 'strict' })
 const { root, errors } = rt.render(pageFromDb)   // RenderNode murni → serialisasi ke HTML di server mana pun
 ```
@@ -444,7 +444,7 @@ Ekspor 0.2.0 yang sudah ada (`buildLayoutStyle`, `buildTree`, `validateData`, `a
 | Efek default berjalan walau `onAction` menangani | tetap (default) | tetap, kini bisa dibatalkan `preventDefault()` |
 | `fetchUniversalPage*` helper | deprecated, diganti `runtime.load` / `NetworkPort` | dihapus |
 | Kunci cache `fajrina-page:{mid}:{key}` | tetap, isi ditambah `etag` | tetap |
-| Nama paket di README | diperbaiki ke `@fajekrina/sdui` | — |
+| Nama paket di README | diperbaiki ke `@fajekrina/sdui-r` | — |
 
 Aturan: tidak ada breaking change di luar major setelah 1.0; setiap deprecation minimal satu minor dengan peringatan runtime sebelum dihapus.
 

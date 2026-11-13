@@ -1,9 +1,10 @@
-// @fajekrina/sdui/browser — browser implementations of the ports. The only
+// @fajekrina/sdui-r/browser — browser implementations of the ports. The only
 // module (with ./bridge) that touches window, fetch, WebCrypto and IndexedDB.
 
 import { SduiError } from '../core/errors'
 import { ScreenFactory, type ScreenProviderResult } from '../core/screen-factory'
-import { concatBytes, toBytes, type Bytes, type BytesLike } from '../core/bytes'
+import { base64Decode, concatBytes, toBytes, utf8String, type Bytes, type BytesLike } from '../core/bytes'
+import { bundleBytes } from '../core/template'
 import type { SduiProps, SduiValue } from '../core/value'
 import type {
   CacheCipher, CacheStore, NamedRequest, NetworkClient, Navigator, SignatureVerifier, ViewportPort
@@ -157,6 +158,66 @@ export function specScreenProvider(options: SpecDeliveryOptions): ScreenFactory 
     if (response.status === 404) throw SduiError.unknownScreen(key)
     return { bytes: response.bytes, etag: response.etag }
   })
+}
+
+/// **sdui-r delivery** — the screen factory for template + value screens. For each key:
+/// 1. the value set: `GET {basePath}/screens/{merchantId}/{key}/{version}` (manifest version,
+///    immutable) or `GET {basePath}/screens/{merchantId}/{key}` (latest, `If-None-Match`);
+/// 2. the template release it names: `GET {basePath}/templates/{templateKey}/v{templateVersion}`
+///    (immutable; kept in memory, so a value-only change never downloads the template again);
+/// 3. both handed to the engine as one `{ template, values }` bundle — each part verified there.
+///
+/// The template reference is read from the (not yet verified) value set only to build a
+/// URL; the engine rejects the bundle if the verified value set names another template.
+export function templateScreenProvider(options: SpecDeliveryOptions & { templateCacheSize?: number }): ScreenFactory {
+  const get = deliveryGet(options)
+  const root = `/screens/${encodeURIComponent(options.merchantId)}`
+  const templates = new Map<string, string>()
+  const limit = Math.max(1, options.templateCacheSize ?? 32)
+  const template = async (key: string, version: number, signal?: AbortSignal): Promise<string> => {
+    const id = `${key}/v${version}`
+    const hit = templates.get(id)
+    if (hit !== undefined) { templates.delete(id); templates.set(id, hit); return hit }   // LRU touch
+    const response = await get(`/templates/${id}`, signal)
+    if (response.status === 404) throw SduiError.unknownScreen(`template ${id}`)
+    const text = utf8String(response.bytes)
+    templates.set(id, text)
+    if (templates.size > limit) templates.delete(templates.keys().next().value!)
+    return text
+  }
+  return new ScreenFactory().registerFallback(async (key, opts): Promise<ScreenProviderResult> => {
+    let path = `${root}/${encodeURIComponent(key)}`
+    if (opts.version !== undefined) {
+      if (!VERSION_SEGMENT.test(opts.version)) throw SduiError.schema(`manifest version "${opts.version}" is not a valid path segment`)
+      path += `/${opts.version}`
+    }
+    const response = await get(path, opts.signal, opts.etag)
+    if (response.status === 304) return { notModified: true }
+    if (response.status === 404) throw SduiError.unknownScreen(key)
+    const valuesText = utf8String(response.bytes)
+    const ref = templateRefOf(valuesText)
+    return { bytes: bundleBytes(await template(ref.key, ref.version, opts.signal), valuesText), etag: response.etag }
+  })
+}
+
+const IDENTIFIER = /^[A-Za-z][A-Za-z0-9_]{0,127}$/
+
+/// `values.template` of a value set (plain, or inside an envelope), shape-checked so it
+/// can only ever become `{identifier}/v{integer}`.
+function templateRefOf(valuesText: string): { key: string; version: number } {
+  try {
+    let doc = JSON.parse(valuesText) as Record<string, unknown>
+    if (typeof doc.payload === 'string') {
+      const inner = base64Decode(doc.payload)
+      if (!inner) throw new Error('payload')
+      doc = JSON.parse(utf8String(inner)) as Record<string, unknown>
+    }
+    const ref = (doc.values as { template?: { key?: unknown; version?: unknown } } | undefined)?.template
+    if (typeof ref?.key === 'string' && IDENTIFIER.test(ref.key) && Number.isInteger(ref.version) && (ref.version as number) >= 1) {
+      return { key: ref.key, version: ref.version as number }
+    }
+  } catch { /* fall through */ }
+  throw SduiError.decode('value set without a valid template reference')
 }
 
 /// The manifest loader for `createEngine({ manifestLoader })`: `GET {basePath}/manifest/{merchantId}`.

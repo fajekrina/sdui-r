@@ -1,4 +1,4 @@
-// @fajekrina/sdui/vue — the Vue renderer (thin, generic).
+// @fajekrina/sdui-r/vue — the Vue renderer (thin, generic).
 import { defineComponent, h, onBeforeUnmount, shallowRef, watch, type PropType, type VNode } from 'vue'
 import { ScreenSource, type LoadState, type SduiEngine } from '../core/engine'
 import type { ScreenController } from '../core/screen'

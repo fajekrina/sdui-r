@@ -1,9 +1,52 @@
-# @fajekrina/sdui
+# @fajekrina/sdui-r
 
 Server-driven UI for the web, Android WebView and iOS WKWebView — **one spec, one
-engine, three hosts.** The server describes *what* a screen is (a JSON node tree +
-data + actions); this package owns *how* it renders, navigates, and talks to the
-network.
+engine, three hosts.** In sdui-r a screen is a **template** (the layout: components with
+an `id` and an `order`, reusable across screens and merchants) plus a **value set** (the
+content of each component, per merchant screen). The two are stored, reviewed, published
+and signed separately; the engine verifies both and composes them. This package owns
+*how* the result renders, navigates, and talks to the network.
+
+Forked from [`@fajekrina/sdui`](https://github.com/fajekrina/sdui) (which composes screens
+from components). Design notes: `DESAIN-SDUI-R.md` in the workspace.
+
+## Template + values
+
+```jsonc
+// template (template service) — structure + behavior, every node has id + order
+{ "schemaVersion": "2.0",
+  "template": { "key": "promoCard", "version": 1, "title": "Kartu promo",
+    "root": { "type": "vstack", "id": "root", "order": 0, "children": [
+      { "type": "text",   "id": "headline", "order": 0, "props": { "value": "Judul", "style": "title" } },
+      { "type": "button", "id": "cta",      "order": 1, "props": { "title": "Lihat" },
+        "action": { "type": "navigate", "screen": "offers" } } ] } } }
+
+// value set (value service) — content per component id, for one merchant screen
+{ "schemaVersion": "2.0",
+  "values": { "screen": "home", "template": { "key": "promoCard", "version": 1 },
+    "components": { "headline": { "props": { "value": "Cashback 20%" } },
+                    "cta": { "action": { "type": "navigate", "screen": "promoDetail" } } } } }
+```
+
+```ts
+import { createEngine, PayloadSecurity } from '@fajekrina/sdui-r'
+import { templateScreenProvider, specManifestLoader, webCryptoEd25519 } from '@fajekrina/sdui-r/browser'
+
+const delivery = { basePath: '/api/client', merchantId: 'merchant_demo' }
+const engine = createEngine({
+  security: PayloadSecurity.signed(await webCryptoEd25519(publicKey)),
+  screenFactory: templateScreenProvider(delivery),   // value set → its template → one bundle
+  manifestLoader: specManifestLoader(delivery)
+})
+```
+
+- Children render in `order`; value props are merged over the template defaults; a value
+  action replaces the template action; width variants get the same values through the ids.
+- Fail-closed: a value set for another template release, an id the template lacks, a
+  value set for another screen, or either part unsigned/forged → the screen is rejected.
+- **Two builders**: the **Template Builder** (`mountTemplateBuilder` / `<SduiTemplateBuilder>`,
+  admin: components → template) and the **Screen Builder** (`mountScreenBuilder` /
+  `<SduiScreenBuilder>`, maker: pick a template, fill in its components → value set).
 
 - **Spec** — [`spec/sdui.schema.json`](spec/sdui.schema.json): our own contract,
   derived from [murti](https://github.com/iQbalADR/murti) v1 with additive v1.1
@@ -19,27 +62,27 @@ network.
 ## Install
 
 ```bash
-npm install @fajekrina/sdui
+npm install @fajekrina/sdui-r
 ```
 
 | Import | What |
 | --- | --- |
-| `@fajekrina/sdui` | engine: `createEngine`, `ScreenSource`, `ComponentFactory`, `ScreenFactory`, `ActionDispatcher`, `PayloadSecurity`, `SduiCache`, model, ports |
-| `@fajekrina/sdui/pwa` | `connectivity`, `onServiceWorkerUpdate` |
-| `@fajekrina/sdui/browser` | `specScreenProvider`, `specManifestLoader`, `fetchNetworkClient`, `webCryptoEd25519`, `indexedDbStore`, `aesGcmCipher`, `browserNavigator`, `windowViewport`, `browserPorts` |
-| `@fajekrina/sdui/bridge` | `nativeBridgePorts`, `detectHost`, `applyTheme`, `verifyBundleManifest` — see [HOST-BRIDGE.md](HOST-BRIDGE.md) |
-| `@fajekrina/sdui/react` · `/vue` | `<SduiScreen engine source />` |
-| `@fajekrina/sdui/vanilla` | `mount(el, { engine, source })` |
-| `@fajekrina/sdui/builder` · `/builder/react` · `/builder/vue` | `EditorDocument`, DSL, `DSLExport`, `mountStudio` / `<SduiBuilder />` |
-| `@fajekrina/sdui/compat` | `fromUniversal()` — import legacy Universal pages in the builder |
-| `@fajekrina/sdui/spec/sdui.schema.json` | the schema (backend validation, CI) |
+| `@fajekrina/sdui-r` | engine: `createEngine`, `ScreenSource`, `ComponentFactory`, `ScreenFactory`, `ActionDispatcher`, `PayloadSecurity`, `SduiCache`, model, ports |
+| `@fajekrina/sdui-r/pwa` | `connectivity`, `onServiceWorkerUpdate` |
+| `@fajekrina/sdui-r/browser` | `specScreenProvider`, `specManifestLoader`, `fetchNetworkClient`, `webCryptoEd25519`, `indexedDbStore`, `aesGcmCipher`, `browserNavigator`, `windowViewport`, `browserPorts` |
+| `@fajekrina/sdui-r/bridge` | `nativeBridgePorts`, `detectHost`, `applyTheme`, `verifyBundleManifest` — see [HOST-BRIDGE.md](HOST-BRIDGE.md) |
+| `@fajekrina/sdui-r/react` · `/vue` | `<SduiScreen engine source />` |
+| `@fajekrina/sdui-r/vanilla` | `mount(el, { engine, source })` |
+| `@fajekrina/sdui-r/builder` · `/builder/react` · `/builder/vue` | `EditorDocument`, DSL, `DSLExport`, `mountStudio` / `<SduiBuilder />` |
+| `@fajekrina/sdui-r/compat` | `fromUniversal()` — import legacy Universal pages in the builder |
+| `@fajekrina/sdui-r/spec/sdui.schema.json` | the schema (backend validation, CI) |
 
 ## Quickstart (browser)
 
 ```ts
-import { ActionDispatcher, PayloadSecurity, SduiCache, createEngine, keyedVerifier } from '@fajekrina/sdui'
-import { MESSAGES_ID } from '@fajekrina/sdui/i18n'
-import { browserNavigator, fetchNetworkClient, indexedDbStore, specManifestLoader, specScreenProvider, webCryptoEd25519, windowViewport } from '@fajekrina/sdui/browser'
+import { ActionDispatcher, PayloadSecurity, SduiCache, createEngine, keyedVerifier } from '@fajekrina/sdui-r'
+import { MESSAGES_ID } from '@fajekrina/sdui-r/i18n'
+import { browserNavigator, fetchNetworkClient, indexedDbStore, specManifestLoader, specScreenProvider, webCryptoEd25519, windowViewport } from '@fajekrina/sdui-r/browser'
 
 // spec screens + version manifest: GET {basePath}/manifest/{mid}, GET {basePath}/screens/{mid}/{key}/v{seq}
 const delivery = { basePath: '/api/universal/v1/client', merchantId: 'merchant_demo' }
@@ -68,7 +111,7 @@ await engine.refreshManifest()   // before the first screen, and again when the 
 
 ```tsx
 // React
-import { SduiScreen } from '@fajekrina/sdui/react'
+import { SduiScreen } from '@fajekrina/sdui-r/react'
 <SduiScreen engine={engine} source={{ key: 'home' }} seed={{ user }} />
 ```
 
@@ -79,14 +122,14 @@ import { SduiScreen } from '@fajekrina/sdui/react'
 
 ```ts
 // vanilla
-import { mount } from '@fajekrina/sdui/vanilla'
+import { mount } from '@fajekrina/sdui-r/vanilla'
 mount(document.getElementById('app')!, { engine, source: { key: 'home' } })
 ```
 
 ## Inside an Android / iOS WebView
 
 ```ts
-import { nativeBridgePorts } from '@fajekrina/sdui/bridge'
+import { nativeBridgePorts } from '@fajekrina/sdui-r/bridge'
 
 const host = nativeBridgePorts()   // Android addWebMessageListener / iOS WKScriptMessageHandler
 const engine = createEngine({
@@ -128,7 +171,7 @@ never cached; headers never reach the `Logger`.
 ## Offline and PWA
 
 ```ts
-import { connectivity, onServiceWorkerUpdate } from '@fajekrina/sdui/pwa'
+import { connectivity, onServiceWorkerUpdate } from '@fajekrina/sdui-r/pwa'
 
 const engine = createEngine({ /* … */, connectivity: connectivity({ probeUrl: '/healthz' }) })
 
@@ -164,12 +207,12 @@ require-trusted-types-for 'script'; trusted-types 'none'
 
 No `innerHTML`/`eval`/style attributes anywhere (a test gate over `src/`). Engines without
 constructable stylesheets (Safari < 16.4) fall back to a `<style>` element for the Studio —
-there, pass `stylesheet: 'external'` and link `@fajekrina/sdui/builder/studio.css`.
+there, pass `stylesheet: 'external'` and link `@fajekrina/sdui-r/builder/studio.css`.
 
 ## Authoring
 
 ```ts
-import { screen, vstack, text, button, navigate } from '@fajekrina/sdui/builder'
+import { screen, vstack, text, button, navigate } from '@fajekrina/sdui-r/builder'
 
 const json = screen('home', vstack({ spacing: 12 }, [
   text('Halo, {{user.name}}', { style: 'title' }),
@@ -213,7 +256,7 @@ For maker-checker review:
 />
 ```
 
-`diff(base, next)` (`@fajekrina/sdui/builder`) is the same comparison, headless — for a
+`diff(base, next)` (`@fajekrina/sdui-r/builder`) is the same comparison, headless — for a
 review page or a backend check.
 
 ## Extending

@@ -16,7 +16,7 @@ const find = (nodes: RenderNode[], pred: (n: RenderNode) => boolean): RenderNode
   return undefined
 }
 
-const payload = (root: object, extra: object = {}) => JSON.stringify({ schemaVersion: '1.1', screen: { key: 's', root, ...extra } })
+const payload = (root: object, extra: object = {}) => JSON.stringify({ schemaVersion: '2.0', screen: { key: 's', root, ...extra } })
 
 /// A network client answering named requests from a table.
 function fakeNetwork(table: Record<string, unknown | Error>, calls: Array<[string, SduiProps]> = []): NetworkClient {

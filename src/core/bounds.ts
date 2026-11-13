@@ -3,7 +3,7 @@
 ///
 /// The defaults come from `spec/bounds.json`, the single source of these numbers:
 /// the bundler inlines them at build time, and a backend reads the same published
-/// file (`@fajekrina/sdui/spec/bounds.json`). `tests/spec.test.ts` fails if the
+/// file (`@fajekrina/sdui-r/spec/bounds.json`). `tests/spec.test.ts` fails if the
 /// schema disagrees with it.
 ///
 /// Some (string length, prop/child/array counts, identifier length, load-request

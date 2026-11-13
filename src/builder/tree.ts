@@ -97,6 +97,34 @@ export function strippingGeneratedIds(node: SduiNode): SduiNode {
   })
 }
 
+/// sdui-r — a template tree: every node keeps its id and gets `order` = its position.
+export function withOrders(node: SduiNode, order = 0): SduiNode {
+  return new SduiNode({ id: node.id, order, type: node.type, props: node.props, children: node.children.map((c, i) => withOrders(c, i)), action: node.action })
+}
+
+/// sdui-r — children sorted by `order` (ties keep array order); `order` dropped (the
+/// editor keeps order as array position).
+export function sortedByOrder(node: SduiNode): SduiNode {
+  const children = node.children.map((child, index) => ({ child, index }))
+    .sort((a, b) => (a.child.order ?? a.index) - (b.child.order ?? b.index) || a.index - b.index)
+    .map(({ child }) => sortedByOrder(child))
+  return new SduiNode({ id: node.id, type: node.type, props: node.props, children, action: node.action })
+}
+
+/// sdui-r — a readable component id for a new node of `type` (`text1`, `button2` …),
+/// unused in `taken`. Template ids are the keys makers' value sets use.
+export function readableId(type: string, taken: ReadonlySet<string>): string {
+  const base = (type.replace(/[^A-Za-z0-9_]/g, '_').replace(/^[^A-Za-z]+/, '') || 'node')
+  for (let n = 1; ; n++) if (!taken.has(`${base}${n}`)) return `${base}${n}`
+}
+
+/// Every id in the tree.
+export function idsOf(node: SduiNode, out = new Set<string>()): Set<string> {
+  if (node.id !== undefined) out.add(node.id)
+  node.children.forEach((c) => idsOf(c, out))
+  return out
+}
+
 /// Depth-first list of `[node, depth]` (outline order).
 export function flatten(node: SduiNode, depth = 0, out: Array<[SduiNode, number]> = []): Array<[SduiNode, number]> {
   out.push([node, depth])

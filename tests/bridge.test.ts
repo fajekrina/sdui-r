@@ -67,7 +67,7 @@ describe('native bridge', () => {
     const host = fakeHost(() => null)
     const ports = nativeBridgePorts({ transport: host.transport })
     const engine = devEngine({ actionDispatcher: new ActionDispatcher({ navigator: ports.navigator, host: ports.host }), viewport: ports.viewport })
-    const screen = engine.screen(ScreenSource.inline('{"schemaVersion":"1.1","screen":{"key":"s","root":{"type":"text"}}}'))
+    const screen = engine.screen(ScreenSource.inline('{"schemaVersion":"2.0","screen":{"key":"s","root":{"type":"text"}}}'))
     await screen.load()
     ports.onHostEvent('host.back', () => { void screen.dispatch(new ActionSpec({ type: 'dismiss' })) })
     host.event('host.back')

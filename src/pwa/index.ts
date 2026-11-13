@@ -1,4 +1,4 @@
-// @fajekrina/sdui/pwa — the browser side of offline reading and app updates.
+// @fajekrina/sdui-r/pwa — the browser side of offline reading and app updates.
 // Touches window / navigator; never imported by the core.
 
 import type { ConnectivityPort } from '../ports'

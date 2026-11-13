@@ -48,7 +48,7 @@ describe('fetchNetworkClient', () => {
 
 describe('universalScreenProvider', () => {
   it('GET /client/page/{merchant}/{key}; 404 → unknownScreen', async () => {
-    const fetchImpl = vi.fn(async (url: unknown) => (String(url).endsWith('/ghost') ? response(404, {}) : response(200, { schemaVersion: '1.1' })))
+    const fetchImpl = vi.fn(async (url: unknown) => (String(url).endsWith('/ghost') ? response(404, {}) : response(200, { schemaVersion: '2.0' })))
     const provider = universalScreenProvider({ baseUrl: '/api/universal/v1', merchantId: 'merchant_demo', fetchImpl })
     await provider('home')
     expect(fetchImpl.mock.calls[0]![0]).toBe('/api/universal/v1/client/page/merchant_demo/home')

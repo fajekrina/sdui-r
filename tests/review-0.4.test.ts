@@ -10,7 +10,7 @@ import { MESSAGES_ID } from '../src/i18n'
 import { Bridge, nativeBridgePorts, type BridgeTransport } from '../src/bridge'
 import { devEngine, envelopeJSON, flush, signingKey } from './helpers'
 
-const page = (value: string) => JSON.stringify({ schemaVersion: '1.1', screen: { key: 'home', root: { type: 'text', props: { value } } } })
+const page = (value: string) => JSON.stringify({ schemaVersion: '2.0', screen: { key: 'home', root: { type: 'text', props: { value } } } })
 const textOf = (n: RenderNode): string => (n.text ?? '') + n.children.map(textOf).join('')
 
 describe('#1 a cached layout is revalidated when there is no manifest', () => {
@@ -81,7 +81,7 @@ describe('#3 double tap', () => {
       }
     }
     const engine = devEngine({ actionDispatcher: new ActionDispatcher({ network }) })
-    const screen = engine.screen(ScreenSource.inline({ schemaVersion: '1.1', screen: { key: 's', root: { type: 'button', props: { title: 'Pay' }, action: { type: 'api', request: 'pay' } } } }))
+    const screen = engine.screen(ScreenSource.inline({ schemaVersion: '2.0', screen: { key: 's', root: { type: 'button', props: { title: 'Pay' }, action: { type: 'api', request: 'pay' } } } }))
     await screen.load()
     const key = screen.render().nodes[0]!.on!.click!
     const first = screen.handle(key)
@@ -150,7 +150,7 @@ describe('#6 image URLs', () => {
   })
 
   it('an image with a refused name renders without a src', async () => {
-    const screen = devEngine().screen(ScreenSource.inline({ schemaVersion: '1.1', screen: { key: 's', root: { type: 'image', props: { name: 'https://evil.example.com/x.png' } } } }))
+    const screen = devEngine().screen(ScreenSource.inline({ schemaVersion: '2.0', screen: { key: 's', root: { type: 'image', props: { name: 'https://evil.example.com/x.png' } } } }))
     await screen.load()
     expect(screen.render().nodes[0]!.attrs.src).toBeUndefined()
   })
@@ -158,7 +158,7 @@ describe('#6 image URLs', () => {
 
 describe('#7 secure ≠ numeric keyboard', () => {
   it('an alphanumeric secure field keeps the text keyboard', async () => {
-    const screen = devEngine().screen(ScreenSource.inline({ schemaVersion: '1.1', screen: { key: 's', root: { type: 'form', children: [
+    const screen = devEngine().screen(ScreenSource.inline({ schemaVersion: '2.0', screen: { key: 's', root: { type: 'form', children: [
       { type: 'textField', props: { name: 'password', secure: true } },
       { type: 'textField', props: { name: 'pin', secure: true, keyboard: 'number' } }
     ] } } }))
@@ -217,7 +217,7 @@ describe('#9 forged host messages', () => {
 describe('#10 localized validation messages', () => {
   it('the host supplies the messages', async () => {
     const engine = devEngine({ messages: MESSAGES_ID })
-    const screen = engine.screen(ScreenSource.inline({ schemaVersion: '1.1', screen: { key: 's', root: { type: 'form', id: 'f', children: [
+    const screen = engine.screen(ScreenSource.inline({ schemaVersion: '2.0', screen: { key: 's', root: { type: 'form', id: 'f', children: [
       { type: 'textField', props: { name: 'nik', label: 'NIK', required: true } },
       { type: 'button', props: { title: 'Kirim' }, action: { type: 'dismiss' } }
     ] } } }))

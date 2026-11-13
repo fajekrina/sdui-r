@@ -1,4 +1,4 @@
-import type { ActionSpec, SduiNode, SduiPayload, SduiValue } from '../core'
+import { SPEC_VERSION, type ActionSpec, type SduiNode, type SduiPayload, type SduiValue } from '../core'
 
 // DSL export — the DSL in reverse: given a payload or node, generate DSL source
 // that rebuilds an equivalent tree (generated editor ids are not emitted).
@@ -12,7 +12,7 @@ export const DSLExport = {
   source(payload: SduiPayload): string {
     const screen = payload.screen
     const opts: string[] = []
-    if (payload.schemaVersion !== '1.1') opts.push(`schemaVersion: ${str(payload.schemaVersion)}`)
+    if (payload.schemaVersion !== SPEC_VERSION) opts.push(`schemaVersion: ${str(payload.schemaVersion)}`)
     if (screen.load.length) opts.push(`load: ${valueLiteral(screen.load.map((l) => (l.params ? { request: l.request, params: l.params } : { request: l.request })) as SduiValue, 1)}`)
     const variants: string[] = []
     if (screen.variants.compact) variants.push(`compact: ${node(screen.variants.compact, 2).trimStart()}`)

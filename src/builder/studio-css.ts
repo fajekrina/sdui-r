@@ -1,5 +1,5 @@
 /// The Studio stylesheet. Installed as a constructable stylesheet (`adoptedStyleSheets`,
-/// CSSOM — allowed under `style-src 'self'`), or shipped as `@fajekrina/sdui/builder/studio.css`
+/// CSSOM — allowed under `style-src 'self'`), or shipped as `@fajekrina/sdui-r/builder/studio.css`
 /// for apps that link it themselves (`stylesheet: 'external'`).
 export const STUDIO_CSS = `
 .sdui-studio{display:flex;flex-direction:column;height:100%;min-height:560px;font:13px/1.4 system-ui,sans-serif;color:#0f172a;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden}
@@ -59,5 +59,16 @@ export const STUDIO_CSS = `
 .sdui-studio .changes .added{color:#86efac}
 .sdui-studio .changes .removed{color:#fca5a5}
 .sdui-studio .changes .changed,.sdui-studio .changes .moved{color:#fcd34d}
+.sdui-studio .ver{width:56px;height:28px;border:1px solid #cbd5e1;border-radius:6px;padding:0 6px}
+.sdui-studio .lbl{font-size:12px;color:#64748b}
+.sdui-studio .tpls{display:flex;flex-direction:column;gap:6px;padding:6px 10px}
+.sdui-studio .tpl{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;background:#fff;cursor:pointer}
+.sdui-studio .tpl small{color:#64748b;font:11px ui-monospace,monospace}
+.sdui-studio .tpl.on{border-color:#2563eb;box-shadow:0 0 0 2px rgba(37,99,235,.2)}
+.sdui-studio .row .ovr{color:#2563eb;margin-left:6px}
+.sdui-studio .insp .fld{display:flex;gap:4px;align-items:flex-end}
+.sdui-studio .insp .fld label{flex:1}
+.sdui-studio .insp .fld.on input,.sdui-studio .insp .fld.on select,.sdui-studio .insp .fld.on textarea{border-color:#2563eb}
+.sdui-studio .tplref{font:12px ui-monospace,monospace;color:#334155;border:1px solid #e2e8f0;border-radius:999px;padding:2px 8px}
 .sdui-studio [hidden]{display:none!important}
 `

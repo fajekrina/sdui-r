@@ -1,12 +1,28 @@
-# SDUI spec (v1.1)
+# SDUI-R spec (v2.0)
 
-The contract between the backend and `@fajekrina/sdui`. The machine-readable source
+The contract between the backend and `@fajekrina/sdui-r`. The machine-readable source
 of truth is [`sdui.schema.json`](./sdui.schema.json) (JSON Schema Draft 2020-12);
 this file is the human guide. When the two disagree, the schema wins.
 
 v1 is the [murti](https://github.com/iQbalADR/murti) v1 contract, copied and owned
-here (Apache-2.0, see [`../NOTICE`](../NOTICE)). v1.1 adds features murti does not
-have, **additively**: every v1 / murti payload stays valid.
+here (Apache-2.0, see [`../NOTICE`](../NOTICE)); v1.1 is `@fajekrina/sdui`. **v2.0 (sdui-r)**
+splits a screen into a template and a value set — a new major, so 1.x payloads are rejected.
+
+## v2.0 — template + value set
+
+| Document | Top level | Who signs it | Notes |
+| --- | --- | --- | --- |
+| Template | `{ schemaVersion, template: { key, version, title?, load?, root, variants? } }` | template service | every node has `id` (`^[A-Za-z][A-Za-z0-9_-]*$`, unique per tree) and `order` (integer ≥ 0, unique among siblings); `props` are defaults; a release `key@version` is immutable |
+| Value set | `{ schemaVersion, values: { screen, template: { key, version }, components } }` | value service | `components.<id> = { props?, action? }`; props merge (shallow) over the defaults, the action replaces the template's |
+| Bundle | `{ template, values? }` | — (each part is an envelope) | what the client fetches, caches and re-verifies |
+
+Client rules (beyond the schema): ids unique per tree and orders unique among siblings;
+value ids must exist in the template; `values.template` must equal the template's
+`key@version`; a value set delivered for screen `X` must say `screen: "X"`. The composed
+screen is then validated like any v1.1 screen (bounds, actions, targets).
+
+The resolved `{ schemaVersion, screen }` payload below is what composition produces; it
+stays accepted for previews and tests.
 
 ## Shape
 
@@ -49,7 +65,7 @@ vocabulary (unknown types render a Null-Object placeholder); `props` is an open 
 ## Bounds
 
 The defaults are published as [`bounds.json`](./bounds.json) — the single source of these numbers.
-A backend reads that file from the pinned package (`@fajekrina/sdui/spec/bounds.json`) instead of
+A backend reads that file from the pinned package (`@fajekrina/sdui-r/spec/bounds.json`) instead of
 copying them. The client builds `SduiBounds.default` from it, and `tests/spec.test.ts` fails if the schema disagrees.
 
 | Bound | Default | Enforced by |

@@ -1,0 +1,80 @@
+{
+  "schemaVersion": "2.0",
+  "template": {
+    "key": "promoCard",
+    "title": "Kartu promo",
+    "load": [
+      {
+        "request": "getOffers"
+      }
+    ],
+    "root": {
+      "type": "vstack",
+      "id": "root",
+      "order": 0,
+      "props": {
+        "spacing": 12,
+        "padding": 16
+      },
+      "children": [
+        {
+          "type": "button",
+          "id": "cta",
+          "order": 2,
+          "props": {
+            "title": "Lihat"
+          },
+          "action": {
+            "type": "navigate",
+            "screen": "offers"
+          }
+        },
+        {
+          "type": "text",
+          "id": "headline",
+          "order": 0,
+          "props": {
+            "value": "Judul",
+            "style": "title"
+          }
+        },
+        {
+          "type": "image",
+          "id": "hero-image",
+          "order": 1,
+          "props": {
+            "name": "placeholder",
+            "height": 120
+          }
+        }
+      ]
+    },
+    "variants": {
+      "wide": {
+        "type": "hstack",
+        "id": "root",
+        "order": 0,
+        "children": [
+          {
+            "type": "image",
+            "id": "hero-image",
+            "order": 0,
+            "props": {
+              "name": "placeholder"
+            }
+          },
+          {
+            "type": "text",
+            "id": "headline",
+            "order": 1
+          },
+          {
+            "type": "button",
+            "id": "cta",
+            "order": 2
+          }
+        ]
+      }
+    }
+  }
+}

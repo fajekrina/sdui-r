@@ -1,22 +1,45 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/fajekrina/sdui/main/spec/sdui.schema.json",
-  "title": "SDUI Payload (v1.1)",
-  "description": "Authoritative STRUCTURAL schema for @fajekrina/sdui payloads. Derived from murti.schema.json v1 (Apache-2.0, see NOTICE); v1.1 additions are additive only, so every murti v1 payload stays valid. It enforces shape, closed vocabularies, and per-field bounds. Tree depth, total node count, action-chain depth, load-request count, and semantic resolution (a type/request/screen actually exists) are enforced by the client validator — see spec/README.md.",
+  "$id": "https://raw.githubusercontent.com/fajekrina/sdui-r/main/spec/sdui.schema.json",
+  "title": "SDUI-R Payload (v2.0)",
+  "description": "Authoritative STRUCTURAL schema for @fajekrina/sdui-r. sdui-r (v2.0) splits a screen into a TEMPLATE (structure + behavior; every node has an id and an order; reusable across screens and merchants) and a VALUE SET (content per template component, per merchant screen), signed and delivered separately and composed by the client. A resolved screen payload (what the client composes) is still accepted for previews and tests. Derived from @fajekrina/sdui v1.1 and murti.schema.json v1 (Apache-2.0, see NOTICE). Tree depth, total node count, action-chain depth, load-request count, id uniqueness, order uniqueness among siblings, value ids existing in the template, and semantic resolution are enforced by the client validator — see spec/README.md.",
   "oneOf": [
-    { "$ref": "#/$defs/envelope" },
-    { "$ref": "#/$defs/payload" }
+    {
+      "$ref": "#/$defs/envelope"
+    },
+    {
+      "$ref": "#/$defs/templateDocument"
+    },
+    {
+      "$ref": "#/$defs/valuesDocument"
+    },
+    {
+      "$ref": "#/$defs/bundle"
+    },
+    {
+      "$ref": "#/$defs/payload"
+    }
   ],
   "$defs": {
     "envelope": {
       "type": "object",
       "description": "Production transport wrapper. The client verifies the signature (and optionally decrypts) BEFORE trusting the payload.",
-      "required": ["schemaVersion", "alg", "payload", "signature"],
+      "required": [
+        "schemaVersion",
+        "alg",
+        "payload",
+        "signature"
+      ],
       "additionalProperties": false,
       "properties": {
-        "schemaVersion": { "$ref": "#/$defs/schemaVersion" },
+        "schemaVersion": {
+          "$ref": "#/$defs/schemaVersion"
+        },
         "alg": {
-          "enum": ["ed25519", "es256"],
+          "enum": [
+            "ed25519",
+            "es256"
+          ],
           "description": "Signature algorithm. The app verifies with its embedded public key."
         },
         "keyId": {
@@ -25,7 +48,9 @@
           "description": "v1.1 — which signing key produced the signature (key rotation). Absent: the single configured key."
         },
         "enc": {
-          "enum": ["hybrid-x25519-aesgcm"],
+          "enum": [
+            "hybrid-x25519-aesgcm"
+          ],
           "description": "Present ONLY when the payload is encrypted (hybrid/envelope encryption). Absent means signed-but-plaintext."
         },
         "payload": {
@@ -44,12 +69,235 @@
     },
     "payload": {
       "type": "object",
-      "description": "Plaintext screen tree — inside the envelope, or posted directly during development.",
-      "required": ["schemaVersion", "screen"],
+      "description": "A resolved screen tree — what the client composes from a template and its values. Accepted for previews and tests; sdui-r services deliver templates and value sets.",
+      "required": [
+        "schemaVersion",
+        "screen"
+      ],
       "additionalProperties": false,
       "properties": {
-        "schemaVersion": { "$ref": "#/$defs/schemaVersion" },
-        "screen": { "$ref": "#/$defs/screen" }
+        "schemaVersion": {
+          "$ref": "#/$defs/schemaVersion"
+        },
+        "screen": {
+          "$ref": "#/$defs/screen"
+        }
+      }
+    },
+    "componentId": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_-]*$",
+      "maxLength": 128,
+      "description": "A template component id — the key a value set uses. Unique within one template tree (client validator)."
+    },
+    "templateNode": {
+      "type": "object",
+      "description": "A template node: like a node, but id and order are required. Orders are unique among siblings and ids within the tree (client validator).",
+      "required": [
+        "type",
+        "id",
+        "order"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/typeName"
+        },
+        "id": {
+          "$ref": "#/$defs/componentId"
+        },
+        "order": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "props": {
+          "$ref": "#/$defs/props",
+          "description": "Default values; a value set overrides them per id (shallow merge)."
+        },
+        "children": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "$ref": "#/$defs/templateNode"
+          }
+        },
+        "action": {
+          "$ref": "#/$defs/action"
+        }
+      }
+    },
+    "templateDocument": {
+      "type": "object",
+      "description": "What the template service signs and delivers (inside an envelope in production).",
+      "required": [
+        "schemaVersion",
+        "template"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/$defs/schemaVersion"
+        },
+        "template": {
+          "$ref": "#/$defs/template"
+        }
+      }
+    },
+    "template": {
+      "type": "object",
+      "required": [
+        "key",
+        "version",
+        "root"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/identifier",
+          "description": "Template key (reusable across screens and merchants)."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Release version; a released template is immutable."
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 4096,
+          "description": "Shown in the Screen Builder palette."
+        },
+        "load": {
+          "type": "array",
+          "maxItems": 8,
+          "description": "v1.1 — named requests run in PARALLEL when the screen opens; each result merges into the data context under its request name. The client bound maxLoadRequests applies.",
+          "items": {
+            "$ref": "#/$defs/loadRequest"
+          }
+        },
+        "root": {
+          "$ref": "#/$defs/templateNode"
+        },
+        "variants": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Per-width layouts; the same ids receive the same values.",
+          "properties": {
+            "compact": {
+              "$ref": "#/$defs/templateNode"
+            },
+            "wide": {
+              "$ref": "#/$defs/templateNode"
+            }
+          }
+        }
+      }
+    },
+    "templateRef": {
+      "type": "object",
+      "required": [
+        "key",
+        "version"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/identifier"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "valuesDocument": {
+      "type": "object",
+      "description": "What the value service signs and delivers (inside an envelope in production).",
+      "required": [
+        "schemaVersion",
+        "values"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/$defs/schemaVersion"
+        },
+        "values": {
+          "$ref": "#/$defs/values"
+        }
+      }
+    },
+    "values": {
+      "type": "object",
+      "required": [
+        "screen",
+        "template",
+        "components"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "screen": {
+          "$ref": "#/$defs/identifier",
+          "description": "The merchant screen key these values are for."
+        },
+        "template": {
+          "$ref": "#/$defs/templateRef",
+          "description": "The exact template release; a mismatch is rejected."
+        },
+        "components": {
+          "type": "object",
+          "maxProperties": 5000,
+          "description": "Per template component id. Ids the template lacks are rejected (client validator).",
+          "propertyNames": {
+            "$ref": "#/$defs/componentId"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/componentValue"
+          }
+        }
+      }
+    },
+    "componentValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "props": {
+          "$ref": "#/$defs/props",
+          "description": "Merged over the template props (shallow)."
+        },
+        "action": {
+          "$ref": "#/$defs/action",
+          "description": "Replaces the template action."
+        }
+      }
+    },
+    "bundle": {
+      "type": "object",
+      "description": "The client transport/cache unit: a template and its value set, each verified on its own.",
+      "required": [
+        "template"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "template": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/envelope"
+            },
+            {
+              "$ref": "#/$defs/templateDocument"
+            }
+          ]
+        },
+        "values": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/envelope"
+            },
+            {
+              "$ref": "#/$defs/valuesDocument"
+            }
+          ]
+        }
       }
     },
     "schemaVersion": {
@@ -59,91 +307,162 @@
     },
     "screen": {
       "type": "object",
-      "required": ["key", "root"],
+      "required": [
+        "key",
+        "root"
+      ],
       "additionalProperties": false,
       "properties": {
         "key": {
           "$ref": "#/$defs/identifier",
           "description": "Stable screen key. Must resolve in the ScreenFactory (a semantic check the client performs)."
         },
-        "root": { "$ref": "#/$defs/node" },
+        "root": {
+          "$ref": "#/$defs/node"
+        },
         "load": {
           "type": "array",
           "maxItems": 8,
           "description": "v1.1 — named requests run in PARALLEL when the screen opens; each result merges into the data context under its request name. The client bound maxLoadRequests applies.",
-          "items": { "$ref": "#/$defs/loadRequest" }
+          "items": {
+            "$ref": "#/$defs/loadRequest"
+          }
         },
         "variants": {
           "type": "object",
           "description": "v1.1 — optional per-width layouts (compact < 600px ≤ wide). 'root' stays the fallback.",
           "additionalProperties": false,
           "properties": {
-            "compact": { "$ref": "#/$defs/node" },
-            "wide": { "$ref": "#/$defs/node" }
+            "compact": {
+              "$ref": "#/$defs/node"
+            },
+            "wide": {
+              "$ref": "#/$defs/node"
+            }
           }
         }
       }
     },
     "loadRequest": {
       "type": "object",
-      "required": ["request"],
+      "required": [
+        "request"
+      ],
       "additionalProperties": false,
       "properties": {
-        "request": { "$ref": "#/$defs/identifier" },
-        "params": { "$ref": "#/$defs/props" }
+        "request": {
+          "$ref": "#/$defs/identifier"
+        },
+        "params": {
+          "$ref": "#/$defs/props"
+        }
       }
     },
     "node": {
       "type": "object",
       "description": "A node. 'type' is an OPEN vocabulary (the component registry is extensible); the client's semantic layer confirms it resolves, otherwise the Null-Object fallback renders a placeholder.",
-      "required": ["type"],
+      "required": [
+        "type"
+      ],
       "additionalProperties": false,
       "properties": {
-        "type": { "$ref": "#/$defs/typeName" },
+        "type": {
+          "$ref": "#/$defs/typeName"
+        },
         "id": {
           "type": "string",
           "maxLength": 128,
           "description": "Optional stable identity for rendering. Synthesized from the position if absent."
         },
-        "props": { "$ref": "#/$defs/props" },
+        "order": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "v2.0 — position among siblings (render order). Required in templates."
+        },
+        "props": {
+          "$ref": "#/$defs/props"
+        },
         "children": {
           "type": "array",
           "maxItems": 256,
-          "items": { "$ref": "#/$defs/node" }
+          "items": {
+            "$ref": "#/$defs/node"
+          }
         },
-        "action": { "$ref": "#/$defs/action" }
+        "action": {
+          "$ref": "#/$defs/action"
+        }
       }
     },
     "props": {
       "type": "object",
       "description": "A component's props bag. OPEN by design: unknown keys are ignored (forward-compatible). String values are length-bounded via #/$defs/value.",
       "maxProperties": 64,
-      "additionalProperties": { "$ref": "#/$defs/value" }
+      "additionalProperties": {
+        "$ref": "#/$defs/value"
+      }
     },
     "value": {
       "description": "Any JSON scalar/array/object. Strings are length-bounded wherever they appear.",
       "anyOf": [
-        { "type": "string", "maxLength": 4096 },
-        { "type": "number" },
-        { "type": "boolean" },
-        { "type": "null" },
-        { "type": "array", "maxItems": 512, "items": { "$ref": "#/$defs/value" } },
-        { "type": "object", "maxProperties": 64, "additionalProperties": { "$ref": "#/$defs/value" } }
+        {
+          "type": "string",
+          "maxLength": 4096
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "maxItems": 512,
+          "items": {
+            "$ref": "#/$defs/value"
+          }
+        },
+        {
+          "type": "object",
+          "maxProperties": 64,
+          "additionalProperties": {
+            "$ref": "#/$defs/value"
+          }
+        }
       ]
     },
     "action": {
       "type": "object",
       "description": "An action. 'type' is a CLOSED vocabulary. onSuccess/onError form a bounded LINEAR chain (max depth enforced by the client validator). Targets are named references (screen key / named request / named link / named native command) — never raw URLs.",
-      "required": ["type"],
+      "required": [
+        "type"
+      ],
       "additionalProperties": false,
       "properties": {
-        "type": { "enum": ["navigate", "api", "dismiss", "refresh", "openURL", "toast", "native"] },
+        "type": {
+          "enum": [
+            "navigate",
+            "api",
+            "dismiss",
+            "refresh",
+            "openURL",
+            "toast",
+            "native"
+          ]
+        },
         "screen": {
           "$ref": "#/$defs/identifier",
           "description": "navigate: a ScreenFactory key."
         },
         "presentation": {
-          "enum": ["push", "sheet", "fullScreen"],
+          "enum": [
+            "push",
+            "sheet",
+            "fullScreen"
+          ],
           "description": "v1.1 — navigate: how the host presents the next screen. Default push."
         },
         "request": {
@@ -160,7 +479,12 @@
           "description": "v1.1 — toast: the text ({{token}}s allowed)."
         },
         "level": {
-          "enum": ["info", "success", "warning", "error"],
+          "enum": [
+            "info",
+            "success",
+            "warning",
+            "error"
+          ],
           "description": "v1.1 — toast: severity. Default info."
         },
         "command": {
@@ -171,29 +495,98 @@
           "$ref": "#/$defs/props",
           "description": "Seeds the target's data context (navigate) or supplies request/command params (api/native). String values may be {{token}}s."
         },
-        "onSuccess": { "$ref": "#/$defs/action" },
-        "onError": { "$ref": "#/$defs/action" }
+        "onSuccess": {
+          "$ref": "#/$defs/action"
+        },
+        "onError": {
+          "$ref": "#/$defs/action"
+        }
       },
       "allOf": [
         {
-          "if": { "required": ["type"], "properties": { "type": { "const": "navigate" } } },
-          "then": { "required": ["screen"] }
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "navigate"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "screen"
+            ]
+          }
         },
         {
-          "if": { "required": ["type"], "properties": { "type": { "const": "api" } } },
-          "then": { "required": ["request"] }
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "api"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "request"
+            ]
+          }
         },
         {
-          "if": { "required": ["type"], "properties": { "type": { "const": "openURL" } } },
-          "then": { "required": ["link"] }
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "openURL"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "link"
+            ]
+          }
         },
         {
-          "if": { "required": ["type"], "properties": { "type": { "const": "toast" } } },
-          "then": { "required": ["message"] }
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "toast"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "message"
+            ]
+          }
         },
         {
-          "if": { "required": ["type"], "properties": { "type": { "const": "native" } } },
-          "then": { "required": ["command"] }
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "native"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "command"
+            ]
+          }
         }
       ]
     },

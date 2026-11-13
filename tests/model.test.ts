@@ -73,7 +73,7 @@ describe('SduiPayload v1.1', () => {
 
 describe('SchemaValidator', () => {
   const validator = new SchemaValidator()
-  const payload = (root: SduiNode, extra: ConstructorParameters<typeof ScreenSpec>[2] = {}) => new SduiPayload('1.1', new ScreenSpec('s', root, extra))
+  const payload = (root: SduiNode, extra: ConstructorParameters<typeof ScreenSpec>[2] = {}) => new SduiPayload('2.0', new ScreenSpec('s', root, extra))
   const kind = (run: () => void) => { try { run(); return 'ok' } catch (e) { return (e as SduiError).kind } }
 
   it('rejects raw URLs and missing targets', () => {
@@ -84,8 +84,8 @@ describe('SchemaValidator', () => {
 
   it('versions: MAJOR.MINOR, same major accepted, other major rejected', () => {
     expect(kind(() => validator.validate(new SduiPayload('1', new ScreenSpec('s', new SduiNode({ type: 'text' })))))).toBe('schema')
-    expect(kind(() => validator.validate(new SduiPayload('1.9', new ScreenSpec('s', new SduiNode({ type: 'text' })))))).toBe('ok')
-    expect(kind(() => validator.validate(new SduiPayload('2.0', new ScreenSpec('s', new SduiNode({ type: 'text' })))))).toBe('unsupportedVersion')
+    expect(kind(() => validator.validate(new SduiPayload('2.9', new ScreenSpec('s', new SduiNode({ type: 'text' })))))).toBe('ok')
+    expect(kind(() => validator.validate(new SduiPayload('3.0', new ScreenSpec('s', new SduiNode({ type: 'text' })))))).toBe('unsupportedVersion')
   })
 
   it('bounds: depth, nodes (shared across variants), chain, load count', () => {

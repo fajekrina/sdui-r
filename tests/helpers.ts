@@ -35,7 +35,7 @@ export async function signingKey(): Promise<SigningKey> {
 }
 
 export function envelopeJSON(payload: Uint8Array, signature: Uint8Array, keyId?: string): Bytes {
-  return utf8(sortedJSONStringify(new SduiEnvelope('1.1', 'ed25519', payload, signature, { keyId })))
+  return utf8(sortedJSONStringify(new SduiEnvelope('2.0', 'ed25519', payload, signature, { keyId })))
 }
 
 export class Counter {

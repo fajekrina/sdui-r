@@ -8,7 +8,7 @@ import {
 import { aesGcmCipher, generateAesKey, indexedDbStore, webCryptoEd25519 } from '../src/browser'
 import { Counter, envelopeJSON, signingKey, type SigningKey , devEngine } from './helpers'
 
-const payloadJSON = utf8('{"schemaVersion":"1.1","screen":{"key":"s","root":{"type":"text"}}}')
+const payloadJSON = utf8('{"schemaVersion":"2.0","screen":{"key":"s","root":{"type":"text"}}}')
 
 describe('Ed25519 (WebCrypto) + PayloadSecurity', () => {
   it('verifies, rejects tampering and the wrong key', async () => {
@@ -27,7 +27,7 @@ describe('Ed25519 (WebCrypto) + PayloadSecurity', () => {
     const engine = devEngine({ security: PayloadSecurity.signed(await webCryptoEd25519(key.publicKey)) })
     const ok = await engine.load(ScreenSource.inline(envelopeJSON(payloadJSON, await key.sign(payloadJSON))))
     expect(ok.kind).toBe('loaded')
-    const forged = utf8('{"schemaVersion":"1.1","screen":{"key":"s","root":{"type":"button","props":{"title":"HACKED"}}}}')
+    const forged = utf8('{"schemaVersion":"2.0","screen":{"key":"s","root":{"type":"button","props":{"title":"HACKED"}}}}')
     const bad = await engine.load(ScreenSource.inline(envelopeJSON(forged, await key.sign(payloadJSON))))
     expect(bad.kind === 'failed' && bad.error.kind).toBe('signatureInvalid')
     const unsigned = await engine.load(ScreenSource.inline(payloadJSON))
@@ -52,7 +52,7 @@ describe('Ed25519 (WebCrypto) + PayloadSecurity', () => {
 })
 
 describe('signed cache tiers', () => {
-  const home = (type: string) => utf8(`{"schemaVersion":"1.1","screen":{"key":"home","root":{"type":"${type}"}}}`)
+  const home = (type: string) => utf8(`{"schemaVersion":"2.0","screen":{"key":"home","root":{"type":"${type}"}}}`)
 
   async function setup(provider: (fetches: Counter, envelope: (type: string, signer?: SigningKey) => Promise<Uint8Array>) => () => Promise<Uint8Array>, store: CacheStore = new MemoryCacheStore()) {
     const key = await signingKey()

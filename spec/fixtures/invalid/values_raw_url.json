@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "2.0",
+  "values": {
+    "screen": "home",
+    "template": {
+      "key": "promoCard",
+      "version": 1
+    },
+    "components": {
+      "headline": {
+        "props": {
+          "value": "Cashback 20% untuk {{user.name}}"
+        }
+      },
+      "hero-image": {
+        "props": {
+          "name": "promo-cashback"
+        }
+      },
+      "cta": {
+        "props": {
+          "title": "Ambil promo"
+        },
+        "action": {
+          "type": "openURL",
+          "link": "https://evil.example.com"
+        }
+      }
+    }
+  }
+}

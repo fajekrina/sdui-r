@@ -1,4 +1,4 @@
-// @fajekrina/sdui/i18n — localized field-validation messages, kept out of the
+// @fajekrina/sdui-r/i18n — localized field-validation messages, kept out of the
 // core entry so apps only pay for the languages they use:
 //   createEngine({ messages: MESSAGES_ID })
 import type { FieldMessages } from '../core/patterns'

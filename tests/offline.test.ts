@@ -9,7 +9,7 @@ import {
 import { devEngine, flush } from './helpers'
 
 const screenJSON = (key: string, text = 'hi', extra: Record<string, unknown> = {}) =>
-  ({ schemaVersion: '1.1', screen: { key, root: { type: 'text', props: { value: text } }, ...extra } })
+  ({ schemaVersion: '2.0', screen: { key, root: { type: 'text', props: { value: text } }, ...extra } })
 const json = (body: unknown, init: ResponseInit = {}) => new Response(JSON.stringify(body), { status: 200, ...init })
 
 /// a backend: screens by key (+ optional ETag), a manifest, and a log of requests

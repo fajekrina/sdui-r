@@ -2,7 +2,7 @@
 // and Vue (builder/react, builder/vue), so both builders behave identically.
 // The canvas uses the client's own components (`renderPreview`): preview == client.
 
-import { ActionSpec, ActionType, ComponentFactory, FIELD_PATTERNS, SduiNode, type SduiProps, type SduiValue } from '../core'
+import { ActionSpec, ActionType, ComponentFactory, FIELD_PATTERNS, SduiNode, SPEC_VERSION, TemplateSpec, compose, type SduiProps, type SduiValue } from '../core'
 import { renderNodeDOM } from '../vanilla'
 import { EditorDocument } from './document'
 import { find, flatten, isGeneratedId, outlineLabel } from './tree'
@@ -14,7 +14,7 @@ export interface StudioOptions {
   document?: EditorDocument
   factory?: ComponentFactory
   /// `adopt` (default): a constructable stylesheet — no inline `<style>`, so a strict CSP
-  /// (`style-src 'self'`) holds. `external`: the app links `@fajekrina/sdui/builder/studio.css`.
+  /// (`style-src 'self'`) holds. `external`: the app links `@fajekrina/sdui-r/builder/studio.css`.
   stylesheet?: 'adopt' | 'external'
   /// sample data for `{{tokens}}` in the preview
   sampleData?: Record<string, SduiValue>
@@ -63,14 +63,14 @@ export interface MountedStudio {
   destroy(): void
 }
 
-type FieldKind = 'text' | 'number' | 'bool' | 'json' | string[]
+export type FieldKind = 'text' | 'number' | 'bool' | 'json' | string[]
 type Drag = { kind: 'type'; type: string } | { kind: 'node'; id: string }
 type Zone = 'inside' | 'before' | 'after'
 type RawAction = Record<string, unknown>
 
-const COLORS = ['', 'primary', 'onPrimary', 'secondary', 'surface', 'onSurface', 'background', 'muted', 'border', 'success', 'warning', 'danger']
-const SHARED: Array<[string, FieldKind]> = [['padding', 'number'], ['background', 'text'], ['cornerRadius', 'number'], ['foreground', 'text'], ['a11yLabel', 'text'], ['a11yId', 'text']]
-const FIELDS: Record<string, Array<[string, FieldKind]>> = {
+export const COLORS = ['', 'primary', 'onPrimary', 'secondary', 'surface', 'onSurface', 'background', 'muted', 'border', 'success', 'warning', 'danger']
+export const SHARED: Array<[string, FieldKind]> = [['padding', 'number'], ['background', 'text'], ['cornerRadius', 'number'], ['foreground', 'text'], ['a11yLabel', 'text'], ['a11yId', 'text']]
+export const FIELDS: Record<string, Array<[string, FieldKind]>> = {
   text: [['value', 'text'], ['style', ['', 'title', 'headline', 'body', 'caption']], ['weight', ['', 'regular', 'medium', 'semibold', 'bold', 'heavy']], ['size', 'number'], ['color', 'text']],
   image: [['systemName', 'text'], ['name', 'text'], ['contentMode', ['', 'fit', 'fill']], ['width', 'number'], ['height', 'number']],
   vstack: [['spacing', 'number'], ['alignment', ['', 'leading', 'center', 'trailing']]],
@@ -102,10 +102,31 @@ const DRAG_MIME = 'application/x-sdui'
 
 const CSS = STUDIO_CSS
 
-/// Mount the Studio into an element.
+/// sdui-r — the **Template Builder** (admin / template designer): the Studio with a
+/// component palette whose output is a template — readable component ids (renameable in
+/// the inspector), `order` from the position, a release version and a palette title.
+/// `onSave` / `onPublish` / `onSubmitForReview` receive the template document.
+export function mountTemplateBuilder(target: HTMLElement, options: StudioOptions = {}): MountedStudio {
+  const document = options.document ?? new EditorDocument({ factory: options.factory, mode: 'template' })
+  if (document.mode !== 'template') throw new TypeError('mountTemplateBuilder needs an EditorDocument in template mode')
+  return mountStudio(target, { ...options, document })
+}
+
+/// A payload, a template document, or a bare screen → the screen JSON `diff` compares.
+function asScreenJSON(value: unknown): unknown {
+  const v = value as { template?: unknown; schemaVersion?: unknown } | undefined
+  if (v && typeof v === 'object' && v.template !== undefined && v.schemaVersion !== undefined) {
+    try { return compose(TemplateSpec.decode(v.template)).toJSON() } catch { return undefined }
+  }
+  return value
+}
+
+/// Mount the Studio into an element. With an EditorDocument in `template` mode this is
+/// the Template Builder (see `mountTemplateBuilder`).
 export function mountStudio(target: HTMLElement, options: StudioOptions = {}): MountedStudio {
   const doc = options.document ?? new EditorDocument({ factory: options.factory })
   const factory = options.factory ?? doc.factory
+  const templateMode = doc.mode === 'template'
   const d = target.ownerDocument
   const el = <K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string, string> = {}, ...kids: Array<Node | string>) => {
     const e = d.createElement(tag)
@@ -153,8 +174,14 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
   fillLists()
 
   // toolbar
-  const keyInput = el('input', { 'aria-label': 'Screen key', class: 'key' }) as HTMLInputElement
+  const keyInput = el('input', { 'aria-label': templateMode ? 'Template key' : 'Screen key', class: 'key' }) as HTMLInputElement
   keyInput.addEventListener('change', () => doc.setKey(keyInput.value.trim()))
+  // template mode: release version + the title makers see in the Screen Builder palette
+  const versionInput = el('input', { 'aria-label': 'Template version', type: 'number', min: '1', class: 'ver' }) as HTMLInputElement
+  versionInput.addEventListener('change', () => doc.setVersion(Number(versionInput.value)))
+  const tplTitleInput = el('input', { 'aria-label': 'Template title', placeholder: 'Template title', class: 'key' }) as HTMLInputElement
+  tplTitleInput.addEventListener('change', () => doc.setTitle(tplTitleInput.value.trim()))
+  const templateFields = templateMode ? [el('span', { class: 'lbl' }, 'v'), versionInput, tplTitleInput] : []
   const undo = button('↶ Undo', () => doc.undo())
   const redo = button('↷ Redo', () => doc.redo())
   const widthSel = el('select', { 'aria-label': 'Preview width', class: 'btn' }, el('option', { value: '375' }, 'Compact 375'), el('option', { value: '768' }, 'Wide 768')) as HTMLSelectElement
@@ -178,7 +205,7 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
     paint()
   }
   const importBtn = button('Import', () => {
-    const text = globalThis.prompt?.('Paste a spec payload (or a legacy page) JSON')
+    const text = globalThis.prompt?.(templateMode ? 'Paste a template (or a spec payload) JSON' : 'Paste a spec payload (or a legacy page) JSON')
     if (!text) return
     try { doc.importJSON(text); message = '' } catch (error) { message = String(error instanceof Error ? error.message : error) }
     paint()
@@ -200,8 +227,8 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
     ...(options.onPublish ? [button('Publish', () => void emit(options.onPublish, 'Published ✔', 'Publish failed'), 'btn pri')] : []),
     ...(options.onSubmitForReview ? [noteInput, button('Submit for review', () => void submit(), 'btn pri')] : [])]
   const toolbar = el('div', { class: 'tb' },
-    el('strong', {}, 'SDUI Studio'), titleEl,
-    keyInput, undo, redo, widthSel, previewBtn, el('span', { class: 'sp' }), statusEl,
+    el('strong', {}, templateMode ? 'Template Builder' : 'SDUI Studio'), titleEl,
+    keyInput, ...templateFields, undo, redo, widthSel, previewBtn, el('span', { class: 'sp' }), statusEl,
     importBtn,
     button('Export DSL', () => { void navigator.clipboard?.writeText(doc.exportDSL()); message = 'DSL copied to clipboard'; paint() }),
     ...editing.slice(3)
@@ -312,7 +339,7 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
   // JSON panel (collapsible; the selected node is highlighted and scrolled to)
   const LINE = 18
   const PAD = 8
-  const jsonText = el('textarea', { spellcheck: 'false', wrap: 'off', 'aria-label': 'Payload JSON' }) as HTMLTextAreaElement
+  const jsonText = el('textarea', { spellcheck: 'false', wrap: 'off', 'aria-label': templateMode ? 'Template JSON' : 'Payload JSON' }) as HTMLTextAreaElement
   const band = el('div', { class: 'band' })
   const jsonBody = el('div', { class: 'body' }, band, jsonText)
   const badge = el('span', { class: 'badge' })
@@ -454,8 +481,19 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
     propsJSON.value = JSON.stringify(props)
     propsJSON.addEventListener('change', () => { try { doc.setProps(id, JSON.parse(propsJSON.value) as SduiProps) } catch { /* keep editing */ } })
 
+    // template mode: the component id is what makers' value sets are keyed by
+    const identity: Node[] = []
+    if (templateMode) {
+      const idInput = el('input', { 'aria-label': 'Component id', class: 'cid' }) as HTMLInputElement
+      idInput.value = id
+      idInput.addEventListener('change', () => {
+        if (!doc.renameId(id, idInput.value.trim())) { message = `Component id "${idInput.value.trim()}" is invalid or already used`; paint() }
+      })
+      identity.push(el('label', {}, 'component id', idInput), el('div', { class: 'tip' }, `order ${(flatten(doc.root).find(([n]) => n.children.some((c) => c.id === id))?.[0].children.findIndex((c) => c.id === id) ?? 0)} · ↑ ↓ or drag to reorder`))
+    }
+
     inspector.replaceChildren(
-      el('fieldset', {}, el('legend', {}, `${node.type}${node.id && !isGeneratedId(node.id) ? ` #${node.id}` : ''}`), ...controls, ...placement),
+      el('fieldset', {}, el('legend', {}, `${node.type}${node.id && !isGeneratedId(node.id) ? ` #${node.id}` : ''}`), ...identity, ...controls, ...placement),
       el('fieldset', {}, el('legend', {}, 'Action'),
         actionEditor(node.action?.toJSON(), commitAction, 0),
         el('details', {}, el('summary', {}, 'Action JSON'), actionJSON)),
@@ -483,6 +521,10 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
 
   const paint = () => {
     keyInput.value = doc.key
+    versionInput.value = String(doc.version)
+    tplTitleInput.value = doc.title ?? ''
+    versionInput.disabled = opts.readOnly === true
+    tplTitleInput.disabled = opts.readOnly === true
     undo.disabled = !doc.canUndo
     redo.disabled = !doc.canRedo
     titleEl.textContent = opts.title ?? ''
@@ -527,7 +569,9 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
     toggle.setAttribute('aria-expanded', String(jsonOpen))
     jsonBody.style.display = jsonOpen ? 'block' : 'none'
     // the panel shows editor ids too, so the selected node can be located
-    const withIds = JSON.stringify({ schemaVersion: '1.1', screen: { key: doc.key, root: doc.root.toJSON() } }, null, 2)
+    const withIds = templateMode
+      ? JSON.stringify(doc.templateDocument().toJSON(), null, 2)
+      : JSON.stringify({ schemaVersion: SPEC_VERSION, screen: { key: doc.key, root: doc.root.toJSON() } }, null, 2)
     if (!jsonEditing) jsonText.value = withIds
     const range = jsonOpen ? placeBand() : null
     badge.textContent = selected ? `${selected.type}${range ? ` · lines ${range.startLine + 1}–${range.endLine + 1}` : ''}` : ''
@@ -542,8 +586,8 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
       ...[message, ...problems].filter(Boolean).map((m) => el('div', {}, `⚠ ${m}`)),
       ...doc.importWarnings.map((w) => el('div', { class: 'warn' }, `↳ ${w}`))
     )
-    const payload = doc.payload().toJSON()
-    paintChanges(opts.baseline === undefined ? undefined : diff(opts.baseline, payload))
+    const payload = templateMode ? doc.templateDocument().toJSON() : doc.payload().toJSON()
+    paintChanges(opts.baseline === undefined ? undefined : diff(asScreenJSON(opts.baseline), asScreenJSON(payload)))
     options.onChange?.(payload)
   }
 
@@ -580,9 +624,9 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
 
 /// Install the stylesheet without an inline `<style>` (strict CSP): a constructable
 /// stylesheet adopted by the target's document or shadow root. `external`: the app links
-/// `@fajekrina/sdui/builder/studio.css` itself. Engines without constructable stylesheets
+/// `@fajekrina/sdui-r/builder/studio.css` itself. Engines without constructable stylesheets
 /// (Safari < 16.4) fall back to a `<style>` element, which a strict CSP would block.
-function attachStyles(target: HTMLElement, css: string, mode: StudioOptions['stylesheet'] = 'adopt'): () => void {
+export function attachStyles(target: HTMLElement, css: string, mode: StudioOptions['stylesheet'] = 'adopt'): () => void {
   if (mode === 'external') return () => undefined
   const scope = target.getRootNode() as Document | ShadowRoot
   const Sheet = target.ownerDocument.defaultView?.CSSStyleSheet

@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest'
 import { EditorDocument, diff, mountStudio } from '../src/builder'
 
-const payload = (root: unknown, extra: Record<string, unknown> = {}) => ({ schemaVersion: '1.1', screen: { key: 'home', root, ...extra } })
+const payload = (root: unknown, extra: Record<string, unknown> = {}) => ({ schemaVersion: '2.0', screen: { key: 'home', root, ...extra } })
 const text = (value: string, id?: string) => ({ type: 'text', ...(id ? { id } : {}), props: { value } })
 
 describe('diff(base, next)', () => {

@@ -8,7 +8,7 @@ import { MESSAGES_ID } from '../src/i18n'
 import { devEngine, flush } from './helpers'
 
 const form = (button: object) => ({
-  schemaVersion: '1.1',
+  schemaVersion: '2.0',
   screen: { key: 's', root: { type: 'form', id: 'f', children: [{ type: 'textField', props: { name: 'amount', required: true } }, button] } }
 })
 
@@ -94,7 +94,7 @@ describe('#1 one idempotency key per submission', () => {
 
 describe('#2 a newer layout never swaps under a user mid-interaction', () => {
   const page = (title: string, load: string[] = []) => JSON.stringify({
-    schemaVersion: '1.1',
+    schemaVersion: '2.0',
     screen: { key: 'home', load: load.map((request) => ({ request })), root: { type: 'form', id: 'f', children: [
       { type: 'text', props: { value: title } },
       { type: 'textField', props: { name: 'note' } }
@@ -130,7 +130,7 @@ describe('#2 a newer layout never swaps under a user mid-interaction', () => {
     const network: NetworkClient = { async perform() { return utf8('{}') } }
     const store = new MemoryCacheStore()
     const doc = (title: string) => JSON.stringify({
-      schemaVersion: '1.1',
+      schemaVersion: '2.0',
       screen: { key: 'home', root: { type: 'form', id: 'f', children: [
         { type: 'text', props: { value: title } },
         { type: 'textField', props: { name: 'note' } },
@@ -172,7 +172,7 @@ describe('#3 the double-tap lock is held across a navigation', () => {
     try {
       const navigate = vi.fn()
       const engine = devEngine({ actionDispatcher: new ActionDispatcher({ navigator: { navigate } }) })
-      const screen = engine.screen(ScreenSource.inline({ schemaVersion: '1.1', screen: { key: 's', root: { type: 'button', props: { title: 'Next' }, action: { type: 'navigate', screen: 'next' } } } }))
+      const screen = engine.screen(ScreenSource.inline({ schemaVersion: '2.0', screen: { key: 's', root: { type: 'button', props: { title: 'Next' }, action: { type: 'navigate', screen: 'next' } } } }))
       await screen.load()
       const key = screen.render().nodes[0]!.on!.click!
       await screen.handle(key)

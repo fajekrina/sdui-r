@@ -4,6 +4,8 @@ import { ActionSpec, canonical, optionalString } from './actions/spec'
 
 export interface SduiNodeInit {
   id?: string
+  /// sdui-r — position among siblings in a template (render order)
+  order?: number
   type: string
   props?: SduiProps
   children?: SduiNode[]
@@ -20,6 +22,8 @@ export interface SduiNodeInit {
 /// so the data model never fabricates one.
 export class SduiNode {
   readonly id?: string
+  /// sdui-r — position among siblings in a template; a composed screen's children are sorted by it
+  readonly order?: number
   readonly type: string
   readonly props: SduiProps
   readonly children: SduiNode[]
@@ -27,6 +31,7 @@ export class SduiNode {
 
   constructor(init: SduiNodeInit) {
     if (init.id !== undefined) this.id = init.id
+    if (init.order !== undefined) this.order = init.order
     this.type = init.type
     this.props = init.props ?? {}
     this.children = init.children ?? []
@@ -44,8 +49,12 @@ export class SduiNode {
       if (!Array.isArray(o.children)) throw SduiError.decode(`${path}.children: expected an array`)
       children = o.children.map((child, i) => SduiNode.decode(child, `${path}.children[${i}]`))
     }
+    if (o.order != null && (typeof o.order !== 'number' || !Number.isInteger(o.order) || o.order < 0)) {
+      throw SduiError.decode(`${path}.order: expected a non-negative integer`)
+    }
     return new SduiNode({
       id: optionalString(o.id, `${path}.id`),
+      order: o.order == null ? undefined : o.order as number,
       type: o.type,
       props: o.props == null ? {} : SduiValue.decodeObject(o.props, `${path}.props`),
       children,
@@ -57,6 +66,7 @@ export class SduiNode {
     const out: Record<string, unknown> = {}
     if (this.id !== undefined) out.id = this.id
     out.type = this.type
+    if (this.order !== undefined) out.order = this.order
     if (Object.keys(this.props).length > 0) out.props = this.props
     if (this.children.length > 0) out.children = this.children.map((c) => c.toJSON())
     if (this.action !== undefined) out.action = this.action.toJSON()

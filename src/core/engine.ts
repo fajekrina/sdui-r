@@ -3,6 +3,7 @@ import { SduiError } from './errors'
 import { canonical } from './actions/spec'
 import { MESSAGES_EN, type FieldMessages } from './patterns'
 import { SduiPayload, SduiEnvelope, parseJSON, type ScreenSpec } from './payload'
+import { TemplateDocument, ValuesDocument, compose, isScreenBundle } from './template'
 import { SchemaValidator } from './validator'
 import { PayloadSecurity } from './security'
 import { Manifest } from './cache/manifest'
@@ -192,7 +193,7 @@ export class SduiEngine {
         const { screen, origin } = await this.loadCached(source.key, this.cache, this.coordinator, options)
         state = LoadState.loaded(screen, origin)
       } else {
-        state = LoadState.loaded(await this.materialize(await this.sourceData(source, options)), source.kind === 'inline' ? 'inline' : 'network')
+        state = LoadState.loaded(await this.materialize(await this.sourceData(source, options), source.kind === 'key' ? source.key : undefined), source.kind === 'inline' ? 'inline' : 'network')
       }
       if (state.kind === 'loaded') this.emit({ type: 'screen_loaded', key: state.screen.key, origin: state.origin, ms: Date.now() - started })
       return state
@@ -243,12 +244,43 @@ export class SduiEngine {
     await Promise.all(screenKeys.map((key) => this.load(ScreenSource.key(key))))
   }
 
-  /// Verify (per policy) → decode → validate a payload. Used by `load`, and by
-  /// tools (the builder) that need the same checks.
-  async materialize(rawBytes: Uint8Array): Promise<ScreenSpec> {
-    const payload = SduiPayload.fromJSON(await this.unwrap(this.checkSize(rawBytes)))
-    this.validator.validate(payload)
-    return payload.screen
+  /// Verify (per policy) → decode → validate → compose. Used by `load`, and by tools
+  /// (the builder) that need the same checks. Accepts:
+  /// - a **bundle** `{ template, values? }` — each part verified on its own (sdui-r delivery);
+  /// - a **template** document alone (a preview with the template's default values);
+  /// - a resolved **screen** payload (what `compose` yields; previews and tests).
+  ///
+  /// `expectedScreen`: a value set for another screen is rejected (no substitution).
+  async materialize(rawBytes: Uint8Array, expectedScreen?: string): Promise<ScreenSpec> {
+    const bytes = this.checkSize(rawBytes)
+    const outer = tryParse(bytes)
+    let template: TemplateDocument
+    let values: ValuesDocument | undefined
+    if (isScreenBundle(outer)) {
+      template = TemplateDocument.decode(parseJSON(await this.unwrap(utf8(JSON.stringify(outer.template)))))
+      if (outer.values != null) values = ValuesDocument.decode(parseJSON(await this.unwrap(utf8(JSON.stringify(outer.values)))))
+    } else {
+      const inner = parseJSON(await this.unwrap(bytes))
+      if (typeof inner === 'object' && inner !== null && 'values' in inner && !('template' in inner)) {
+        throw SduiError.schema('a value set needs its template (send a { template, values } bundle)')
+      }
+      if (typeof inner !== 'object' || inner === null || !('template' in inner)) {
+        const payload = SduiPayload.decode(inner)
+        this.validator.validate(payload)
+        return payload.screen
+      }
+      template = TemplateDocument.decode(inner)
+    }
+    this.validator.validateTemplate(template)
+    if (values) {
+      this.validator.validateValues(values, template)
+      if (expectedScreen !== undefined && values.values.screen !== expectedScreen) {
+        throw SduiError.schema(`values are for screen '${values.values.screen}', not '${expectedScreen}'`)
+      }
+    }
+    const screen = compose(template.template, values?.values)
+    this.validator.validate(new SduiPayload(template.schemaVersion, screen))
+    return screen
   }
 
   /// Reject oversized raw bytes before any decode or signature work.
@@ -274,7 +306,7 @@ export class SduiEngine {
 
     const sealed = await cache.store.data(key)                                         // persistent tier
     if (sealed) {
-      const screen = await this.materializeSealed(sealed, cache).catch(() => undefined) // re-verify
+      const screen = await this.materializeSealed(sealed, cache, screenKey).catch(() => undefined) // re-verify
       if (screen) {
         coordinator.storeRender(screen, key)
         await this.markGood(screenKey, version, cache, coordinator)
@@ -301,7 +333,7 @@ export class SduiEngine {
       throw error
     }
     const raw = (fetched as { bytes: Bytes }).bytes
-    const screen = await this.materialize(raw)                 // fresh bytes verified + validated
+    const screen = await this.materialize(raw, screenKey)               // fresh bytes verified + validated
     const sealedFresh = await Promise.resolve().then(() => cache.cipher.seal(raw)).catch(() => undefined)
     if (sealedFresh) {                                         // persist + advertise last-good only if sealed
       await cache.store.store(sealedFresh, key)
@@ -333,7 +365,7 @@ export class SduiEngine {
     if (good === undefined) return undefined
     const goodKey = cacheKey(screenKey, good)
     const goodSealed = await cache.store.data(goodKey)
-    const screen = goodSealed ? await this.materializeSealed(goodSealed, cache).catch(() => undefined) : undefined
+    const screen = goodSealed ? await this.materializeSealed(goodSealed, cache, screenKey).catch(() => undefined) : undefined
     if (!screen) return undefined
     coordinator.storeRender(screen, goodKey)
     coordinator.markGood(screenKey, good)
@@ -364,7 +396,7 @@ export class SduiEngine {
           return
         }
         const raw = fetched.bytes
-        const screen = await this.materialize(raw)
+        const screen = await this.materialize(raw, screenKey)
         if (JSON.stringify(canonical(screen.toJSON())) === JSON.stringify(canonical(current.toJSON()))) {
           this.emit({ type: 'screen_revalidated', key: screenKey, changed: false })
           return
@@ -391,8 +423,8 @@ export class SduiEngine {
     await Promise.all([...this.revalidating.values()])
   }
 
-  private async materializeSealed(sealed: Uint8Array, cache: SduiCache): Promise<ScreenSpec> {
-    return this.materialize(await cache.cipher.open(sealed))
+  private async materializeSealed(sealed: Uint8Array, cache: SduiCache, screenKey: string): Promise<ScreenSpec> {
+    return this.materialize(await cache.cipher.open(sealed), screenKey)
   }
 
   private async sourceData(source: ScreenSource, options: { signal?: AbortSignal }): Promise<Bytes> {
@@ -472,6 +504,14 @@ export function createEngine(init: EngineInit = {}): SduiEngine {
 function isTransport(error: unknown): boolean {
   if (!(error instanceof SduiError)) return true
   return error.kind === 'network' || (error.kind === 'http' && (error.status ?? 0) >= 500)
+}
+
+function tryParse(bytes: Uint8Array): unknown {
+  try {
+    return parseJSON(bytes)
+  } catch {
+    return undefined
+  }
 }
 
 function tryEnvelope(bytes: Uint8Array): SduiEnvelope | undefined {

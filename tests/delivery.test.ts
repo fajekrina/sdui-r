@@ -5,7 +5,7 @@ import { specManifestLoader, specScreenProvider } from '../src/browser'
 import { MemoryCacheStore, ScreenSource, SduiCache } from '../src/core'
 import { devEngine } from './helpers'
 
-const screen = (key: string, text = 'hi') => ({ schemaVersion: '1.1', screen: { key, root: { type: 'text', props: { value: text } } } })
+const screen = (key: string, text = 'hi') => ({ schemaVersion: '2.0', screen: { key, root: { type: 'text', props: { value: text } } } })
 const ok = (body: unknown) => new Response(JSON.stringify(body), { status: 200 })
 
 describe('specScreenProvider', () => {

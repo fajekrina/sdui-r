@@ -1,1 +1,1 @@
-{ "schemaVersion": "1.1", "screen": { "key": "s", "root": { "type": "button", "props": { "title": "x" }, "action": { "type": "native", "params": {} } } } }
+{ "schemaVersion": "2.0", "screen": { "key": "s", "root": { "type": "button", "props": { "title": "x" }, "action": { "type": "native", "params": {} } } } }

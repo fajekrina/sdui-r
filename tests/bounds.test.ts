@@ -16,7 +16,7 @@ const schema = JSON.parse(readFileSync(resolve(ROOT, 'spec/sdui.schema.json'), '
 const ajv = new Ajv2020({ strict: false }).compile(schema)
 
 const text = (value = 'x'): Json => ({ type: 'text', props: { value } })
-const payload = (root: Json, extra: Json = {}): Json => ({ schemaVersion: '1.1', screen: { key: 'bounds', root, ...extra } })
+const payload = (root: Json, extra: Json = {}): Json => ({ schemaVersion: '2.0', screen: { key: 'bounds', root, ...extra } })
 
 /// `n` nodes in total: a root vstack holding groups of (one vstack + up to 255 texts).
 function nodes(n: number): Json {

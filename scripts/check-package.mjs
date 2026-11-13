@@ -21,24 +21,26 @@ try {
   npm(['install', '--no-save', '--no-audit', '--no-fund', '--ignore-scripts', '--workspaces=false', `./${tgz}`])
 
   const imports = `
-import { createEngine, SduiBounds, type ConnectivityPort, type ScreenProviderResult } from '@fajekrina/sdui'
-import { specScreenProvider, specManifestLoader, fetchNetworkClient } from '@fajekrina/sdui/browser'
-import { connectivity, onServiceWorkerUpdate } from '@fajekrina/sdui/pwa'
-import { EditorDocument, mountStudio, diff, type StudioCatalog } from '@fajekrina/sdui/builder'
-import { MESSAGES_ID } from '@fajekrina/sdui/i18n'
-import { mount } from '@fajekrina/sdui/vanilla'
-import { nativeBridgePorts } from '@fajekrina/sdui/bridge'
-import { fromUniversal } from '@fajekrina/sdui/compat'
+import { createEngine, compose, TemplateDocument, SduiBounds, type ConnectivityPort, type ScreenProviderResult, type TemplateRef } from '@fajekrina/sdui-r'
+import { specScreenProvider, specManifestLoader, templateScreenProvider, fetchNetworkClient } from '@fajekrina/sdui-r/browser'
+import { connectivity, onServiceWorkerUpdate } from '@fajekrina/sdui-r/pwa'
+import { EditorDocument, ValuesEditor, mountStudio, mountTemplateBuilder, mountScreenBuilder, diff, type StudioCatalog, type TemplateChoice } from '@fajekrina/sdui-r/builder'
+import { MESSAGES_ID } from '@fajekrina/sdui-r/i18n'
+import { mount } from '@fajekrina/sdui-r/vanilla'
+import { nativeBridgePorts } from '@fajekrina/sdui-r/bridge'
+import { fromUniversal } from '@fajekrina/sdui-r/compat'
 const port: ConnectivityPort = connectivity()
 const notModified: ScreenProviderResult = { notModified: true }
 const catalog: StudioCatalog = { assets: ['logo'] }
 const engine = createEngine({ connectivity: port, maxEnvelopeBytes: 1024,
-  screenFactory: specScreenProvider({ basePath: '/s', merchantId: 'm' }),
+  screenFactory: templateScreenProvider({ basePath: '/s', merchantId: 'm' }),
   manifestLoader: specManifestLoader({ basePath: '/s', merchantId: 'm' }), messages: MESSAGES_ID })
 const depth: number = SduiBounds.default.maxDepth
-export { engine, notModified, catalog, depth, fetchNetworkClient, onServiceWorkerUpdate, EditorDocument, mountStudio, diff, mount, nativeBridgePorts, fromUniversal }
+const ref: TemplateRef = { key: 'k', version: 1 }
+const choice: TemplateChoice = { ...ref }
+export { engine, notModified, catalog, depth, ref, choice, compose, TemplateDocument, specScreenProvider, ValuesEditor, mountTemplateBuilder, mountScreenBuilder, fetchNetworkClient, onServiceWorkerUpdate, EditorDocument, mountStudio, diff, mount, nativeBridgePorts, fromUniversal }
 `
-  writeFileSync(join(dir, 'cjs.cts'), `${imports}\nimport bounds = require('@fajekrina/sdui/spec/bounds.json')\nexport const fromJson: number = bounds.maxDepth\n`)
+  writeFileSync(join(dir, 'cjs.cts'), `${imports}\nimport bounds = require('@fajekrina/sdui-r/spec/bounds.json')\nexport const fromJson: number = bounds.maxDepth\n`)
   writeFileSync(join(dir, 'esm.mts'), imports)
   writeFileSync(join(dir, 'tsconfig.json'), JSON.stringify({
     compilerOptions: {

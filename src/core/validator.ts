@@ -2,6 +2,7 @@ import { SduiBounds } from './bounds'
 import { SduiError } from './errors'
 import type { SduiNode } from './node'
 import type { SduiPayload } from './payload'
+import type { TemplateDocument, ValuesDocument } from './template'
 import type { ActionSpec } from './actions/spec'
 import type { SduiValue } from './value'
 
@@ -19,7 +20,63 @@ export class SchemaValidator {
 
   constructor(init: { bounds?: SduiBounds; schemaMajor?: number } = {}) {
     this.bounds = init.bounds ?? SduiBounds.default
-    this.schemaMajor = init.schemaMajor ?? 1
+    this.schemaMajor = init.schemaMajor ?? 2
+  }
+
+  /// sdui-r — a template: version, key, and in every tree (root, variants) an `id` on
+  /// each node, unique in that tree, and an `order` unique among siblings. Bounds of
+  /// the composed screen are checked by `validate`.
+  validateTemplate(doc: TemplateDocument): void {
+    this.validateVersion(doc.schemaVersion)
+    const t = doc.template
+    this.requireIdentifier(t.key, 'template.key')
+    if (!Number.isInteger(t.version) || t.version < 1) throw SduiError.schema('template.version must be a positive integer')
+    if (t.title !== undefined && length(t.title) > this.bounds.maxStringLength) throw SduiError.bounds(`string length exceeds ${this.bounds.maxStringLength}`)
+    const trees: [string, SduiNode | undefined][] = [['root', t.root], ['variants.compact', t.variants.compact], ['variants.wide', t.variants.wide]]
+    for (const [label, tree] of trees) {
+      if (!tree) continue
+      const ids = new Set<string>()
+      const counter = { nodes: 0 }
+      const walk = (node: SduiNode, path: string, depth: number) => {
+        if (depth > this.bounds.maxDepth) throw SduiError.bounds(`tree depth exceeds ${this.bounds.maxDepth}`)
+        if (++counter.nodes > this.bounds.maxNodes) throw SduiError.bounds(`node count exceeds ${this.bounds.maxNodes}`)
+        if (node.id === undefined) throw SduiError.schema(`${path}: template node needs an id`)
+        if (!isComponentId(node.id) || length(node.id) > this.bounds.maxIdentifierLength) throw SduiError.schema(`${path}: invalid component id '${node.id}'`)
+        if (ids.has(node.id)) throw SduiError.schema(`${path}: duplicate component id '${node.id}'`)
+        ids.add(node.id)
+        if (node.order === undefined) throw SduiError.schema(`${path} (${node.id}): template node needs an order`)
+        const orders = new Set<number>()
+        node.children.forEach((child, i) => {
+          if (child.order !== undefined) {
+            if (orders.has(child.order)) throw SduiError.schema(`${path}.children[${i}] (${child.id ?? '?'}): duplicate order ${child.order}`)
+            orders.add(child.order)
+          }
+          walk(child, `${path}.children[${i}]`, depth + 1)
+        })
+      }
+      walk(tree, `template.${label}`, 1)
+    }
+  }
+
+  /// sdui-r — a value set against its template: same major, same template key and
+  /// version, and only ids the template has. Prop/action bounds are checked on the
+  /// composed screen.
+  validateValues(doc: ValuesDocument, template: TemplateDocument): void {
+    this.validateVersion(doc.schemaVersion)
+    const v = doc.values
+    this.requireIdentifier(v.screen, 'values.screen')
+    const t = template.template
+    if (v.template.key !== t.key || v.template.version !== t.version) {
+      throw SduiError.schema(`values are for template ${v.template.key}@${v.template.version}, got ${t.key}@${t.version}`)
+    }
+    const ids = t.ids()
+    const entries = Object.entries(v.components)
+    if (entries.length > this.bounds.maxNodes) throw SduiError.bounds(`node count exceeds ${this.bounds.maxNodes}`)
+    for (const [id, value] of entries) {
+      if (!ids.has(id)) throw SduiError.schema(`values.components.${id}: no such component in template ${t.key}@${t.version}`)
+      if (value.props) this.validateParams(value.props)
+      if (value.action) this.validateAction(value.action, 1)
+    }
   }
 
   validate(payload: SduiPayload): void {
@@ -136,6 +193,11 @@ export class SchemaValidator {
 
 /// Mirrors the schema patterns: `^[A-Za-z][A-Za-z0-9_]*$` (dots allowed for
 /// namespaced component types). ASCII only — rejects URLs, paths, injection.
+/// A template component id — the value set's key: an identifier, dashes allowed.
+function isComponentId(value: string): boolean {
+  return /^[A-Za-z][A-Za-z0-9_-]*$/.test(value)
+}
+
 function isIdentifier(value: string, allowDot = false): boolean {
   return (allowDot ? /^[A-Za-z][A-Za-z0-9_.]*$/ : /^[A-Za-z][A-Za-z0-9_]*$/).test(value)
 }

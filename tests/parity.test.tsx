@@ -79,7 +79,7 @@ describe('renderer parity', () => {
 describe('interaction through each renderer', () => {
   it('React: typing + click runs the form action', async () => {
     const engine = devEngine()
-    const payload = { schemaVersion: '1.1', screen: { key: 's', root: { type: 'form', id: 'f', children: [
+    const payload = { schemaVersion: '2.0', screen: { key: 's', root: { type: 'form', id: 'f', children: [
       { type: 'textField', props: { name: 'who', required: true } },
       { type: 'button', props: { title: 'Go' }, action: { type: 'toast', message: 'Hi {{form.who}}' } }
     ] } } }
@@ -100,7 +100,7 @@ describe('interaction through each renderer', () => {
     const engine = devEngine()
     const host = document.createElement('div')
     document.body.appendChild(host)
-    const payload = { schemaVersion: '1.1', screen: { key: 's', root: { type: 'form', id: 'f', children: [
+    const payload = { schemaVersion: '2.0', screen: { key: 's', root: { type: 'form', id: 'f', children: [
       { type: 'textField', props: { name: 'who' } },
       { type: 'button', props: { title: 'Go' }, action: { type: 'toast', message: 'Hi {{form.who}}' } }
     ] } } }

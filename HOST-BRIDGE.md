@@ -1,6 +1,6 @@
 # Host bridge — Android WebView & iOS WKWebView
 
-The Android and iOS apps are **hosts**: they load the same `@fajekrina/sdui` web
+The Android and iOS apps are **hosts**: they load the same `@fajekrina/sdui-r` web
 bundle in a WebView and answer a small, closed set of named messages. They never
 render SDUI components themselves. This document is the contract for the host
 teams; the web side is `src/bridge/` (`nativeBridgePorts`).
@@ -74,7 +74,7 @@ Breaking since 0.5.0 — the engine configuration every host must set:
 
 - [ ] `security: PayloadSecurity.signed(...)` — without it, a release engine **rejects every payload**
       (only `debug: true` accepts unsigned ones, with a warning).
-- [ ] `messages: MESSAGES_ID` (from `@fajekrina/sdui/i18n`) — otherwise validation messages are English.
+- [ ] `messages: MESSAGES_ID` (from `@fajekrina/sdui-r/i18n`) — otherwise validation messages are English.
 - [ ] `assetURL: (name) => …` mapping image names to your CDN — the default resolves relative paths only
       and refuses absolute URLs, so remote images stay blank until this is set.
 - [ ] Ignore a duplicate `navigator.navigate` to the screen already being opened (the web side also holds
@@ -159,10 +159,10 @@ WebKit on every PR.
 ## Web side, in one call
 
 ```ts
-import { ActionDispatcher, ActionSpec, PayloadSecurity, ScreenSource, SduiCache, createEngine, keyedVerifier } from '@fajekrina/sdui'
-import { fetchNetworkClient, indexedDbStore, specManifestLoader, specScreenProvider, webCryptoEd25519 } from '@fajekrina/sdui/browser'
-import { applyTheme, nativeBridgePorts } from '@fajekrina/sdui/bridge'
-import { MESSAGES_ID } from '@fajekrina/sdui/i18n'
+import { ActionDispatcher, ActionSpec, PayloadSecurity, ScreenSource, SduiCache, createEngine, keyedVerifier } from '@fajekrina/sdui-r'
+import { fetchNetworkClient, indexedDbStore, specManifestLoader, specScreenProvider, webCryptoEd25519 } from '@fajekrina/sdui-r/browser'
+import { applyTheme, nativeBridgePorts } from '@fajekrina/sdui-r/bridge'
+import { MESSAGES_ID } from '@fajekrina/sdui-r/i18n'
 
 const host = nativeBridgePorts()
 const delivery = { basePath: `${baseUrl}/client`, merchantId }   // e.g. baseUrl = 'https://app.example.com/api/universal/v1'

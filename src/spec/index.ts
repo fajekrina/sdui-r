@@ -3,10 +3,10 @@
 // gracefully); a different MAJOR is rejected.
 
 /// The spec version this engine writes and fully understands.
-export const SPEC_VERSION = '1.1'
+export const SPEC_VERSION = '2.0'
 
 /// The only accepted MAJOR.
-export const SUPPORTED_MAJOR = 1
+export const SUPPORTED_MAJOR = 2
 
 /// Built-in component types: v1 (murti) and v1.1 additions.
 export const V1_COMPONENTS = ['text', 'image', 'vstack', 'hstack', 'zstack', 'button', 'card'] as const

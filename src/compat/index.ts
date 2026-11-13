@@ -1,4 +1,4 @@
-// @fajekrina/sdui — compat: `fromUniversal()` converts a legacy UniversalPageConfig
+// @fajekrina/sdui-r — compat: `fromUniversal()` converts a legacy UniversalPageConfig
 // (0.x format: `layout.components[]`, 18 PascalCase types, free CSS) into the
 // spec format. A BUILDER tool for importing old pages — never a runtime path:
 // the backend serves the spec format directly.

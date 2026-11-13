@@ -1,4 +1,4 @@
-// @fajekrina/sdui — the headless engine (entry "."). No DOM, no framework:
+// @fajekrina/sdui-r — the headless engine (entry "."). No DOM, no framework:
 // every side effect goes through ports (see "../ports"). Structure and names
 // follow MurtiCore one-to-one where they overlap (see NOTICE).
 
@@ -14,6 +14,10 @@ export {
 export { SduiNode, type SduiNodeInit } from './node'
 export { ActionSpec, ActionType, canonical, type ActionSpecInit, type Presentation, type ToastLevel } from './actions/spec'
 export { SduiPayload, ScreenSpec, SduiEnvelope, parseJSON, type LoadRequest, type ScreenVariants } from './payload'
+export {
+  TemplateSpec, TemplateDocument, ValueSet, ValuesDocument, compose, isScreenBundle, bundleBytes,
+  type TemplateRef, type ComponentValue, type ScreenBundle
+} from './template'
 export { SduiBounds } from './bounds'
 export { SchemaValidator } from './validator'
 export { TokenResolver, tokenKeys, resolveValue } from './token'

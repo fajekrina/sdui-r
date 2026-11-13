@@ -1,1 +1,1 @@
-{ "schemaVersion": "1.1", "screen": { "key": "s", "root": { "type": "text" }, "variants": { "tablet": { "type": "text" } } } }
+{ "schemaVersion": "2.0", "screen": { "key": "s", "root": { "type": "text" }, "variants": { "tablet": { "type": "text" } } } }

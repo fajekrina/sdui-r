@@ -1,4 +1,4 @@
-// @fajekrina/sdui/vanilla — the framework-free renderer: `mount(el, options)`.
+// @fajekrina/sdui-r/vanilla — the framework-free renderer: `mount(el, options)`.
 import { ScreenSource, type SduiEngine } from '../core/engine'
 import type { ScreenController } from '../core/screen'
 import type { RenderNode } from '../core/render-node'

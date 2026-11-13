@@ -1,4 +1,4 @@
-// @fajekrina/sdui/bridge — the web side of the native bridge.
+// @fajekrina/sdui-r/bridge — the web side of the native bridge.
 //
 // Inside an Android WebView or iOS WKWebView the app is only a HOST: it loads the
 // same web bundle and answers named, allow-listed messages. Never `eval`, never

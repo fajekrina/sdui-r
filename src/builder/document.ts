@@ -1,17 +1,24 @@
 import {
   ActionSpec, ComponentFactory, SchemaValidator, SduiError, SduiNode, SduiPayload, ScreenSpec, SPEC_VERSION,
-  parseJSON, sortedJSONStringify, type BytesLike, type LoadRequest, type SduiProps
+  TemplateDocument, TemplateSpec, compose, parseJSON, sortedJSONStringify, type BytesLike, type LoadRequest, type SduiProps
 } from '../core'
 import { fromUniversal } from '../compat'
 import {
-  cloningWithNewIds, find, insertingChild, movingChild, parentOf, removing, replacing, strippingGeneratedIds,
-  withAction, withEnsuredIds, withProps
+  cloningWithNewIds, find, idsOf, insertingChild, movingChild, parentOf, readableId, removing, replacing, sortedByOrder,
+  strippingGeneratedIds, withAction, withEnsuredIds, withOrders, withProps
 } from './tree'
 import { DSLExport } from './dsl-export'
 
 export interface ValidationIssue {
   message: string
 }
+
+/// `screen`: a resolved screen (sdui). `template` (sdui-r Template Builder): the output is a
+/// template — readable component ids (`text1`, `button2`, renameable), `order` from the
+/// position, a release `version` and a palette `title`.
+export type EditorMode = 'screen' | 'template'
+
+type Snapshot = { root: SduiNode; load: LoadRequest[]; key: string; version: number; title?: string }
 
 /// The editable screen: a spec node tree where every node has an id, the
 /// selection, `screen.load`, and undo history. Views subscribe and call its edit
@@ -21,22 +28,57 @@ export class EditorDocument {
   private _root: SduiNode
   private _load: LoadRequest[]
   private _selection?: string
-  private undoStack: Array<{ root: SduiNode; load: LoadRequest[]; key: string }> = []
-  private redoStack: Array<{ root: SduiNode; load: LoadRequest[]; key: string }> = []
+  private _version: number
+  private _title?: string
+  private undoStack: Snapshot[] = []
+  private redoStack: Snapshot[] = []
+  readonly mode: EditorMode
   private readonly listeners = new Set<() => void>()
   /// warnings from the last legacy import (`fromUniversal`)
   importWarnings: string[] = []
 
-  constructor(init: { key?: string; root?: SduiNode; load?: LoadRequest[]; factory?: ComponentFactory } = {}) {
+  constructor(init: { key?: string; root?: SduiNode; load?: LoadRequest[]; factory?: ComponentFactory; mode?: EditorMode; version?: number; title?: string } = {}) {
     this.factory = init.factory ?? ComponentFactory.withBuiltins()
-    this._key = init.key ?? 'screen'
-    this._root = withEnsuredIds(init.root ?? new SduiNode({ type: 'vstack', props: { spacing: 12, alignment: 'leading', padding: 16 } }))
+    this.mode = init.mode ?? 'screen'
+    this._key = init.key ?? (this.mode === 'template' ? 'template' : 'screen')
+    this._version = init.version ?? 1
+    this._title = init.title
+    this._root = this.ensureIds(init.root ?? new SduiNode({ id: this.mode === 'template' ? 'root' : undefined, type: 'vstack', props: { spacing: 12, alignment: 'leading', padding: 16 } }), new Set())
     this._load = init.load ?? []
+  }
+
+  /// Missing ids: generated (screen) or readable `type<n>` (template).
+  private ensureIds(node: SduiNode, taken?: Set<string>): SduiNode {
+    if (this.mode !== 'template') return withEnsuredIds(node)
+    const used = taken ?? idsOf(this._root)
+    idsOf(node, used)
+    const walk = (n: SduiNode): SduiNode => {
+      let id = n.id
+      if (id === undefined) { id = readableId(n.type, used); used.add(id) }
+      return new SduiNode({ id, type: n.type, props: n.props, children: n.children.map(walk), action: n.action })
+    }
+    return walk(node)
+  }
+
+  /// A copy with fresh ids (duplicate).
+  private freshIds(node: SduiNode): SduiNode {
+    if (this.mode !== 'template') return cloningWithNewIds(node)
+    const taken = idsOf(this._root)
+    const walk = (n: SduiNode): SduiNode => {
+      const id = readableId(n.type, taken)
+      taken.add(id)
+      return new SduiNode({ id, type: n.type, props: n.props, children: n.children.map(walk), action: n.action })
+    }
+    return walk(node)
   }
 
   readonly factory: ComponentFactory
 
   get key(): string { return this._key }
+  /// template mode: the release version being drafted
+  get version(): number { return this._version }
+  /// template mode: the palette title makers see
+  get title(): string | undefined { return this._title }
   get root(): SduiNode { return this._root }
   get load(): LoadRequest[] { return this._load }
   get selection(): string | undefined { return this._selection }
@@ -57,19 +99,24 @@ export class EditorDocument {
     for (const listener of [...this.listeners]) listener()
   }
 
-  private snapshot() { return { root: this._root, load: this._load, key: this._key } }
+  private snapshot(): Snapshot { return { root: this._root, load: this._load, key: this._key, version: this._version, title: this._title } }
 
-  private mutate(next: { root?: SduiNode; load?: LoadRequest[]; key?: string }): void {
-    const root = next.root ?? this._root
-    const load = next.load ?? this._load
-    const key = next.key ?? this._key
+  private restore(s: Snapshot): void {
+    this._root = s.root
+    this._load = s.load
+    this._key = s.key
+    this._version = s.version
+    this._title = s.title
+  }
+
+  private mutate(next: Partial<Snapshot>): void {
+    const s: Snapshot = { ...this.snapshot(), ...next }
     // a no-op edit must not touch undo/redo history
-    if (root.equals(this._root) && JSON.stringify(load) === JSON.stringify(this._load) && key === this._key) return
+    if (s.root.equals(this._root) && JSON.stringify(s.load) === JSON.stringify(this._load) && s.key === this._key &&
+        s.version === this._version && s.title === this._title) return
     this.undoStack.push(this.snapshot())
     this.redoStack = []
-    this._root = root
-    this._load = load
-    this._key = key
+    this.restore(s)
     this.changed()
   }
 
@@ -88,14 +135,14 @@ export class EditorDocument {
   /// Insert a new component of `type` (with its palette default props).
   add(type: string, at = this.insertionPoint()): string {
     const info = this.factory.info(type)
-    const node = withEnsuredIds(new SduiNode({ type, props: { ...(info?.defaultProps ?? {}) } as SduiProps }))
+    const node = this.ensureIds(new SduiNode({ type, props: { ...(info?.defaultProps ?? {}) } as SduiProps }))
     this.insert(node, at.parentId, at.index)
     this.select(node.id)
     return node.id!
   }
 
   insert(child: SduiNode, parentId: string, index?: number): void {
-    this.mutate({ root: insertingChild(this._root, withEnsuredIds(child), parentId, index) })
+    this.mutate({ root: insertingChild(this._root, this.ensureIds(child), parentId, index) })
   }
 
   /// Can the node with this id hold children (its component `acceptsChildren`)?
@@ -155,7 +202,7 @@ export class EditorDocument {
     const node = find(this._root, id)
     const parent = parentOf(this._root, id)
     if (!node || !parent) return
-    const copy = cloningWithNewIds(node)
+    const copy = this.freshIds(node)
     this.insert(copy, parent.id!, parent.children.findIndex((c) => c.id === id) + 1)
     this.select(copy.id)
   }
@@ -183,6 +230,24 @@ export class EditorDocument {
   }
 
   setKey(key: string): void { this.mutate({ key }) }
+  setVersion(version: number): void { if (Number.isInteger(version) && version >= 1) this.mutate({ version }) }
+  setTitle(title: string | undefined): void { this.mutate({ title: title || undefined }) }
+
+  /// template mode: rename a component id (the key value sets use). Refuses an invalid
+  /// or taken id; returns whether it changed.
+  renameId(id: string, next: string): boolean {
+    const node = find(this._root, id)
+    if (!node || next === id || !/^[A-Za-z][A-Za-z0-9_-]{0,127}$/.test(next) || find(this._root, next)) return false
+    const selected = this._selection === id
+    this.mutate({ root: replacing(this._root, id, new SduiNode({ id: next, type: node.type, props: node.props, children: node.children, action: node.action })) })
+    if (selected) this.select(next)
+    return true
+  }
+
+  /// template mode: the template document (ids kept, `order` = position).
+  templateDocument(): TemplateDocument {
+    return new TemplateDocument(SPEC_VERSION, new TemplateSpec(this._key, this._version, withOrders(this._root), { title: this._title, load: this._load }))
+  }
   setLoad(load: LoadRequest[]): void { this.mutate({ load }) }
 
   /// The payload (generated ids stripped).
@@ -193,7 +258,7 @@ export class EditorDocument {
   /// Validation issues for the current tree (empty = valid).
   issues(validator: SchemaValidator = new SchemaValidator()): ValidationIssue[] {
     try {
-      validator.validate(this.payload())
+      this.check(validator)
       return []
     } catch (error) {
       return [{ message: error instanceof Error ? error.message : String(error) }]
@@ -206,7 +271,17 @@ export class EditorDocument {
     const raw = typeof data === 'object' && !(data instanceof Uint8Array) && !(data instanceof ArrayBuffer) ? data : parseJSON(data as BytesLike)
     let payload: SduiPayload
     const obj = raw as Record<string, unknown>
-    if (obj && typeof obj === 'object' && 'screen' in obj) {
+    if (obj && typeof obj === 'object' && 'template' in obj && 'schemaVersion' in obj) {
+      // a template document: ids kept, children in `order`
+      const t = TemplateDocument.decode(raw).template
+      this.undoStack.push(this.snapshot())
+      this.redoStack = []
+      this.restore({ root: this.ensureIds(sortedByOrder(t.root), new Set()), load: t.load, key: t.key, version: t.version, title: t.title })
+      this.importWarnings = []
+      this._selection = undefined
+      this.changed()
+      return
+    } else if (obj && typeof obj === 'object' && 'screen' in obj) {
       payload = SduiPayload.decode(raw)
       this.importWarnings = []
     } else if (obj && typeof obj === 'object' && ('layout' in obj || 'components' in obj || Array.isArray(raw))) {
@@ -219,17 +294,28 @@ export class EditorDocument {
     this.undoStack.push(this.snapshot())
     this.redoStack = []
     this._key = payload.screen.key
-    this._root = withEnsuredIds(payload.screen.root)
+    this._root = this.ensureIds(payload.screen.root, new Set())
     this._load = payload.screen.load
     this._selection = undefined
     this.changed()
   }
 
-  /// Validated JSON (sorted keys, generated ids stripped). Throws on invalid.
+  /// Validate what this editor exports (a template in template mode). Throws on invalid.
+  check(validator: SchemaValidator = new SchemaValidator()): void {
+    if (this.mode === 'template') {
+      const doc = this.templateDocument()
+      validator.validateTemplate(doc)
+      validator.validate(new SduiPayload(doc.schemaVersion, compose(doc.template)))
+    } else {
+      validator.validate(this.payload())
+    }
+  }
+
+  /// The exported document as JSON: a template (template mode) or the payload (generated
+  /// ids stripped). Sorted keys; throws on invalid.
   exportJSON(validator: SchemaValidator = new SchemaValidator()): string {
-    const payload = this.payload()
-    validator.validate(payload)
-    return sortedJSONStringify(payload)
+    this.check(validator)
+    return sortedJSONStringify(this.mode === 'template' ? this.templateDocument().toJSON() : this.payload())
   }
 
   /// DSL (TypeScript) source that rebuilds this screen.
@@ -244,7 +330,7 @@ export class EditorDocument {
     const previous = this.undoStack.pop()
     if (!previous) return
     this.redoStack.push(this.snapshot())
-    ;({ root: this._root, load: this._load, key: this._key } = previous)
+    this.restore(previous)
     this.changed()
   }
 
@@ -252,7 +338,7 @@ export class EditorDocument {
     const next = this.redoStack.pop()
     if (!next) return
     this.undoStack.push(this.snapshot())
-    ;({ root: this._root, load: this._load, key: this._key } = next)
+    this.restore(next)
     this.changed()
   }
 }

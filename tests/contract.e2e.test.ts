@@ -18,7 +18,7 @@ const json = async (res: Response) => {
   return (body.data ?? body) as Record<string, unknown>
 }
 
-describe.skipIf(!BASE)('contract: @fajekrina/sdui ⇄ universal-service (signed)', () => {
+describe.skipIf(!BASE)('contract: @fajekrina/sdui-r ⇄ universal-service (signed)', () => {
   const delivery = () => ({ basePath: `${BASE}/client`, merchantId: MERCHANT, credentials: 'omit' as const })
 
   async function engineWith(fetchImpl: typeof fetch = fetch) {

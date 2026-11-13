@@ -3,8 +3,8 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import Ajv2020 from 'ajv/dist/2020'
-import { SchemaValidator, SduiBounds, SduiEnvelope, SduiPayload } from '../src/core'
-import { ROOT, fixture, fixtureJSON, fixtureNames } from './helpers'
+import { SchemaValidator, SduiBounds, SduiEnvelope, SduiPayload, TemplateDocument, ValuesDocument } from '../src/core'
+import { ROOT, devEngine, fixture, fixtureJSON, fixtureNames } from './helpers'
 
 const schema = JSON.parse(readFileSync(resolve(ROOT, 'spec/sdui.schema.json'), 'utf8'))
 const validate = new Ajv2020({ strict: false, allErrors: true }).compile(schema)
@@ -21,23 +21,32 @@ describe('spec/sdui.schema.json', () => {
 
 describe('client validator vs spec fixtures', () => {
   const validator = new SchemaValidator()
+  const engine = devEngine()
+  const promo = TemplateDocument.fromJSON(fixture('valid/template_promo.json'))
 
-  it.each(fixtureNames('valid'))('valid/%s decodes and validates', (name) => {
-    const raw = fixture(`valid/${name}`)
-    const payload = name === 'envelope.json' ? SduiPayload.fromJSON(SduiEnvelope.fromJSON(raw).payload) : SduiPayload.fromJSON(raw)
-    validator.validate(payload)
+  // what the client does with each wire shape: an envelope's payload, a value set against
+  // its template, or the engine's verify → decode → validate → compose (template, bundle, screen)
+  const clientCheck = async (name: string, raw: Uint8Array): Promise<unknown> => {
+    if (name === 'envelope.json') return validator.validate(SduiPayload.fromJSON(SduiEnvelope.fromJSON(raw).payload))
+    if (name.startsWith('values_')) return validator.validateValues(ValuesDocument.fromJSON(raw), promo)
+    return engine.materialize(raw)
+  }
+
+  it.each(fixtureNames('valid'))('valid/%s decodes and validates', async (name) => {
+    await clientCheck(name, fixture(`valid/${name}`))
   })
 
   // Unknown structural keys are a schema-layer rejection (CI + backend). The client
   // ignores them by policy (forward-compatible minors) — and so never acts on them.
-  const SCHEMA_ONLY = new Set(['action_extra_key.json', 'node_extra_key.json', 'api_raw_url.json', 'variants_unknown_key.json'])
+  const SCHEMA_ONLY = new Set(['action_extra_key.json', 'node_extra_key.json', 'api_raw_url.json', 'variants_unknown_key.json', 'values_extra_key.json'])
 
-  it.each(fixtureNames('invalid').filter((n) => !SCHEMA_ONLY.has(n)))('invalid/%s is rejected by decode or validation', (name) => {
-    expect(() => validator.validate(SduiPayload.fromJSON(fixture(`invalid/${name}`)))).toThrow()
+  it.each(fixtureNames('invalid').filter((n) => !SCHEMA_ONLY.has(n)))('invalid/%s is rejected by decode or validation', async (name) => {
+    await expect(Promise.resolve().then(() => clientCheck(name, fixture(`invalid/${name}`)))).rejects.toThrow()
   })
 
   it.each([...SCHEMA_ONLY])('invalid/%s: the unknown keys are dropped, never used', (name) => {
-    const payload = SduiPayload.fromJSON(fixture(`invalid/${name}`))
+    const raw = fixture(`invalid/${name}`)
+    const payload = name.startsWith('values_') ? ValuesDocument.fromJSON(raw) : SduiPayload.fromJSON(raw)
     const json = JSON.stringify(payload.toJSON())
     expect(json).not.toContain('unexpected')
     expect(json).not.toContain('https://')
@@ -52,7 +61,7 @@ describe('spec/bounds.json', () => {
   const defs = schema.$defs
 
   it('is what SduiBounds.default is built from (every field, nothing else)', () => {
-    expect(schemaVersion).toBe('1.1')
+    expect(schemaVersion).toBe('2.0')
     expect(numbers).toEqual({ ...SduiBounds.default })
   })
 

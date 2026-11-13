@@ -1,0 +1,34 @@
+{
+  "schemaVersion": "2.0",
+  "values": {
+    "screen": "home",
+    "template": {
+      "key": "promoCard",
+      "version": 0
+    },
+    "components": {
+      "headline": {
+        "props": {
+          "value": "Cashback 20% untuk {{user.name}}"
+        }
+      },
+      "hero-image": {
+        "props": {
+          "name": "promo-cashback"
+        }
+      },
+      "cta": {
+        "props": {
+          "title": "Ambil promo"
+        },
+        "action": {
+          "type": "navigate",
+          "screen": "promoDetail",
+          "params": {
+            "id": "cb20"
+          }
+        }
+      }
+    }
+  }
+}

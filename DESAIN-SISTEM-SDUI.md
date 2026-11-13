@@ -41,7 +41,7 @@ flowchart LR
     V[[v_sdui_release_payload]]
     R[(sdui_release.payload<br/>beku)]
   end
-  C[Client React/Vue<br/>@fajekrina/sdui]
+  C[Client React/Vue<br/>@fajekrina/sdui-r]
 
   B -- POST page monolit --> API --> VAL --> SPLIT --> TR & SC
   B -- PUT style --> API --> ST

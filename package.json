@@ -1,7 +1,7 @@
 {
-  "name": "@fajekrina/sdui",
-  "version": "0.6.1",
-  "description": "SDUI engine on the murti-derived spec: one headless engine (MurtiEngine structure), generic React/Vue/vanilla renderers, native-bridge ports for Android/iOS WebView hosts. No Tailwind/Bootstrap bundled.",
+  "name": "@fajekrina/sdui-r",
+  "version": "0.1.0",
+  "description": "sdui-r: server-driven UI where a screen is a TEMPLATE (structure, ids, order; reusable) plus a VALUE SET (content per component), signed and delivered separately and composed by one headless engine. Generic React/Vue/vanilla renderers, a Template Builder (admin) and a Screen Builder (maker). Forked from @fajekrina/sdui.",
   "license": "MIT",
   "type": "module",
   "sideEffects": false,
@@ -10,12 +10,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/fajekrina/sdui.git"
+    "url": "git+https://github.com/fajekrina/sdui-r.git"
   },
   "bugs": {
-    "url": "https://github.com/fajekrina/sdui/issues"
+    "url": "https://github.com/fajekrina/sdui-r/issues"
   },
-  "homepage": "https://github.com/fajekrina/sdui#readme",
+  "homepage": "https://github.com/fajekrina/sdui-r#readme",
   "publishConfig": {
     "access": "public",
     "provenance": true
@@ -165,7 +165,9 @@
     "server-driven-ui",
     "vanilla",
     "vue",
-    "webview"
+    "webview",
+    "template",
+    "sdui-r"
   ],
   "scripts": {
     "build": "vite build && node scripts/dts-formats.mjs && node scripts/studio-css.mjs",
