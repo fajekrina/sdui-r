@@ -23,7 +23,7 @@ const studioProps = {
   /// view only (a reviewer role)
   readOnly: { type: Boolean, default: false },
   /// the active release: the builder lists the draft's changes against it
-  baseline: { type: Object as PropType<unknown>, default: undefined },
+  baseline: { type: Object as PropType<object>, default: undefined },
   /// `adopt` (default, constructable stylesheet) or `external` (link studio.css yourself)
   stylesheet: { type: String as PropType<'adopt' | 'external'>, default: undefined },
   /// `@save` / `@publish` show the Save/Publish buttons; `@change` fires on every edit
@@ -93,7 +93,7 @@ export const SduiScreenBuilder = defineComponent({
     title: { type: String, default: undefined },
     catalog: { type: Object as PropType<StudioCatalog>, default: undefined },
     readOnly: { type: Boolean, default: false },
-    baseline: { type: Object as PropType<unknown>, default: undefined },
+    baseline: { type: Object as PropType<object>, default: undefined },
     stylesheet: { type: String as PropType<'adopt' | 'external'>, default: undefined },
     onSave: { type: Function as PropType<(values: unknown) => void | Promise<void>>, default: undefined },
     onSubmitForReview: { type: Function as PropType<(values: unknown, note: string) => void | Promise<void>>, default: undefined },
