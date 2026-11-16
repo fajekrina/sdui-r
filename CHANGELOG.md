@@ -1,9 +1,69 @@
-# Changelog — @fajekrina/sdui
+# Changelog — @fajekrina/sdui-r
 
 Semua perubahan penting paket ini dicatat di sini. Format mengikuti Keep a Changelog;
 versi mengikuti Semantic Versioning (0.x: breaking change boleh di minor dengan catatan jelas).
 
 ## [Unreleased]
+
+### Ditambahkan
+- Komponen bawaan **`chart`**: `kind` bar | line | area | pie | donut, digambar sebagai SVG `path` (identik di React/Vue/vanilla,
+  aman di CSP ketat). `data` berupa array angka atau objek (`labelKey`/`valueKey`, `color` per item), atau key path ke
+  data layar (`"getSales.items"` / `"{{getSales.items}}"`, mis. hasil `screen.load`; skeleton saat belum tiba). Juga `labels`,
+  `color`, `height`, `min`/`max`, `showValues`, `showLegend`, `a11yLabel` (default: ringkasan otomatis, `role=img`).
+  Field-nya tersedia di kedua builder. Fixture `valid/chart_dashboard.json` masuk gerbang paritas renderer.
+- Screen Builder: panel Templates dan panel Values JSON bisa dibuka/tutup; komponen terpilih di-highlight di JSON
+  (`findValueJsonRange`).
+- **Ukuran ditentukan wadah, perilaku oleh `scroll`**: `height` / `maxHeight` (px, tinggi total termasuk padding) pada
+  `vstack`, `card`, dan `grid`; `grid.rowHeight` membuat baris seragam. Wadah yang dibatasi memotong isi yang tidak muat;
+  `scroll` di dalamnya mengisi sisa ruang dan men-scroll (mis. `card(maxHeight) → vstack → [judul, scroll → daftar]`:
+  judul tetap, daftar di-scroll). Diverifikasi di Chromium. `scroll` sendiri tidak punya ukuran.
+- Builder memperingatkan wadah yang dibatasi tapi isinya terpotong ("put a scroll inside"), diukur di kanvas
+  (`clippedContainers`); di Screen Builder juga saat teks maker melebihi wadah template.
+- Outline di kedua builder: panel bisa dibuka/tutup, dan tiap komponen yang punya anak bisa dilipat (▾/▸); pilihan dari
+  kanvas membuka induknya. Teks panjang di kolom builder diakhiri "…" dengan tooltip (tanpa scroll horizontal).
+
+### Diubah
+- Slot milik adapter (`render({ slots })`) kini mengalahkan komponen bawaan bernama sama, jadi app tetap bisa menggambar
+  `chart` dengan toolkit sendiri.
+- Budget bundle core 22 → 24 KB (terukur 22,6 KB) untuk `chart`.
+
+## [0.1.0] — sdui-r
+
+Fork dari `@fajekrina/sdui` (`feat/hld-target-f1` @ `dd09541`, semua F1–F5 HLD Target ikut). Konsep berubah
+dari **menyusun komponen** menjadi **memilih template + mengisi value**.
+
+### Ditambahkan
+- **Spec 2.0** (`spec/sdui.schema.json`): dokumen **template** (`{ schemaVersion, template: { key, version, title?,
+  load?, root, variants? } }`) — setiap node wajib `id` dan `order`; dokumen **value set** (`{ schemaVersion,
+  values: { screen, template: { key, version }, components: { <id>: { props?, action? } } } }`); **bundle**
+  `{ template, values? }` (unit transport + cache). Fixture valid/invalid baru untuk ketiganya.
+- Node: field `order` (integer ≥ 0) — urutan render di antara saudara, bukan posisi array.
+- Core: `TemplateSpec`, `TemplateDocument`, `ValueSet`, `ValuesDocument`, `compose(template, values?)`
+  (urut per `order`, props value di-merge dangkal di atas default template, aksi value menggantikan aksi template,
+  varian memakai id yang sama), `isScreenBundle`, `bundleBytes`.
+- `SchemaValidator.validateTemplate` (id wajib + unik per pohon, `order` wajib + unik antar saudara, versi ≥ 1) dan
+  `validateValues` (template `key@version` harus sama, id harus ada di template, bounds props/aksi).
+- Engine: `materialize` menerima bundle (kedua bagian **diverifikasi terpisah**, setiap kali — termasuk dari cache),
+  template saja (pratinjau), atau screen hasil compose. Value set untuk screen lain ditolak (anti-substitusi);
+  value set tanpa template ditolak.
+- `templateScreenProvider` (`./browser`): value set dari `{basePath}/screens/{mid}/{key}[/{version}]` (ETag/304),
+  lalu template `{basePath}/templates/{key}/v{version}` (immutable, LRU di memori) → bundle ke engine.
+- **Dua builder** (`./builder`, React + Vue):
+  - **Template Builder** (`mountTemplateBuilder`, `<SduiTemplateBuilder>`) — admin: palette komponen, id komponen
+    yang terbaca (`text1`, `button2`, bisa diganti di inspector), `order` dari posisi, versi + judul template;
+    output = dokumen template. `EditorDocument({ mode: 'template' })`, `templateDocument()`, `renameId()`.
+  - **Screen Builder** (`mountScreenBuilder`, `<SduiScreenBuilder>`) — maker: palette **template**, struktur terkunci,
+    inspector mengisi value per komponen (default template sebagai placeholder, ↺ kembali ke default), override aksi;
+    output = value set. Model headless `ValuesEditor`; `readOnly`, `baseline` (diff), `onSubmitForReview`.
+
+### Diubah (breaking terhadap sdui)
+- `SPEC_VERSION` 2.0, `SUPPORTED_MAJOR` 2: payload 1.x ditolak (`unsupportedVersion`).
+- Nama paket `@fajekrina/sdui-r`, repo `github.com/fajekrina/sdui-r`.
+- Budget bundle core 20 → 22 KB (terukur 20,8 KB) untuk composer template + validasi value set.
+
+## Riwayat @fajekrina/sdui (sebelum fork)
+
+### [Unreleased di sdui saat fork]
 
 Studio mengadopsi alur kerja builder 0.3.0 (`FajrinaBuilder`) di atas arsitektur sekarang:
 model `spec/`, 16 komponen builtin, aksi tertutup, target bernama, satu Studio DOM untuk React dan Vue.

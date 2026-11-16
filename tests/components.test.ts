@@ -11,7 +11,7 @@ async function render(root: object, seed: Record<string, unknown> = {}, slots?: 
 describe('built-in components', () => {
   it('registers v1 + v1.1 types', () => {
     expect(ComponentFactory.withBuiltins().registeredTypes).toEqual([
-      'button', 'card', 'divider', 'form', 'grid', 'hstack', 'image', 'list', 'picker', 'scroll', 'spacer', 'text', 'textArea', 'textField', 'vstack', 'zstack'
+      'button', 'card', 'chart', 'divider', 'form', 'grid', 'hstack', 'image', 'list', 'picker', 'scroll', 'spacer', 'text', 'textArea', 'textField', 'vstack', 'zstack'
     ])
   })
 
@@ -39,6 +39,37 @@ describe('built-in components', () => {
     expect(g.style.gridTemplateColumns).toBe('repeat(3, minmax(0, 1fr))')
     const s = await render({ type: 'scroll', props: { axis: 'horizontal' } })
     expect(s.style.overflowX).toBe('auto')
+  })
+
+  it('size: the container is bounded (height / maxHeight, clipping); a scroll inside fills it and scrolls', async () => {
+    // card (maxHeight 240) → scroll → vstack → image; image
+    const card = await render({ type: 'card', props: { maxHeight: 240 }, children: [{ type: 'scroll', children: [
+      { type: 'vstack', children: [{ type: 'image', props: { name: 'a', height: 200 } }, { type: 'image', props: { name: 'b', height: 200 } }] }
+    ] }] })
+    expect(card.style).toMatchObject({ maxHeight: '240px', overflow: 'hidden', minHeight: '0', display: 'flex', flexDirection: 'column' })
+    const scroll = card.children[0]!
+    expect(scroll.style).toMatchObject({ overflowY: 'auto', flex: '1 1 auto', minHeight: '0' })
+    expect(scroll.children[0]!.style.flexShrink).toBe('0')      // its content keeps its height → it scrolls
+    expect((await render({ type: 'vstack', props: { height: 300 } })).style).toMatchObject({ height: '300px', overflow: 'hidden' })
+    // unbounded: no clipping, no size
+    const plain = await render({ type: 'vstack' })
+    expect(plain.style.overflow).toBeUndefined()
+    expect(plain.style.height).toBeUndefined()
+    expect((await render({ type: 'card', props: { maxHeight: -5 } })).style.maxHeight).toBeUndefined()   // invalid → ignored
+    // scroll has no size of its own any more
+    expect((await render({ type: 'scroll', props: { maxHeight: 99 } })).style.maxHeight).toBe('100%')
+  })
+
+  it('grid: rowHeight makes uniform rows; a cell clips, a scroll cell scrolls', async () => {
+    const g = await render({ type: 'grid', props: { columns: 2, rowHeight: 120, maxHeight: 400 }, children: [
+      { type: 'card', children: [{ type: 'text', props: { value: 'a' } }] },
+      { type: 'scroll', children: [{ type: 'text', props: { value: 'b' } }] }
+    ] })
+    expect(g.style).toMatchObject({ gridAutoRows: '120px', maxHeight: '400px', overflow: 'hidden' })
+    expect(g.children[0]!.style).toMatchObject({ minHeight: '0', overflow: 'hidden' })
+    expect(g.children[1]!.style).toMatchObject({ minHeight: '0', overflowY: 'auto' })
+    expect(g.children[1]!.style.overflow).toBeUndefined()
+    expect((await render({ type: 'grid', props: { columns: 2 }, children: [{ type: 'text' }] })).children[0]!.style.overflow).toBeUndefined()
   })
 
   it('zstack places children proportionally', async () => {

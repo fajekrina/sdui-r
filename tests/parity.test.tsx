@@ -10,8 +10,8 @@ import { SduiScreen as VueScreen } from '../src/vue'
 import { mount } from '../src/vanilla'
 import { fixture, flush , devEngine } from './helpers'
 
-const FIXTURES = ['valid/dashboard.json', 'valid/login.json', 'valid/transfer_form.json', 'valid/home_load.json', 'valid/third_party_lottie.json']
-const SEED = { user: { name: 'Ada', segment: 'gold' }, getBalance: { amount: 1250 }, getPromos: { items: [{ title: 'Cashback' }] } }
+const FIXTURES = ['valid/dashboard.json', 'valid/login.json', 'valid/transfer_form.json', 'valid/home_load.json', 'valid/third_party_lottie.json', 'valid/chart_dashboard.json']
+const SEED = { user: { name: 'Ada', segment: 'gold' }, getBalance: { amount: 1250 }, getPromos: { items: [{ title: 'Cashback' }] }, getSales: { items: [{ day: 'Sen', total: 4 }, { day: 'Sel', total: 9 }, { day: 'Rab', total: 6 }] } }
 
 /// Canonical form: tag, attributes sorted (style declarations sorted), text —
 /// attribute order is not semantic; anything else that differs is a real diff.

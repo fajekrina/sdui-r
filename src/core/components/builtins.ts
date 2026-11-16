@@ -6,6 +6,9 @@ import { cleanAttrs, renderNode, type RenderNode } from '../render-node'
 import { color, fontWeight, numberProp, sharedStyle, textStyle } from '../style'
 import { Symbols } from './symbols'
 import type { FieldRule } from '../patterns'
+import { ChartComponent } from './chart'
+
+export { ChartComponent }
 
 // The built-in set — v1 (murti): text, image, vstack, hstack, zstack, button,
 // card; v1.1: spacer, divider, grid, scroll, list, form, textField, textArea,
@@ -33,6 +36,25 @@ function a11y(node: SduiNode, ctx: RenderContext): Record<string, string> {
 
 const spacing = (node: SduiNode) => numberProp(node, 'spacing') ?? DEFAULT_SPACING
 const px = (n: number) => `${n}px`
+
+/// The size of a bounded container (vstack, card, grid): `height` (fixed) and/or
+/// `maxHeight`, in px. A bounded container clips what does not fit — scrolling is always
+/// an explicit `scroll` inside it, which then fills the space left. `minHeight: 0` lets the
+/// container shrink inside a bounded parent so a nested `scroll` gets that bound too.
+function bounds(node: SduiNode): Record<string, string> {
+  const out: Record<string, string> = { minHeight: '0' }
+  const height = numberProp(node, 'height')
+  const maxHeight = numberProp(node, 'maxHeight')
+  if (height !== undefined && height > 0) out.height = px(height)
+  if (maxHeight !== undefined && maxHeight > 0) out.maxHeight = px(maxHeight)
+  if (out.height || out.maxHeight) {
+    out.overflow = 'hidden'
+    // the size is the whole visible box (padding included) — the same in the builder
+    // canvas (border-box) and in any host page (content-box by default)
+    out.boxSizing = 'border-box'
+  }
+  return out
+}
 
 function container(node: SduiNode, ctx: RenderContext, style: Record<string, string>, children: RenderNode[]): RenderNode {
   return renderNode(ctx.keyFor(node), 'div', {
@@ -126,7 +148,8 @@ export class VStackComponent implements Component {
   makeView(node: SduiNode, ctx: RenderContext): RenderNode {
     return container(node, ctx, {
       display: 'flex', flexDirection: 'column',
-      alignItems: H_ALIGN[node.string('alignment')] ?? 'center', gap: px(spacing(node))
+      alignItems: H_ALIGN[node.string('alignment')] ?? 'center', gap: px(spacing(node)),
+      ...bounds(node)
     }, ctx.children(node))
   }
 }
@@ -227,6 +250,7 @@ export class CardComponent implements Component {
       attrs: a11y(node, ctx),
       style: {
         display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: px(DEFAULT_SPACING),
+        ...bounds(node),
         ...sharedStyle(node, { padding: 16, background: 'surface', cornerRadius: 12 })
       },
       children: ctx.children(node)
@@ -269,11 +293,20 @@ export class GridComponent implements Component {
   static readonly category = 'layout'
   static readonly acceptsChildren = true
   static readonly defaultProps = { columns: 2, spacing: 8 }
+  /// `rowHeight` (px): every row that tall; a cell clips what does not fit, and a `scroll`
+  /// placed in a cell scrolls within it. `height` / `maxHeight` bound the whole grid.
   makeView(node: SduiNode, ctx: RenderContext): RenderNode {
     const columns = Math.min(12, Math.max(1, Math.trunc(numberProp(node, 'columns') ?? 2)))
+    const rowHeight = numberProp(node, 'rowHeight')
+    const rows: Record<string, string> = rowHeight !== undefined && rowHeight > 0 ? { gridAutoRows: px(rowHeight) } : {}
+    let children = ctx.children(node)
+    if (rows.gridAutoRows) {
+      children = children.map((c) => ({ ...c, style: { ...c.style, minHeight: '0', ...(c.type === 'scroll' ? {} : { overflow: 'hidden' }) } }))
+    }
     return container(node, ctx, {
-      display: 'grid', gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, gap: px(spacing(node)), alignSelf: 'stretch'
-    }, ctx.children(node))
+      display: 'grid', gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, gap: px(spacing(node)), alignSelf: 'stretch',
+      ...rows, ...bounds(node)
+    }, children)
   }
 }
 
@@ -281,12 +314,17 @@ export class ScrollComponent implements Component {
   static readonly type = 'scroll'
   static readonly category = 'layout'
   static readonly acceptsChildren = true
+  /// The container decides the size, `scroll` the behavior: a vertical scroll fills the
+  /// space its bounded container (`vstack` / `card` / `grid` with `height` / `maxHeight`,
+  /// or a `grid` cell with `rowHeight`) leaves, and scrolls what does not fit. Its children
+  /// keep their own height (they never shrink to fit), which is what makes it scroll.
   makeView(node: SduiNode, ctx: RenderContext): RenderNode {
     const horizontal = node.string('axis') === 'horizontal'
+    const children = ctx.children(node).map((c) => ({ ...c, style: { ...c.style, flexShrink: '0' } }))
     return container(node, ctx, horizontal
       ? { display: 'flex', flexDirection: 'row', gap: px(spacing(node)), overflowX: 'auto', alignSelf: 'stretch' }
-      : { display: 'flex', flexDirection: 'column', overflowY: 'auto', alignSelf: 'stretch', maxHeight: '100%' },
-    ctx.children(node))
+      : { display: 'flex', flexDirection: 'column', overflowY: 'auto', alignSelf: 'stretch', maxHeight: '100%', flex: '1 1 auto', minHeight: '0' },
+    children)
   }
 }
 
@@ -453,5 +491,6 @@ export const BUILTIN_COMPONENTS = [
   SpacerComponent, DividerComponent,
   TextComponent, ImageComponent,
   FormComponent, TextFieldComponent, TextAreaComponent, PickerComponent,
-  ButtonComponent
+  ButtonComponent,
+  ChartComponent   // sdui-r
 ]

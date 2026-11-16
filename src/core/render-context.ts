@@ -69,8 +69,10 @@ export class RenderContext {
   }
 
   /// Render a node: Composite recursion with the Null-Object fallback.
+  /// A type the adapter claims as a slot wins over a built-in of that name (an app may
+  /// draw `chart` with its own toolkit instead of the built-in SVG chart).
   view(node: SduiNode): RenderNode | null {
-    const component = this.env.factory.component(node.type)
+    const component = this.env.slots.has(node.type) ? undefined : this.env.factory.component(node.type)
     if (component) return component.makeView(node, this)
     if (this.env.slots.has(node.type)) {
       return renderNode(this.keyFor(node), 'div', {

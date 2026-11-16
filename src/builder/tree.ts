@@ -132,6 +132,30 @@ export function flatten(node: SduiNode, depth = 0, out: Array<[SduiNode, number]
   return out
 }
 
+/// The outline rows still visible when the nodes in `collapsed` are folded: their children
+/// (and deeper) are skipped. `[node, depth]`, depth-first.
+export function flattenVisible(node: SduiNode, collapsed: ReadonlySet<string>, depth = 0, out: Array<[SduiNode, number]> = []): Array<[SduiNode, number]> {
+  out.push([node, depth])
+  if (node.id === undefined || !collapsed.has(node.id)) for (const child of node.children) flattenVisible(child, collapsed, depth + 1, out)
+  return out
+}
+
+/// The ids of every ancestor of `id` (root first), or `[]` when it is the root or absent.
+export function ancestorsOf(root: SduiNode, id: string): string[] {
+  const path: string[] = []
+  const walk = (n: SduiNode): boolean => {
+    if (n.id === id) return true
+    for (const child of n.children) {
+      if (walk(child)) {
+        if (n.id !== undefined) path.unshift(n.id)
+        return true
+      }
+    }
+    return false
+  }
+  return walk(root) ? path : []
+}
+
 /// A short label for an outline row.
 export function outlineLabel(node: SduiNode): string {
   switch (node.type) {

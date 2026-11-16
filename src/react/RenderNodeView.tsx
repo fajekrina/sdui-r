@@ -6,7 +6,8 @@ import type { ScreenController } from '../core/screen'
 
 const ATTR_ALIASES: Record<string, string> = {
   novalidate: 'noValidate', class: 'className', for: 'htmlFor', minlength: 'minLength', maxlength: 'maxLength',
-  inputmode: 'inputMode', autocomplete: 'autoComplete', 'fill-rule': 'fillRule', viewbox: 'viewBox'
+  inputmode: 'inputMode', autocomplete: 'autoComplete', 'fill-rule': 'fillRule', viewbox: 'viewBox',
+  'vector-effect': 'vectorEffect'
 }
 
 /// Toolkit-specific components: `{ chart: (node) => <Chart … /> }`.

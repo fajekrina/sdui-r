@@ -9,7 +9,7 @@ export { mountScreenBuilder, type ScreenBuilderOptions, type ScreenBuilderUpdate
 export * from './tree'
 export * from './dsl'
 export { DSLExport } from './dsl-export'
-export { renderPreview, findNodeJsonRange } from './preview'
+export { renderPreview, findNodeJsonRange, findValueJsonRange, clippedContainers } from './preview'
 export { mountStudio, mountTemplateBuilder, type StudioCatalog, type StudioOptions, type StudioUpdate, type MountedStudio } from './studio'
 export { diff, type ChangeKind, type ScreenChange } from './diff'
 export { fromUniversal, toIdentifier, type ConversionResult } from '../compat'

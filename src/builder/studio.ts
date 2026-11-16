@@ -5,8 +5,8 @@
 import { ActionSpec, ActionType, ComponentFactory, FIELD_PATTERNS, SduiNode, SPEC_VERSION, TemplateSpec, compose, type SduiProps, type SduiValue } from '../core'
 import { renderNodeDOM } from '../vanilla'
 import { EditorDocument } from './document'
-import { find, flatten, isGeneratedId, outlineLabel } from './tree'
-import { findNodeJsonRange, renderPreview } from './preview'
+import { ancestorsOf, find, flatten, flattenVisible, isGeneratedId, outlineLabel } from './tree'
+import { clippedContainers, findNodeJsonRange, renderPreview } from './preview'
 import { STUDIO_CSS } from './studio-css'
 import { diff, type ScreenChange } from './diff'
 
@@ -73,18 +73,23 @@ export const SHARED: Array<[string, FieldKind]> = [['padding', 'number'], ['back
 export const FIELDS: Record<string, Array<[string, FieldKind]>> = {
   text: [['value', 'text'], ['style', ['', 'title', 'headline', 'body', 'caption']], ['weight', ['', 'regular', 'medium', 'semibold', 'bold', 'heavy']], ['size', 'number'], ['color', 'text']],
   image: [['systemName', 'text'], ['name', 'text'], ['contentMode', ['', 'fit', 'fill']], ['width', 'number'], ['height', 'number']],
-  vstack: [['spacing', 'number'], ['alignment', ['', 'leading', 'center', 'trailing']]],
+  // height / maxHeight: the container decides the size; a `scroll` inside fills it and scrolls
+  vstack: [['spacing', 'number'], ['alignment', ['', 'leading', 'center', 'trailing']], ['height', 'number'], ['maxHeight', 'number']],
+  card: [['height', 'number'], ['maxHeight', 'number']],
   hstack: [['spacing', 'number'], ['alignment', ['', 'top', 'center', 'bottom']]],
   zstack: [['width', 'number'], ['height', 'number']],
   button: [['title', 'text'], ['variant', ['', 'primary', 'secondary', 'plain']]],
   spacer: [['height', 'number'], ['width', 'number']],
-  grid: [['columns', 'number'], ['spacing', 'number']],
+  grid: [['columns', 'number'], ['spacing', 'number'], ['rowHeight', 'number'], ['height', 'number'], ['maxHeight', 'number']],
   scroll: [['axis', ['', 'vertical', 'horizontal']], ['spacing', 'number']],
   list: [['items', 'text'], ['as', 'text'], ['spacing', 'number']],
   form: [['spacing', 'number']],
   textField: [['name', 'text'], ['label', 'text'], ['placeholder', 'text'], ['keyboard', ['', 'text', 'number', 'email', 'phone']], ['required', 'bool'], ['minLength', 'number'], ['maxLength', 'number'], ['pattern', ['', ...Object.keys(FIELD_PATTERNS)]], ['secure', 'bool']],
   textArea: [['name', 'text'], ['label', 'text'], ['placeholder', 'text'], ['rows', 'number'], ['required', 'bool'], ['maxLength', 'number']],
-  picker: [['name', 'text'], ['label', 'text'], ['placeholder', 'text'], ['required', 'bool'], ['options', 'json']]
+  picker: [['name', 'text'], ['label', 'text'], ['placeholder', 'text'], ['required', 'bool'], ['options', 'json']],
+  // sdui-r: data = a JSON array, or a key path into the screen data (e.g. a screen.load result)
+  chart: [['kind', ['', 'bar', 'line', 'area', 'pie', 'donut']], ['data', 'json'], ['labels', 'json'], ['labelKey', 'text'], ['valueKey', 'text'],
+    ['color', 'text'], ['height', 'number'], ['min', 'number'], ['max', 'number'], ['showValues', 'bool'], ['showLegend', 'bool']]
 }
 
 // action editor: the named target of each action type, and its picker list
@@ -313,6 +318,10 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
     palette.append(item)
   }
   const outline = el('div', { role: 'tree' })
+  /// outline nodes whose children are folded away (survives repaints)
+  const folded = new Set<string>()
+  let revealed: string | undefined
+  const twisty =(n: SduiNode, repaint: () => void) => outlineTwisty(d, n, folded, repaint)
   dropSurface(outline, 'data-sdui-row', false)
   const device = el('div', { class: 'device' })
   device.addEventListener('click', (event) => {
@@ -330,7 +339,7 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
   const inspector = el('div', { class: 'insp' })
   const paletteBox = el('div', {}, el('h3', {}, 'Components'), el('div', { class: 'tip' }, 'Click to insert, or drag onto the canvas / outline.'), palette)
   const main = el('div', { class: 'main' },
-    el('div', { class: 'col' }, paletteBox, el('h3', {}, 'Outline'), outline),
+    el('div', { class: 'col' }, paletteBox, foldSection(d, `sdui-${uid}-outline`, 'Outline', outline)),
     el('div', { class: 'col canvas' }, device),
     el('div', { class: 'col' }, el('h3', {}, 'Inspector'), inspector)
   )
@@ -543,9 +552,16 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
     statusEl.textContent = status?.text ?? ''
     statusEl.className = `st${status ? (status.ok ? ' ok' : ' err') : ''}`
     // outline
-    outline.replaceChildren(...flatten(doc.root).map(([n, depth]) => {
-      const row = el('div', { class: n.id === doc.selection ? 'row sel' : 'row', role: 'treeitem', 'data-sdui-row': n.id! }, outlineLabel(n))
-      row.style.paddingLeft = `${8 + depth * 12}px`
+    // a NEW selection (e.g. a canvas click) inside a folded branch unfolds its parents;
+    // folding the branch of the current selection afterwards stays folded
+    if (doc.selection && doc.selection !== revealed) for (const id of ancestorsOf(doc.root, doc.selection)) folded.delete(id)
+    revealed = doc.selection
+    outline.replaceChildren(...flattenVisible(doc.root, folded).map(([n, depth]) => {
+      const text = outlineLabel(n)
+      const row = el('div', { class: n.id === doc.selection ? 'row sel' : 'row', role: 'treeitem', 'aria-level': String(depth + 1), 'data-sdui-row': n.id!, title: templateMode ? `${text} #${n.id}` : text },
+        twisty(n, () => paint()), text)
+      if (n.children.length > 0) row.setAttribute('aria-expanded', String(!folded.has(n.id!)))
+      row.style.paddingLeft = `${4 + depth * 14}px`
       row.addEventListener('click', () => doc.select(n.id))
       if (n.id !== doc.root.id && !readOnly) {
         row.draggable = true
@@ -559,6 +575,8 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
     const preview = renderPreview(factory, doc.root, { data: opts.sampleData, selected: previewMode ? undefined : doc.selection, assetURL: opts.assetURL })
     device.replaceChildren(...(preview ? [renderNodeDOM(preview, undefined, undefined, d)] : []))
     if (!previewMode) decorate()
+    // bounded containers that clip their content (measured on the canvas)
+    const clipped = previewMode ? [] : clippedContainers(device, doc.root)
     // inspector
     const selected = doc.selected
     if (selected) inspectorFor(selected)
@@ -584,6 +602,7 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
     const problems = doc.issues().map((i) => i.message)
     issues.replaceChildren(
       ...[message, ...problems].filter(Boolean).map((m) => el('div', {}, `⚠ ${m}`)),
+      ...clipped.map((w) => el('div', { class: 'warn' }, `⚠ ${w}`)),
       ...doc.importWarnings.map((w) => el('div', { class: 'warn' }, `↳ ${w}`))
     )
     const payload = templateMode ? doc.templateDocument().toJSON() : doc.payload().toJSON()
@@ -620,6 +639,62 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
       detachStyles()
     }
   }
+}
+
+/// The fold toggle at the start of an outline row: ▾ / ▸ for a node with children (folds
+/// its subtree in `folded`), an empty slot of the same width for a leaf so labels line up.
+export function outlineTwisty(doc: Document, node: SduiNode, folded: Set<string>, repaint: () => void): HTMLElement {
+  const tw = doc.createElement('span')
+  if (node.children.length === 0 || node.id === undefined) {
+    tw.className = 'tw leaf'
+    tw.setAttribute('aria-hidden', 'true')
+    return tw
+  }
+  const id = node.id
+  const open = !folded.has(id)
+  tw.className = 'tw'
+  tw.setAttribute('role', 'button')
+  tw.setAttribute('aria-label', open ? `Collapse ${node.type}` : `Expand ${node.type}`)
+  tw.title = open ? `Collapse (${node.children.length} children)` : `Expand (${node.children.length} children)`
+  tw.textContent = open ? '▾' : '▸'
+  // fold only: selecting the row is the row's own click
+  tw.addEventListener('click', (event) => {
+    event.stopPropagation()
+    if (open) folded.add(id)
+    else folded.delete(id)
+    repaint()
+  })
+  return tw
+}
+
+/// A column section with a collapse button in its header (`▾ Title` / `▸ Title`). It folds
+/// on its own — repaints of the builder never reopen it.
+export function foldSection(doc: Document, id: string, title: string, ...body: Node[]): HTMLElement {
+  const content = doc.createElement('div')
+  content.id = id
+  content.append(...body)
+  const toggle = doc.createElement('button')
+  toggle.type = 'button'
+  toggle.className = 'fold'
+  toggle.setAttribute('aria-controls', id)
+  let open = true
+  const paint = () => {
+    const arrow = doc.createElement('span')
+    arrow.setAttribute('aria-hidden', 'true')
+    arrow.textContent = open ? '▾' : '▸'
+    toggle.replaceChildren(arrow, title)
+    toggle.setAttribute('aria-expanded', String(open))
+    toggle.title = open ? `Collapse ${title}` : `Expand ${title}`
+    content.hidden = !open
+  }
+  toggle.addEventListener('click', () => { open = !open; paint() })
+  paint()
+  const header = doc.createElement('h3')
+  header.className = 'fold-h'
+  header.append(toggle)
+  const section = doc.createElement('div')
+  section.append(header, content)
+  return section
 }
 
 /// Install the stylesheet without an inline `<style>` (strict CSP): a constructable

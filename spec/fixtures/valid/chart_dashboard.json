@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "2.0",
+  "screen": {
+    "key": "salesDashboard",
+    "load": [{ "request": "getSales" }],
+    "root": {
+      "type": "vstack",
+      "props": { "spacing": 16, "padding": 16 },
+      "children": [
+        { "type": "text", "props": { "value": "Penjualan", "style": "title" } },
+        { "type": "chart", "id": "monthly", "props": { "kind": "bar", "data": [12, 30, 18, 24], "labels": ["Jan", "Feb", "Mar", "Apr"], "showValues": true } },
+        { "type": "chart", "id": "trend", "props": { "kind": "area", "data": "getSales.items", "labelKey": "day", "valueKey": "total", "color": "success", "height": 120 } },
+        { "type": "chart", "id": "share", "props": { "kind": "donut", "data": [{ "label": "VA", "value": 5 }, { "label": "E-Wallet", "value": 3 }, { "label": "Kartu", "value": 2, "color": "#7C3AED" }], "showValues": true, "height": 120 } }
+      ]
+    }
+  }
+}

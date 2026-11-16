@@ -15,16 +15,20 @@ export const STUDIO_CSS = `
 .sdui-studio .btn:disabled{opacity:.4;cursor:default}
 .sdui-studio .btn.pri{background:#2563eb;border-color:#2563eb;color:#fff}
 .sdui-studio .btn.on{background:#0f172a;border-color:#0f172a;color:#fff}
-.sdui-studio .main{flex:1;display:grid;grid-template-columns:230px 1fr 290px;min-height:0}
+.sdui-studio .main{flex:1;display:grid;grid-template-columns:230px 1fr 290px;min-height:240px}
 .sdui-studio .main.pv{grid-template-columns:1fr}
 .sdui-studio .main.pv>.col:not(.canvas){display:none}
-.sdui-studio .col{display:flex;flex-direction:column;min-height:0;overflow:auto;border-right:1px solid #e2e8f0;background:#fff}
+.sdui-studio .col{display:flex;flex-direction:column;min-height:0;min-width:0;overflow-x:hidden;overflow-y:auto;border-right:1px solid #e2e8f0;background:#fff}
+.sdui-studio .col.canvas{overflow-x:auto}
 .sdui-studio .col h3{margin:0;padding:8px 10px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#64748b;border-bottom:1px solid #f1f5f9}
 .sdui-studio .col .tip{padding:4px 10px 0;font-size:11px;color:#94a3b8}
 .sdui-studio .pal{display:flex;flex-wrap:wrap;gap:4px;padding:8px}
 .sdui-studio .pal button{border:1px solid #e2e8f0;background:#f8fafc;border-radius:4px;padding:2px 6px;cursor:grab}
-.sdui-studio .row{display:flex;align-items:center;gap:4px;padding:3px 8px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sdui-studio .row{display:block;min-width:0;padding:3px 8px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sdui-studio .row.sel{background:#dbeafe}
+.sdui-studio .row .tw{display:inline-block;width:16px;text-align:center;font-size:12px;color:#64748b;user-select:none}
+.sdui-studio .row .tw[role=button]{cursor:pointer}
+.sdui-studio .row .tw[role=button]:hover{color:#0f172a}
 .sdui-studio .canvas{background:#f1f5f9;padding:16px;overflow:auto}
 .sdui-studio .device{flex-shrink:0;margin:0 auto;background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.08);padding:12px;min-height:200px}
 .sdui-studio .device .hint{padding:8px;border:1px dashed #cbd5e1;border-radius:6px;color:#94a3b8;font-size:12px;text-align:center}
@@ -46,7 +50,8 @@ export const STUDIO_CSS = `
 .sdui-studio .json{border-top:1px solid #e2e8f0;background:#0f172a;color:#e2e8f0;display:flex;flex-direction:column}
 .sdui-studio .json .hd{display:flex;align-items:center;gap:8px;padding:4px 8px;background:#1e293b}
 .sdui-studio .json .badge{font-size:11px;border:1px solid #60a5fa;border-radius:999px;padding:0 8px;color:#bfdbfe}
-.sdui-studio .json .body{position:relative;height:220px;overflow:hidden}
+.sdui-studio .json .body{position:relative;height:clamp(110px,24vh,220px);overflow:hidden}
+.sdui-studio .json .hd .btn{height:22px;padding:0 7px;background:transparent;border-color:#334155;color:#e2e8f0}
 .sdui-studio .json textarea{position:absolute;inset:0;width:100%;height:100%;background:transparent;color:#e2e8f0;border:0;padding:8px;font:12px/18px ui-monospace,monospace;white-space:pre;overflow:auto;resize:none;outline:none}
 .sdui-studio .json .band{position:absolute;left:0;right:0;background:rgba(96,165,250,.16);border-left:3px solid #60a5fa;pointer-events:none}
 .sdui-studio .issues{padding:4px 8px;font-size:12px;color:#fca5a5;background:#1e293b}
@@ -62,10 +67,19 @@ export const STUDIO_CSS = `
 .sdui-studio .ver{width:56px;height:28px;border:1px solid #cbd5e1;border-radius:6px;padding:0 6px}
 .sdui-studio .lbl{font-size:12px;color:#64748b}
 .sdui-studio .tpls{display:flex;flex-direction:column;gap:6px;padding:6px 10px}
-.sdui-studio .tpl{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;background:#fff;cursor:pointer}
+.sdui-studio .col h3.fold-h{padding:0}
+.sdui-studio .fold{display:flex;align-items:center;gap:6px;width:100%;padding:8px 10px;border:0;background:none;font:inherit;letter-spacing:inherit;text-transform:inherit;color:inherit;text-align:left;cursor:pointer}
+.sdui-studio .fold:hover{color:#0f172a;background:#f8fafc}
+.sdui-studio .fold small{margin-left:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-transform:none;letter-spacing:0;font:11px ui-monospace,monospace;color:#2563eb}
+.sdui-studio .tpl{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0;max-width:100%;text-align:left;border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;background:#fff;cursor:pointer}
+.sdui-studio .tpl span,.sdui-studio .tpl small{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sdui-studio .tpl small{color:#64748b;font:11px ui-monospace,monospace}
+.sdui-studio .pal button{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sdui-studio .insp label,.sdui-studio .insp fieldset{min-width:0}
+.sdui-studio .insp input,.sdui-studio .insp select,.sdui-studio .insp textarea{max-width:100%;min-width:0}
+.sdui-studio .insp legend{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sdui-studio .tpl.on{border-color:#2563eb;box-shadow:0 0 0 2px rgba(37,99,235,.2)}
-.sdui-studio .row .ovr{color:#2563eb;margin-left:6px}
+.sdui-studio .row .ovr{color:#2563eb}
 .sdui-studio .insp .fld{display:flex;gap:4px;align-items:flex-end}
 .sdui-studio .insp .fld label{flex:1}
 .sdui-studio .insp .fld.on input,.sdui-studio .insp .fld.on select,.sdui-studio .insp .fld.on textarea{border-color:#2563eb}

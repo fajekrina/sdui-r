@@ -11,4 +11,6 @@ export const SUPPORTED_MAJOR = 2
 /// Built-in component types: v1 (murti) and v1.1 additions.
 export const V1_COMPONENTS = ['text', 'image', 'vstack', 'hstack', 'zstack', 'button', 'card'] as const
 export const V11_COMPONENTS = ['spacer', 'divider', 'grid', 'scroll', 'list', 'form', 'textField', 'textArea', 'picker'] as const
-export type BuiltinComponentType = typeof V1_COMPONENTS[number] | typeof V11_COMPONENTS[number]
+/// sdui-r 2.0 additions.
+export const V20_COMPONENTS = ['chart'] as const
+export type BuiltinComponentType = typeof V1_COMPONENTS[number] | typeof V11_COMPONENTS[number] | typeof V20_COMPONENTS[number]

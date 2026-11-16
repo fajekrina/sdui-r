@@ -4,10 +4,10 @@
 // set for one merchant screen. Same canvas, preview, review and CSP rules as the Studio.
 import { ActionSpec, ComponentFactory, TemplateDocument, type SduiNode, type SduiValue } from '../core'
 import { renderNodeDOM } from '../vanilla'
-import { COLORS, FIELDS, SHARED, attachStyles, type FieldKind, type StudioCatalog } from './studio'
+import { COLORS, FIELDS, SHARED, attachStyles, foldSection, outlineTwisty, type FieldKind, type StudioCatalog } from './studio'
 import { STUDIO_CSS } from './studio-css'
-import { flatten, outlineLabel } from './tree'
-import { renderPreview } from './preview'
+import { ancestorsOf, flatten, flattenVisible, outlineLabel } from './tree'
+import { clippedContainers, findValueJsonRange, renderPreview } from './preview'
 import { diff, type ScreenChange } from './diff'
 import { ValuesEditor, type TemplateChoice } from './values-editor'
 
@@ -46,7 +46,7 @@ export interface MountedScreenBuilder {
 }
 
 /// props that are layout, not content: shown read-only (the template decides them)
-const LAYOUT = new Set(['spacing', 'alignment', 'columns', 'axis', 'padding', 'cornerRadius', 'width', 'height', 'contentMode', 'rows'])
+const LAYOUT = new Set(['spacing', 'alignment', 'columns', 'axis', 'padding', 'cornerRadius', 'width', 'height', 'maxHeight', 'rowHeight', 'contentMode', 'rows'])
 
 export function mountScreenBuilder(target: HTMLElement, options: ScreenBuilderOptions = {}): MountedScreenBuilder {
   const editor = options.editor ?? new ValuesEditor({ screen: options.screen })
@@ -139,7 +139,15 @@ export function mountScreenBuilder(target: HTMLElement, options: ScreenBuilderOp
     paint()
   }
   const outline = el('div', { role: 'tree' })
-  const paletteBox = el('div', {}, el('h3', {}, 'Templates'), el('div', { class: 'tip' }, 'Pick the layout of this screen; then fill in its components.'), templatesEl)
+  /// outline components whose children are folded away (survives repaints)
+  const folded = new Set<string>()
+  let revealed: string | undefined
+  // collapsible: once a template is chosen the list can fold away to give the outline room
+  let templatesOpen = true
+  const templatesBody = el('div', { id: `sdui-${uid}-templates` }, el('div', { class: 'tip' }, 'Pick the layout of this screen; then fill in its components.'), templatesEl)
+  const templatesToggle = button('', () => { templatesOpen = !templatesOpen; paint() }, 'fold')
+  templatesToggle.setAttribute('aria-controls', templatesBody.id)
+  const paletteBox = el('div', {}, el('h3', { class: 'fold-h' }, templatesToggle), templatesBody)
   const device = el('div', { class: 'device' })
   device.addEventListener('click', (event) => {
     if (previewMode) return
@@ -148,17 +156,36 @@ export function mountScreenBuilder(target: HTMLElement, options: ScreenBuilderOp
   })
   const inspector = el('div', { class: 'insp' })
   const main = el('div', { class: 'main' },
-    el('div', { class: 'col' }, paletteBox, el('h3', {}, 'Components'), outline),
+    el('div', { class: 'col' }, paletteBox, foldSection(d, `sdui-${uid}-outline`, 'Outline', outline)),
     el('div', { class: 'col canvas' }, device),
     el('div', { class: 'col' }, el('h3', {}, 'Values'), inspector))
   root.append(main)
 
-  // JSON panel: the value set (2-way), issues, changes vs. the active release
+  // JSON panel: the value set (2-way; collapsible; the selected component's values are
+  // highlighted and scrolled to, as in the Template Builder), issues, changes vs. the active release
+  const LINE = 18
+  const PAD = 8
+  let jsonOpen = true
   const jsonText = el('textarea', { spellcheck: 'false', wrap: 'off', 'aria-label': 'Values JSON' }) as HTMLTextAreaElement
+  const band = el('div', { class: 'band' })
+  const jsonBody = el('div', { class: 'body' }, band, jsonText)
+  const badge = el('span', { class: 'badge' })
+  const toggle = button('▾', () => { jsonOpen = !jsonOpen; paint() })
+  toggle.setAttribute('aria-label', 'Show or hide the values JSON')
   const issues = el('div', { class: 'issues' })
   const changesEl = el('div', { class: 'changes', 'aria-label': 'Changes against the active release' })
-  const jsonPanel = el('div', { class: 'json' }, el('div', { class: 'hd' }, el('span', {}, 'Values JSON (2-way)')), el('div', { class: 'body' }, jsonText), issues, changesEl)
+  const jsonPanel = el('div', { class: 'json' }, el('div', { class: 'hd' }, toggle, el('span', {}, 'Values JSON (2-way)'), badge), jsonBody, issues, changesEl)
   root.append(jsonPanel)
+  const placeBand = () => {
+    const range = findValueJsonRange(jsonText.value, editor.selection)
+    band.style.display = range ? 'block' : 'none'
+    if (range) {
+      band.style.top = `${PAD + range.startLine * LINE - jsonText.scrollTop}px`
+      band.style.height = `${(range.endLine - range.startLine + 1) * LINE}px`
+    }
+    return range
+  }
+  jsonText.addEventListener('scroll', () => placeBand())
   let editTimer: ReturnType<typeof setTimeout> | undefined
   jsonText.addEventListener('input', () => {
     jsonEditing = true
@@ -249,10 +276,16 @@ export function mountScreenBuilder(target: HTMLElement, options: ScreenBuilderOp
     statusEl.textContent = status?.text ?? ''
     statusEl.className = `st${status ? (status.ok ? ' ok' : ' err') : ''}`
 
+    templatesToggle.replaceChildren(el('span', { 'aria-hidden': 'true' }, templatesOpen ? '▾' : '▸'), 'Templates',
+      ...(!templatesOpen && template ? [el('small', {}, `${template.key}@${template.version}`)] : []))
+    templatesToggle.setAttribute('aria-expanded', String(templatesOpen))
+    templatesToggle.title = templatesOpen ? 'Collapse the template list' : 'Expand the template list'
+    templatesBody.hidden = !templatesOpen
     templatesEl.replaceChildren(...(opts.templates ?? []).map((choice) => {
       const on = template?.key === choice.key && template.version === choice.version
       const b = button('', () => void choose(choice), on ? 'tpl on' : 'tpl')
       b.append(el('span', {}, choice.title ?? choice.key), el('small', {}, `${choice.key}@${choice.version}`))
+      b.title = `${choice.title ? `${choice.title} — ` : ''}${choice.key}@${choice.version}`
       b.setAttribute('role', 'option')
       b.setAttribute('aria-selected', String(on))
       b.disabled = readOnly
@@ -261,10 +294,18 @@ export function mountScreenBuilder(target: HTMLElement, options: ScreenBuilderOp
     if (!opts.templates?.length) templatesEl.replaceChildren(el('p', { class: 'empty' }, 'No templates'))
 
     const screen = editor.composed()
-    outline.replaceChildren(...(screen ? flatten(screen.root) : []).map(([n, depth]) => {
-      const row = el('div', { class: n.id === editor.selection ? 'row sel' : 'row', role: 'treeitem', 'data-sdui-row': n.id! }, outlineLabel(n))
-      if (editor.isOverridden(n.id!)) row.append(el('span', { class: 'ovr', title: 'has values' }, '●'))
-      row.style.paddingLeft = `${8 + depth * 12}px`
+    // a NEW selection (e.g. a canvas click) inside a folded branch unfolds its parents;
+    // folding the branch of the current selection afterwards stays folded
+    if (screen && editor.selection && editor.selection !== revealed) for (const id of ancestorsOf(screen.root, editor.selection)) folded.delete(id)
+    revealed = editor.selection
+    outline.replaceChildren(...(screen ? flattenVisible(screen.root, folded) : []).map(([n, depth]) => {
+      const own = editor.isOverridden(n.id!)
+      const row = el('div', { class: n.id === editor.selection ? 'row sel' : 'row', role: 'treeitem', 'aria-level': String(depth + 1), 'data-sdui-row': n.id!, title: `${outlineLabel(n)} #${n.id}${own ? ' · has values' : ''}` },
+        outlineTwisty(d, n, folded, paint),
+        // the "has values" dot before the label, so a long label's ellipsis never hides it
+        ...(own ? [el('span', { class: 'ovr', 'aria-label': 'has values' }, '● ')] : []), outlineLabel(n))
+      if (n.children.length > 0) row.setAttribute('aria-expanded', String(!folded.has(n.id!)))
+      row.style.paddingLeft = `${4 + depth * 14}px`
       row.addEventListener('click', () => editor.select(n.id))
       return row
     }))
@@ -272,6 +313,8 @@ export function mountScreenBuilder(target: HTMLElement, options: ScreenBuilderOp
     const preview = screen ? renderPreview(factory, width >= 600 && screen.variants.wide ? screen.variants.wide : (width < 600 && screen.variants.compact) || screen.root,
       { data: opts.sampleData, selected: previewMode ? undefined : editor.selection, assetURL: opts.assetURL }) : null
     device.replaceChildren(...(preview ? [renderNodeDOM(preview, undefined, undefined, d)] : [el('p', { class: 'empty' }, 'Choose a template')]))
+    // a maker's longer text can outgrow a bounded container of the template: say so
+    const clipped = screen && !previewMode ? clippedContainers(device, screen.root) : []
 
     const selected = editor.selection && screen ? flatten(screen.root).find(([n]) => n.id === editor.selection)?.[0] : undefined
     if (selected) inspectorFor(selected)
@@ -281,8 +324,23 @@ export function mountScreenBuilder(target: HTMLElement, options: ScreenBuilderOp
     let values: unknown
     try { values = template ? editor.valuesDocument().toJSON() : undefined } catch { values = undefined }
     if (!jsonEditing) jsonText.value = values ? JSON.stringify(values, null, 2) : ''
+    toggle.textContent = jsonOpen ? '▾' : '▸'
+    toggle.setAttribute('aria-expanded', String(jsonOpen))
+    jsonBody.style.display = jsonOpen ? 'block' : 'none'
+    const range = jsonOpen ? placeBand() : null
+    // a component without values has no entry yet: say so instead of highlighting nothing
+    badge.textContent = selected
+      ? `${selected.type} #${selected.id}${range ? ` · lines ${range.startLine + 1}–${range.endLine + 1}` : ' · template defaults'}`
+      : ''
+    badge.style.display = selected ? 'inline-block' : 'none'
+    if (range) {
+      const top = PAD + range.startLine * LINE
+      if (top < jsonText.scrollTop || top > jsonText.scrollTop + jsonText.clientHeight - LINE) jsonText.scrollTop = Math.max(0, top - LINE * 2)
+      placeBand()
+    }
     const problems = template ? editor.issues().map((i) => i.message) : []
-    issues.replaceChildren(...[message, ...problems].filter(Boolean).map((m) => el('div', {}, `⚠ ${m}`)))
+    issues.replaceChildren(...[message, ...problems].filter(Boolean).map((m) => el('div', {}, `⚠ ${m}`)),
+      ...clipped.map((w) => el('div', { class: 'warn' }, `⚠ ${w}`)))
     paintChanges(opts.baseline === undefined || !editor.template ? undefined : changesAgainst(opts.baseline))
     if (values) opts.onChange?.(values)
   }
