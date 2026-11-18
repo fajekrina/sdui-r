@@ -178,7 +178,7 @@ describe('mountScreenBuilder', () => {
     // a text's value is a multi-line box (Enter = new line); the template default is its placeholder
     const input = [...host.querySelectorAll<HTMLTextAreaElement>('.insp textarea')].find((i) => i.placeholder === 'Judul')!
     input.value = 'Promo spesial'
-    input.dispatchEvent(new Event('change'))
+    input.dispatchEvent(new Event('input'))   // live: no blur needed
     expect(builder.editor.components.headline).toEqual({ props: { value: 'Promo spesial' } })
     // content only: no style / layout / action fields
     const labels = () => [...host.querySelectorAll('.insp fieldset label')].map((l) => l.firstChild!.textContent)

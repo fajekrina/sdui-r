@@ -5,11 +5,12 @@ versi mengikuti Semantic Versioning (0.x: breaking change boleh di minor dengan 
 
 ## [Unreleased]
 
-### Ditambah: spec 2.1 — `text.align`, `text.maxLines`, `text.markup`
+### Ditambah: spec 2.1 — `text.align`, `text.markup`
 
 - `SPEC_VERSION` naik ke **2.1** (aditif: hanya prop baru, tanpa komponen baru). Dokumen 2.0 tetap valid
   dan tetap dirender; backend menerima 2.0 dan 2.1 dan menandatangani sebagai 2.1.
-- `text.align`: `leading` · `center` · `trailing`. `text.maxLines`: N baris lalu dipotong dengan elipsis.
+- `text.align`: `leading` · `center` · `trailing`. Teks selalu tampil penuh: semua baris `value`, baris baru tetap
+  baris baru, tidak pernah dipotong dengan "…" (`maxLines` dari draf awal 2.1 dihapus dan diabaikan bila ada).
 - `text.markup: true`: `**tebal**` dan `*miring*` di `value` (boleh bertumpuk); `\*` = bintang literal; penanda
   tanpa pasangan tetap literal. Opt-in per teks, jadi teks lama tidak berubah tampilannya. Diparse dari string
   **template sebelum** `{{token}}` diganti — data (jawaban API, isian form) tidak pernah menjadi format.
@@ -35,6 +36,15 @@ versi mengikuti Semantic Versioning (0.x: breaking change boleh di minor dengan 
 - `describeComponent(node, factory?)` hanya menyebut "Tappable" untuk komponen `tap`; `actionWarnings(root, lists,
   factory?)` memperingatkan action yang tidak pernah jalan (mis. di `card`/`text`) dan action chart selain `api`.
   `actionUseOf(type, factory?)` diekspor.
+
+### Diubah: perubahan tampil langsung saat mengetik (builder)
+
+- Field teks, textarea, angka, dan opsi picker memperbarui kanvas di setiap ketikan (event `input`), di Studio
+  maupun editor konten — tidak perlu meninggalkan kolom. Fokus dan posisi kursor tetap di kolom yang sama walau
+  inspector digambar ulang (`focusOf` / `restoreFocus`).
+- Satu sesi mengetik di satu field = satu langkah undo: `EditorDocument.setProp(id, key, value, { typing: true })`,
+  `ValuesEditor.setValue(…, { typing: true })`; sesi berakhir saat kolom ditinggalkan (`endTyping()`), memilih
+  komponen lain, atau undo/redo.
 
 ### Diubah: inspector Studio dikelompokkan, field terstruktur (builder)
 

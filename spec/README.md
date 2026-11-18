@@ -7,8 +7,8 @@ this file is the human guide. When the two disagree, the schema wins.
 v1 is the [murti](https://github.com/iQbalADR/murti) v1 contract, copied and owned
 here (Apache-2.0, see [`../NOTICE`](../NOTICE)); v1.1 is `@fajekrina/sdui`. **v2.0 (sdui-r)**
 splits a screen into a template and a value set — a new major, so 1.x payloads are rejected.
-**v2.1** adds props only (a 2.0 document is a valid 2.1 document): `text.align`,
-`text.maxLines` and `text.markup` — see [Text (v2.1)](#text-v21).
+**v2.1** adds props only (a 2.0 document is a valid 2.1 document): `text.align` and
+`text.markup` — see [Text (v2.1)](#text-v21).
 
 ## v2.0 — template + value set
 
@@ -99,7 +99,7 @@ v1 (murti):
 
 | `type` | Props |
 | --- | --- |
-| `text` | `value` (tokens; a newline is a line break), `style` `title`·`headline`·`body`·`caption`, `color`, `weight`, `size`; v2.1: `align`, `maxLines`, `markup` |
+| `text` | `value` (tokens; a newline is a line break), `style` `title`·`headline`·`body`·`caption`, `color`, `weight`, `size`; v2.1: `align`, `markup`. A text always shows in full (never cut, no ellipsis) |
 | `image` | `systemName` (symbol) · `name` (app-resolved asset), `contentMode` `fit`·`fill`, `width`, `height` |
 | `vstack` / `hstack` | `spacing`, `alignment` (`leading`·`center`·`trailing` / `top`·`center`·`bottom`) |
 | `zstack` | `width`, `height`; children carry `x`, `y`, `width`, `height` |
@@ -148,14 +148,14 @@ context outside their form; a WebView host may take them over with native input.
 | Prop | Values | Effect |
 | --- | --- | --- |
 | `align` | `leading` · `center` · `trailing` | text alignment (unknown → ignored) |
-| `maxLines` | integer ≥ 1 | at most N lines, the rest cut with an ellipsis |
 | `markup` | `true` | `**bold**` and `*italic*` in `value` (they may nest); `\*` is a literal `*` |
 
 `markup` is opt-in per text, so a 2.0 text with asterisks renders unchanged. The markers
 are parsed on the **template string, before `{{tokens}}` resolve**: a token's value (API
 data, a form field) is always plain text and never becomes formatting. A marker without its
 partner stays literal. No HTML, links or colors — the vocabulary is closed. A 2.0 client
-ignores the three props (it shows the asterisks). Native hosts parse the same way
+ignores both props (it shows the asterisks). A text is never truncated: every line of its
+value shows, a newline is a line break. Native hosts parse the same way
 (`parseMarkup` in the core is the reference).
 
 ### Actions per component

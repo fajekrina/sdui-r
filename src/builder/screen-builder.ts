@@ -5,7 +5,7 @@
 // one merchant page. Same canvas, preview and CSP rules as the Studio; publishing is direct.
 import { ComponentFactory, TemplateDocument, type SduiNode, type SduiValue } from '../core'
 import { renderNodeDOM } from '../vanilla'
-import { COLORS, FIELDS, SHARED, attachStyles, deprecationText, foldSection, outlineTwisty, type FieldKind, type StudioCatalog } from './studio'
+import { COLORS, FIELDS, SHARED, attachStyles, deprecationText, focusOf, foldSection, outlineTwisty, restoreFocus, type FieldKind, type StudioCatalog } from './studio'
 import { actionBadge, describeComponent } from './describe'
 import { multilineText, optionsTable } from './controls'
 import { STUDIO_CSS } from './studio-css'
@@ -279,7 +279,9 @@ export function mountScreenBuilder(target: HTMLElement, options: ScreenBuilderOp
       const markup = node.type === 'text' && key === 'value' && editor.value(id, 'markup') === true
       control = multilineText(d, {
         label: key, value: own && typeof current === 'string' ? current : '', placeholder: typeof def === 'string' ? def : undefined,
-        onChange: (v) => editor.setValue(id, key, v === '' ? undefined : v),
+        // live: the canvas follows every keystroke (one undo step per typing session)
+        onChange: (v) => editor.setValue(id, key, v === '' ? undefined : v, { typing: true }),
+        onCommit: () => editor.endTyping(),
         ...(markup ? { onMarkup: () => undefined, markupOn: true } : {})
       })
     } else if (kind === 'options') {
@@ -302,7 +304,12 @@ export function mountScreenBuilder(target: HTMLElement, options: ScreenBuilderOp
       if (def !== undefined && def !== null) attrs.placeholder = String(def)
       const input = el('input', attrs) as HTMLInputElement
       input.value = own && current !== undefined && current !== null ? String(current) : ''
-      input.addEventListener('change', () => editor.setValue(id, key, input.value === '' ? undefined : kind === 'number' ? Number(input.value) : input.value))
+      // live: the canvas follows every keystroke; a half-typed number waits
+      input.addEventListener('input', () => {
+        if (kind === 'number' && input.value !== '' && !Number.isFinite(Number(input.value))) return
+        editor.setValue(id, key, input.value === '' ? undefined : kind === 'number' ? Number(input.value) : input.value, { typing: true })
+      })
+      input.addEventListener('change', () => editor.endTyping())
       control = el('label', {}, key, input)
     }
     const reset = button('↺', () => editor.setValue(id, key, undefined), 'btn')
@@ -449,8 +456,11 @@ export function mountScreenBuilder(target: HTMLElement, options: ScreenBuilderOp
     const clipped = screen && !previewMode ? clippedContainers(device, screen.root) : []
 
     const selected = editor.selection && screen ? flatten(screen.root).find(([n]) => n.id === editor.selection)?.[0] : undefined
+    // rebuilt on every edit: the field being typed into keeps focus and caret
+    const keep = focusOf(inspector, selected?.id)
     if (selected) inspectorFor(selected)
     else inspector.replaceChildren(el('p', { class: 'empty' }, screen ? 'Select a component' : 'Choose a template'))
+    restoreFocus(inspector, keep, selected?.id)
 
     let values: unknown
     try { values = template ? editor.valuesDocument().toJSON() : undefined } catch { values = undefined }

@@ -139,8 +139,15 @@ export class EditorDocument {
   select(id: string | undefined): void {
     if (this._selection === id) return
     this._selection = id
+    this.typing = undefined
     this.changed()
   }
+
+  /// the field being typed into (`id:key`): its keystrokes are one undo step
+  private typing?: string
+
+  /// End a typing session (the field lost focus): the next edit is a new undo step.
+  endTyping(): void { this.typing = undefined }
 
   subscribe(listener: () => void): () => void {
     this.listeners.add(listener)
@@ -163,12 +170,14 @@ export class EditorDocument {
     this._title = s.title
   }
 
-  private mutate(next: Partial<Snapshot>): void {
+  private mutate(next: Partial<Snapshot>, typing?: string): void {
     const s: Snapshot = { ...this.snapshot(), ...next }
     // a no-op edit must not touch undo/redo history
     if (s.root.equals(this._root) && JSON.stringify(s.load) === JSON.stringify(this._load) && s.key === this._key &&
         s.version === this._version && s.title === this._title) return
-    this.undoStack.push(this.snapshot())
+    // keystrokes into the same field: one undo step for the whole word / sentence
+    if (!(typing !== undefined && typing === this.typing && this.undoStack.length > 0)) this.undoStack.push(this.snapshot())
+    this.typing = typing
     this.redoStack = []
     this.restore(s)
     this.changed()
@@ -264,13 +273,14 @@ export class EditorDocument {
   move(id: string, delta: number): void { this.mutate({ root: movingChild(this._root, id, delta) }) }
   replace(id: string, node: SduiNode): void { this.mutate({ root: replacing(this._root, id, node) }) }
 
-  setProp(id: string, key: string, value: SduiProps[string] | undefined): void {
+  /// `typing: true` — a keystroke: consecutive ones into the same field are one undo step.
+  setProp(id: string, key: string, value: SduiProps[string] | undefined, options: { typing?: boolean } = {}): void {
     const node = find(this._root, id)
     if (!node) return
     const props = { ...node.props }
     if (value === undefined || value === '') delete props[key]
     else props[key] = value
-    this.replace(id, withProps(node, props))
+    this.mutate({ root: replacing(this._root, id, withProps(node, props)) }, options.typing ? `${id}:${key}` : undefined)
   }
 
   setProps(id: string, props: SduiProps): void {
@@ -382,6 +392,7 @@ export class EditorDocument {
   undo(): void {
     const previous = this.undoStack.pop()
     if (!previous) return
+    this.typing = undefined
     this.redoStack.push(this.snapshot())
     this.restore(previous)
     this.changed()
@@ -390,6 +401,7 @@ export class EditorDocument {
   redo(): void {
     const next = this.redoStack.pop()
     if (!next) return
+    this.typing = undefined
     this.undoStack.push(this.snapshot())
     this.restore(next)
     this.changed()

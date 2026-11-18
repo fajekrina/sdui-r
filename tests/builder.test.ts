@@ -164,7 +164,7 @@ describe('Studio (DOM)', () => {
     // a text's value is a multi-line box (Enter = new line)
     const valueInput = [...host.querySelectorAll('.insp label')].find((l) => l.firstChild?.textContent === 'value')!.querySelector('textarea')!
     valueInput.value = 'Hello'
-    valueInput.dispatchEvent(new Event('change'))
+    valueInput.dispatchEvent(new Event('input'))   // live: no blur needed
     expect(host.querySelector('.device')!.textContent).toContain('Hello')
     studio.document.select(undefined)
     ;(host.querySelector(`[data-sdui-node="${id}"]`) as HTMLElement).click()

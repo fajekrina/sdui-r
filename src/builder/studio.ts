@@ -106,9 +106,9 @@ type RawAction = Record<string, unknown>
 export const COLORS = ['', 'primary', 'onPrimary', 'secondary', 'surface', 'onSurface', 'background', 'muted', 'border', 'success', 'warning', 'danger']
 export const SHARED: Array<[string, FieldKind]> = [['padding', 'number'], ['background', 'color'], ['cornerRadius', 'number'], ['foreground', 'color'], ['a11yLabel', 'text'], ['a11yId', 'text']]
 export const FIELDS: Record<string, Array<[string, FieldKind]>> = {
-  // spec 2.1: align, maxLines, markup (**bold** / *italic* in the value)
+  // spec 2.1: align, markup (**bold** / *italic* in the value); a text always shows in full
   text: [['value', 'textarea'], ['markup', 'bool'], ['style', ['', 'title', 'headline', 'body', 'caption']], ['weight', ['', 'regular', 'medium', 'semibold', 'bold', 'heavy']],
-    ['size', 'number'], ['color', 'color'], ['align', ['', 'leading', 'center', 'trailing']], ['maxLines', 'number']],
+    ['size', 'number'], ['color', 'color'], ['align', ['', 'leading', 'center', 'trailing']]],
   image: [['systemName', 'text'], ['name', 'text'], ['contentMode', ['', 'fit', 'fill']], ['width', 'number'], ['height', 'number']],
   // height / maxHeight: the container decides the size; a `scroll` inside fills it and scrolls
   vstack: [['spacing', 'number'], ['alignment', ['', 'leading', 'center', 'trailing']], ['height', 'number'], ['maxHeight', 'number']],
@@ -606,7 +606,9 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
       if (kind === 'textarea') {
         return multilineText(d, {
           label: key, value: typeof current === 'string' ? current : '', rows: 3,
-          onChange: (v) => doc.setProp(id, key, v === '' ? undefined : v),
+          // live: the canvas follows every keystroke (one undo step per typing session)
+          onChange: (v) => doc.setProp(id, key, v === '' ? undefined : v, { typing: true }),
+          onCommit: () => doc.endTyping(),
           // a text's value: bold / italic buttons (they switch `markup` on)
           ...(node.type === 'text' && key === 'value' ? { onMarkup: () => doc.setProp(id, 'markup', true), markupOn: props.markup === true } : {})
         })
@@ -640,7 +642,12 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
       }
       const input = el('input', { type: kind === 'number' ? 'number' : 'text', ...(node.type === 'image' && key === 'name' ? { list: listId('assets') } : {}) }) as HTMLInputElement
       input.value = current === undefined || current === null ? '' : String(current)
-      input.addEventListener('change', () => doc.setProp(id, key, input.value === '' ? undefined : kind === 'number' ? Number(input.value) : input.value))
+      // live: the canvas follows every keystroke; a half-typed number waits
+      input.addEventListener('input', () => {
+        if (kind === 'number' && input.value !== '' && !Number.isFinite(Number(input.value))) return
+        doc.setProp(id, key, input.value === '' ? undefined : kind === 'number' ? Number(input.value) : input.value, { typing: true })
+      })
+      input.addEventListener('change', () => doc.endTyping())
       return el('label', {}, key, input)
     }
     // one foldable section per group, in a fixed order
@@ -787,10 +794,12 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
     if (!previewMode) decorate()
     // bounded containers that clip their content (measured on the canvas)
     const clipped = previewMode ? [] : clippedContainers(device, doc.root)
-    // inspector
+    // inspector (rebuilt on every edit: the field being typed into keeps focus and caret)
     const selected = doc.selected
+    const keep = focusOf(inspector, selected?.id)
     if (selected) inspectorFor(selected)
     else inspector.replaceChildren(el('p', { class: 'empty' }, 'Select a node'))
+    restoreFocus(inspector, keep, selected?.id)
     // JSON
     toggle.textContent = jsonOpen ? '▾' : '▸'
     toggle.setAttribute('aria-expanded', String(jsonOpen))
@@ -850,6 +859,36 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
       root.remove()
       detachStyles()
     }
+  }
+}
+
+/// The focused field of a panel that is about to be rebuilt: its position among the panel's
+/// fields, the component it belongs to, and the caret / selection.
+export interface KeptFocus { owner: string | undefined; index: number; start: number | null; end: number | null }
+
+const FIELDS_SELECTOR = 'input, textarea, select'
+
+export function focusOf(panel: HTMLElement, owner: string | undefined): KeptFocus | undefined {
+  const active = panel.ownerDocument.activeElement
+  if (!active || !panel.contains(active)) return undefined
+  const index = [...panel.querySelectorAll(FIELDS_SELECTOR)].indexOf(active)
+  if (index < 0) return undefined
+  const field = active as HTMLInputElement
+  let start: number | null = null
+  let end: number | null = null
+  try { start = field.selectionStart; end = field.selectionEnd } catch { /* number inputs have no selection */ }
+  return { owner, index, start, end }
+}
+
+/// Put the focus (and caret) back on the same field after the panel was rebuilt — only for
+/// the same component, so selecting another one never steals the focus.
+export function restoreFocus(panel: HTMLElement, kept: KeptFocus | undefined, owner: string | undefined): void {
+  if (!kept || kept.owner !== owner) return
+  const field = panel.querySelectorAll(FIELDS_SELECTOR)[kept.index] as HTMLInputElement | undefined
+  if (!field) return
+  field.focus()
+  if (kept.start !== null && kept.end !== null) {
+    try { field.setSelectionRange(kept.start, kept.end) } catch { /* not a text field */ }
   }
 }
 

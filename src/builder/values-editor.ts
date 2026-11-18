@@ -56,10 +56,17 @@ export class ValuesEditor {
 
   private changed(): void { for (const l of [...this.listeners]) l() }
 
-  private mutate(next: Partial<Snapshot>): void {
+  /// the field being typed into (`id:key`): its keystrokes are one undo step
+  private typing?: string
+
+  /// End a typing session (the field lost focus): the next edit is a new undo step.
+  endTyping(): void { this.typing = undefined }
+
+  private mutate(next: Partial<Snapshot>, typing?: string): void {
     const s = { template: this._template, components: this._components, ...next }
     if (s.template === this._template && JSON.stringify(s.components) === JSON.stringify(this._components)) return
-    this.undoStack.push({ template: this._template, components: this._components })
+    if (!(typing !== undefined && typing === this.typing && this.undoStack.length > 0)) this.undoStack.push({ template: this._template, components: this._components })
+    this.typing = typing
     this.redoStack = []
     this._template = s.template
     this._components = s.components
@@ -69,6 +76,7 @@ export class ValuesEditor {
   select(id: string | undefined): void {
     if (this._selection === id) return
     this._selection = id
+    this.typing = undefined
     this.changed()
   }
 
@@ -122,15 +130,16 @@ export class ValuesEditor {
   }
 
   /// Override (or, with `undefined` / `''`, reset to the default) one prop of a component.
-  /// Only content props (`editable`); clearing is always allowed.
-  setValue(id: string, key: string, value: SduiValue | undefined): void {
+  /// Only content props (`editable`); clearing is always allowed. `typing: true` — a
+  /// keystroke: consecutive ones into the same field are one undo step.
+  setValue(id: string, key: string, value: SduiValue | undefined, options: { typing?: boolean } = {}): void {
     const cleared = value === undefined || value === ''
     if (!cleared && !this.editable(id, key)) throw new TypeError(`${id}.${key} is not content — the template decides it`)
     const current = this._components[id] ?? {}
     const props = { ...(current.props ?? {}) }
     if (cleared) delete props[key]
     else props[key] = value
-    this.put(id, { ...current, props })
+    this.put(id, { ...current, props }, options.typing ? `${id}:${key}` : undefined)
   }
 
   /// The template component `id` (root or a variant).
@@ -154,11 +163,11 @@ export class ValuesEditor {
     this.mutate({ components: next })
   }
 
-  private put(id: string, value: ComponentValue): void {
+  private put(id: string, value: ComponentValue, typing?: string): void {
     const next = { ...this._components }
     if (Object.keys(value.props ?? {}).length === 0) delete next[id]
     else next[id] = value
-    this.mutate({ components: next })
+    this.mutate({ components: next }, typing)
   }
 
   /// The value set (needs a template).
@@ -215,6 +224,7 @@ export class ValuesEditor {
   undo(): void {
     const previous = this.undoStack.pop()
     if (!previous) return
+    this.typing = undefined
     this.redoStack.push({ template: this._template, components: this._components })
     ;({ template: this._template, components: this._components } = previous)
     this.changed()
@@ -223,6 +233,7 @@ export class ValuesEditor {
   redo(): void {
     const next = this.redoStack.pop()
     if (!next) return
+    this.typing = undefined
     this.undoStack.push({ template: this._template, components: this._components })
     ;({ template: this._template, components: this._components } = next)
     this.changed()

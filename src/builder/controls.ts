@@ -26,7 +26,8 @@ export function wrapSelection(area: HTMLTextAreaElement, marker: string): string
   return next
 }
 
-/// A multi-line text box. With `onMarkup` it gets **B** / *I* buttons that wrap the
+/// A multi-line text box: every keystroke goes to `onInput` (the canvas follows as you type),
+/// leaving the box calls `onCommit`. With `onMarkup` it gets **B** / *I* buttons that wrap the
 /// selection in `**` / `*` and switch the text's `markup` on (spec 2.1); Enter is a new line.
 export function multilineText(d: Document, options: {
   label: string
@@ -34,13 +35,17 @@ export function multilineText(d: Document, options: {
   placeholder?: string
   rows?: number
   onChange: (value: string) => void
+  /// every keystroke (default: `onChange`)
+  onInput?: (value: string) => void
+  onCommit?: () => void
   onMarkup?: () => void
   markupOn?: boolean
 }): HTMLElement {
   const el = elFor(d)
   const area = el('textarea', { rows: String(options.rows ?? 3), 'aria-label': options.label, ...(options.placeholder ? { placeholder: options.placeholder } : {}) })
   area.value = options.value
-  area.addEventListener('change', () => options.onChange(area.value))
+  area.addEventListener('input', () => (options.onInput ?? options.onChange)(area.value))
+  area.addEventListener('change', () => options.onCommit?.())
   const box = el('div', { class: 'mtext' })
   if (options.onMarkup) {
     const tool = (label: string, marker: string, title: string) => {
@@ -81,10 +86,10 @@ export function optionsTable(d: Document, label: string, current: unknown, onCha
   rows.forEach((row, i) => {
     const value = el('input', { 'aria-label': `option ${i + 1} value` })
     value.value = row.value
-    value.addEventListener('change', () => { row.value = value.value; commit() })
+    value.addEventListener('input', () => { row.value = value.value; commit() })
     const text = el('input', { 'aria-label': `option ${i + 1} label` })
     text.value = row.label
-    text.addEventListener('change', () => { row.label = text.value; commit() })
+    text.addEventListener('input', () => { row.label = text.value; commit() })
     const remove = el('button', { type: 'button', class: 'btn', title: 'Remove option', 'aria-label': `Remove option ${i + 1}` }, '✕')
     remove.addEventListener('click', () => { rows.splice(i, 1); commit() })
     const up = el('button', { type: 'button', class: 'btn', title: 'Move up', 'aria-label': `Move option ${i + 1} up` }, '↑')

@@ -88,11 +88,7 @@ export class TextComponent implements Component {
     if (c) style.color = c
     const align = TEXT_ALIGN[node.string('align')]
     if (align) style.textAlign = align
-    // spec 2.1 — at most `maxLines` lines, the rest cut with an ellipsis
-    const maxLines = numberProp(node, 'maxLines')
-    if (maxLines !== undefined && maxLines >= 1) {
-      Object.assign(style, { display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: String(Math.floor(maxLines)), overflow: 'hidden' })
-    }
+    // a text always shows in full: every line of its value, line breaks kept (pre-wrap), never cut
     if (ctx.pending(template)) {
       // a `screen.load` result this text needs hasn't arrived yet → skeleton
       return renderNode(ctx.keyFor(node), 'span', {

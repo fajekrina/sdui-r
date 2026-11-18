@@ -1,4 +1,4 @@
-// spec 2.1 (text.align, text.maxLines, text.markup) and the single-admin builder: action panels
+// spec 2.1 (text.align, text.markup) and the single-admin builder: action panels
 // by what a component does with its action, a grouped inspector, bold / italic, picker options.
 import { describe, expect, it } from 'vitest'
 import { devEngine } from './helpers'
@@ -43,18 +43,28 @@ describe('text (spec 2.1)', () => {
     ])
   })
 
-  it('align and maxLines', async () => {
-    const t = await render({ type: 'text', props: { value: 'x', align: 'center', maxLines: 2 } })
-    expect(t.style).toMatchObject({ textAlign: 'center', display: '-webkit-box', WebkitLineClamp: '2', WebkitBoxOrient: 'vertical', overflow: 'hidden' })
+  it('align', async () => {
+    expect((await render({ type: 'text', props: { value: 'x', align: 'center' } })).style.textAlign).toBe('center')
     expect((await render({ type: 'text', props: { value: 'x', align: 'trailing' } })).style.textAlign).toBe('end')
-    expect((await render({ type: 'text', props: { value: 'x', align: 'justify', maxLines: 0 } })).style).not.toHaveProperty('textAlign')
+    expect((await render({ type: 'text', props: { value: 'x', align: 'justify' } })).style).not.toHaveProperty('textAlign')
   })
 
-  it('the DOM renderer draws the runs and the line clamp', async () => {
-    const t = await render({ type: 'text', props: { value: 'a **b**', markup: true, maxLines: 3 } })
+  it('a text always shows in full: every line, line breaks kept, never cut with an ellipsis', async () => {
+    const value = 'Baris satu yang cukup panjang untuk dipotong\nBaris dua\n\nBaris empat'
+    // a leftover maxLines from an early 2.1 draft is ignored
+    const t = await render({ type: 'text', props: { value, maxLines: 1 } })
+    expect(t.text).toBe(value)
+    expect(t.style).toMatchObject({ display: 'block', whiteSpace: 'pre-wrap' })
+    expect(t.style).not.toHaveProperty('WebkitLineClamp')
+    expect(t.style).not.toHaveProperty('overflow')
+    expect(t.style).not.toHaveProperty('textOverflow')
     const el = renderNodeDOM(t) as HTMLElement
-    expect(el.querySelectorAll('span')[1]!.style.fontWeight).toBe('700')
-    expect(el.style.getPropertyValue('-webkit-line-clamp')).toBe('3')
+    expect(el.textContent).toBe(value)
+    expect(el.style.whiteSpace).toBe('pre-wrap')
+    // the same with markup runs
+    const rich = renderNodeDOM(await render({ type: 'text', props: { value: 'a **b**\nc', markup: true } })) as HTMLElement
+    expect(rich.textContent).toBe('a b\nc')
+    expect(rich.querySelectorAll('span')[1]!.style.fontWeight).toBe('700')
   })
 
   it('the builder writes spec 2.1', () => {
@@ -122,7 +132,7 @@ describe('Studio inspector (single admin)', () => {
     const id = studio.document.add('text')
     const area = host.querySelector<HTMLTextAreaElement>('.insp .mtext textarea')!
     area.value = 'Diskon 50%\nhari ini'
-    area.dispatchEvent(new Event('change'))
+    area.dispatchEvent(new Event('input'))
     expect(find(studio.document.root, id)!.props.value).toBe('Diskon 50%\nhari ini')
     const again = host.querySelector<HTMLTextAreaElement>('.insp .mtext textarea')!
     again.setSelectionRange(7, 10)
@@ -153,6 +163,80 @@ describe('Studio inspector (single admin)', () => {
     hex.dispatchEvent(new Event('change'))
     expect(find(studio.document.root, id)!.props.background).toBe('#FF0000')   // not a hex: ignored
     done()
+  })
+})
+
+describe('live editing: the canvas follows every keystroke', () => {
+  /// type `text` one character at a time into the FOCUSED field, as a person does (the panel is
+  /// rebuilt after every keystroke, so the field that has the focus is a new element each time)
+  const typeInto = (_start: HTMLInputElement | HTMLTextAreaElement, text: string) => {
+    for (const ch of text) {
+      const field = document.activeElement as HTMLInputElement | HTMLTextAreaElement
+      field.value += ch
+      field.setSelectionRange(field.value.length, field.value.length)
+      field.dispatchEvent(new Event('input'))
+    }
+  }
+  const device = (host: Element) => host.querySelector('.device')!.textContent
+
+  it('Studio: text value, button title and number fields update the canvas while typing; focus and caret stay', () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    const studio = mountTemplateBuilder(host)
+    const id = studio.document.add('text')
+    const area = () => host.querySelector<HTMLTextAreaElement>('.insp .mtext textarea')!
+    area().value = ''
+    area().focus()
+    typeInto(area(), 'Halo')
+    expect(device(host)).toContain('Halo')                      // no blur needed
+    expect(document.activeElement).toBe(area())                 // the rebuilt box still has the focus
+    expect(area().selectionStart).toBe(4)
+    typeInto(area(), '\nbaris dua')
+    expect(find(studio.document.root, id)!.props.value).toBe('Halo\nbaris dua')
+    // one typing session = one undo step
+    area().dispatchEvent(new Event('change'))
+    studio.document.undo()
+    expect(find(studio.document.root, id)!.props.value).toBe('Text')
+
+    const b = studio.document.add('button')
+    const title = [...host.querySelectorAll('.insp label')].find((l) => l.firstChild?.textContent === 'title')!.querySelector('input')!
+    title.value = ''
+    title.focus()
+    typeInto(title, 'Beli')
+    expect(device(host)).toContain('Beli')
+    expect(find(studio.document.root, b)!.props.title).toBe('Beli')
+    expect(document.activeElement).toBe([...host.querySelectorAll('.insp label')].find((l) => l.firstChild?.textContent === 'title')!.querySelector('input'))
+    studio.destroy()
+    host.remove()
+  })
+
+  it('content mode: a value updates the canvas while typing; one undo step per session', () => {
+    const template = TemplateDocument.decode({ schemaVersion: '2.1', template: { key: 'promo', version: 1, root: { type: 'vstack', id: 'root', children: [
+      { type: 'text', id: 'headline', order: 1, props: { value: 'Judul' } },
+      { type: 'button', id: 'cta', order: 2, props: { title: 'Lihat' }, action: { type: 'dismiss' } }
+    ] } } })
+    const host = document.createElement('div')
+    document.body.append(host)
+    const editor = new ValuesEditor({ screen: 'promo', template })
+    const builder = mountScreenBuilder(host, { editor, showTemplates: false })
+    editor.select('headline')
+    const area = () => host.querySelector<HTMLTextAreaElement>('.insp .mtext textarea')!
+    area().focus()
+    typeInto(area(), 'Promo\nhari ini')
+    expect(device(host)).toContain('Promo\nhari ini')
+    expect(document.activeElement).toBe(area())
+    area().dispatchEvent(new Event('change'))
+    editor.select('cta')
+    const title = [...host.querySelectorAll<HTMLInputElement>('.insp input')].find((i) => i.placeholder === 'Lihat')!
+    title.focus()
+    typeInto(title, 'Beli')
+    expect(device(host)).toContain('Beli')
+    editor.undo()                                                // the whole title at once
+    expect(editor.value('cta', 'title')).toBe('Lihat')
+    editor.undo()
+    expect(editor.value('headline', 'value')).toBe('Judul')
+    builder.destroy()
+    host.remove()
   })
 })
 
