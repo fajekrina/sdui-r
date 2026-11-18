@@ -41,7 +41,8 @@ async function snapshot(browser: Browser, fixture: string, baseURL: string) {
         attrs: [...el.attributes].filter((a) => a.name !== 'style').map((a) => `${a.name}=${a.value}`).sort().join(' ') + (options ? ` options=${options}` : ''),
         text: el.childNodes.length && el.firstChild?.nodeType === 3 ? el.firstChild.textContent : '',
         style: Object.fromEntries(keys.map((k) => [k, cs.getPropertyValue(k)])),
-        box: [box.x, box.y, box.width, box.height]
+        box: [box.x, box.y, box.width, box.height],
+        descendants: el.querySelectorAll('*').length
       }
     })
   }, STYLE_KEYS)
@@ -61,7 +62,10 @@ for (const fixture of FIXTURES) {
         expect(other.attrs, `${el.tag}[${i}] attrs`).toBe(el.attrs)
         expect(other.text, `${el.tag}[${i}] text`).toBe(el.text)
         expect(canon(other.style), `${el.tag}[${i}] style`).toEqual(canon(el.style))
-        el.box.forEach((v, j) => expect(Math.abs(other.box[j]! - v), `${el.tag}[${i}] box[${j}]`).toBeLessThanOrEqual(TOLERANCE_PX * (j < 2 ? 1 + i / 10 : 1)))
+        // Engines differ slightly in text metrics, and the drift accumulates: an element's
+        // position by everything laid out before it, a container's height by its content.
+        const slack = [1 + i / 10, 1 + i / 10, 1, 1 + el.descendants / 10]
+        el.box.forEach((v, j) => expect(Math.abs(other.box[j]! - v), `${el.tag}[${i}] box[${j}]`).toBeLessThanOrEqual(TOLERANCE_PX * slack[j]!))
       })
     } finally {
       await Promise.all([c.close(), w.close()])
