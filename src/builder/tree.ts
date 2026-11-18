@@ -97,9 +97,25 @@ export function strippingGeneratedIds(node: SduiNode): SduiNode {
   })
 }
 
-/// sdui-r — a template tree: every node keeps its id and gets `order` = its position.
-export function withOrders(node: SduiNode, order = 0): SduiNode {
-  return new SduiNode({ id: node.id, order, type: node.type, props: node.props, children: node.children.map((c, i) => withOrders(c, i)), action: node.action })
+/// sdui-r — a template tree: every node keeps its id and gets `order` = its place in the
+/// whole layout, numbered depth-first from the root (root 0, its first child 1, that child's
+/// first child 2 …) — the reading order of the page. Moving a component renumbers every
+/// node after it. Siblings stay in ascending order, so the spec rule (unique among
+/// siblings, render by order) holds.
+export function withOrders(node: SduiNode): SduiNode {
+  let next = 0
+  const walk = (n: SduiNode): SduiNode => {
+    const order = next++
+    return new SduiNode({ id: n.id, order, type: n.type, props: n.props, children: n.children.map(walk), action: n.action })
+  }
+  return walk(node)
+}
+
+/// sdui-r — the `order` each node gets in `withOrders` (depth-first position), by id.
+export function ordersOf(root: SduiNode): Map<string, number> {
+  const out = new Map<string, number>()
+  flatten(root).forEach(([n], i) => { if (n.id !== undefined) out.set(n.id, i) })
+  return out
 }
 
 /// sdui-r — children sorted by `order` (ties keep array order); `order` dropped (the

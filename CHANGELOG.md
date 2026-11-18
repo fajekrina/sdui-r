@@ -5,6 +5,88 @@ versi mengikuti Semantic Versioning (0.x: breaking change boleh di minor dengan 
 
 ## [Unreleased]
 
+### Diubah: action editor hanya menampilkan yang dipakai engine (builder)
+
+- `openURL`: `link` dipilih dari daftar `links` ("— choose a link —", nilai lain "unknown link"); tanpa `params`
+  dan tanpa `onSuccess`/`onError`. `dismiss` / `refresh`: hanya keterangan. `navigate` / `toast`: hanya `onSuccess`
+  (tidak bisa gagal); `api` / `native`: `params`, `onSuccess`, `onError`.
+- Field yang diabaikan engine tetap tampil selama masih berisi (berlabel "ignored … clear it" / "never runs …
+  remove it") supaya bisa dihapus; tidak ada yang dibuang otomatis.
+- `actionWarnings(root, { requests, sources, links })` (menggantikan pemakaian `requestWarnings` di Template
+  Builder): ditambah link yang tidak dikenal, `params` yang diabaikan, dan langkah lanjutan yang tidak pernah jalan.
+  `describeAction` hanya menyebut langkah yang benar-benar jalan. `ACTION_USES` mencatat aturannya.
+
+### Diubah: daftar request tombol dan sumber data chart dipisah (builder)
+
+- `StudioOptions.sources` / `StudioCatalog.sources` (juga prop `sources` di React/Vue): sumber data yang dibaca chart.
+  Action `api` milik chart memilih dari `sources` ("— choose a data source —", nilai lain ditandai
+  "not a data source"); tombol dan komponen lain memilih dari `requests` (nilai lain "unknown request").
+- Tanpa `sources` chart tetap memakai `requests` seperti sebelumnya. Runtime, payload dan validator tidak berubah:
+  template yang sudah rilis tetap jalan, nilai yang salah jenis ditampilkan apa adanya, tidak dibuang.
+- App: `CATALOG.requests` = request aksi (`submitCheckout`), `CATALOG.sources` = `DATA_SOURCES`.
+- Peringatan `requestWarnings(root, { requests, sources })` (diekspor dari builder), tampil di panel
+  peringatan Template Builder: tombol (atau langkah `onSuccess`/`onError`) yang mengirim sumber data chart,
+  chart yang membaca request aksi, atau nama yang tidak ada di daftar mana pun. Hanya peringatan, tidak
+  memblokir simpan/terbit, dan hanya aktif jika app memisahkan daftar (`sources` diisi).
+
+### Ditambahkan: deprecated, keterangan fungsi, bingkai gambar (builder)
+- **Template deprecated** (status katalog per key template, bukan isi dokumen bertanda tangan): Template Builder
+  punya tombol "Deprecate…" (alasan wajib, pengganti opsional dari template lain yang tidak deprecated) dan banner +
+  "Restore" saat deprecated. Opsi baru `deprecation`, `onDeprecate`, `onRestore`; `catalog.deprecated` menandai
+  template di pemilih page `navigate`. Screen Builder: `TemplateChoice.deprecated` → badge di palette dan banner.
+  Page yang sudah memakai template tetap jalan; page baru ditolak (app dan value-service).
+- **Keterangan fungsi untuk maker**: `describeComponent` / `describeAction` / `actionBadge` (mis. "Opens page
+  "checkout" as a sheet", "Sends request …; on success: …", field form, sumber data chart, bingkai gambar). Screen
+  Builder menampilkannya di inspector ("What it does"), badge di outline dan kanvas (`→ checkout`, `⇄ submitCheckout`),
+  dan tooltip. Template Builder: prop `builderNote` ("note for makers") per komponen — milik template, bukan konten,
+  dan dibuang oleh `compose` (tidak sampai ke nasabah).
+- **Bingkai gambar**: `image` baru dari palette = bingkai kosong (`defaultProps` `{ height: 160 }`, sebelumnya ikon
+  `star.fill`). Tanpa gambar, renderer menggambar bingkai (`data-sdui-frame="empty"`, atau `"missing"` bila nama tak
+  dikenal) alih-alih `<img src="">`. `name` yang ter-resolve kini **mengalahkan** `systemName`, jadi foto maker
+  menggantikan ikon template. Screen Builder: panel "Picture" (pratinjau, drop zone, "Choose file…", "Use link") dan
+  drop file langsung ke bingkai di kanvas; opsi `uploadAsset(source) → nama aset` dan `maxAssetBytes` (default 2 MiB);
+  hanya PNG/JPEG/WebP/GIF (`IMAGE_TYPES`, tanpa SVG). Value set tetap hanya berisi nama aset, tidak pernah URL.
+
+### Diubah
+- Template Builder: **component id tidak bisa diedit** (read-only; dibuat sekali `text1`, `button2` …, karena value
+  set memakainya sebagai key). **Breaking:** `EditorDocument.renameId` dihapus. Panel JSON (2-way) Template Builder
+  juga tidak bisa mengganti id: `importJSON(data, { keepIds: true })` menolak id baru atau id yang dipindah ke
+  komponen bertipe lain; menghapus komponen dan menambah komponen tanpa `id` (id dibuat otomatis) tetap boleh.
+  Import berkas utuh (tombol Import, draft dari backend) tetap memakai id dari berkasnya.
+- Template Builder: **id tidak pernah dipakai ulang**. `EditorDocument` mengingat setiap id yang pernah ada (beserta
+  tipenya); id baru melewatinya, jadi menghapus `text1` lalu menambah text memberi `text2`/`text3`, bukan `text1` lagi
+  (value set lama tidak menempel ke komponen lain). Baru: `reserveIds(templateJSON | ids)` untuk id dari release
+  sebelumnya; app memanggilnya untuk setiap release template yang dibuka. Panel JSON boleh mengembalikan komponen
+  terhapus dengan id-nya sendiri (tipe sama), tidak boleh memberi id itu ke tipe lain.
+- **`order` = posisi di seluruh halaman** (depth-first dari root: root 0, anak pertamanya 1, cucu pertamanya 2 …),
+  bukan lagi indeks per saudara yang selalu mulai dari 0. Memindahkan komponen menomori ulang semua node sesudahnya.
+  Tetap memenuhi spec (unik dan menaik di antara saudara). `ordersOf(root)` memberi nomor per id; inspector menampilkannya.
+- Budget core terukur 23,5 KB (budget 24 KB).
+
+### Ditambahkan: data chart dari API
+- Sumber data chart = **action chart**: action `api` dengan `request` (dan `params`) yang dipilih. `compose` menambahkannya
+  ke `screen.load` (sekali), jadi data ikut diambil bersama halaman. Respons berupa **data summary**
+  `{ items: [{ key, label, value }] }` (atau array-nya langsung) yang dipetakan otomatis; mapping lain lewat `keyKey` /
+  `labelKey` / `valueKey`. Tanpa action (atau action selain `api`), chart menggambar `data` statisnya. Chart tidak bisa
+  di-tap. Tidak ada prop `source` terpisah. Di Template Builder, bagian Action pada chart berjudul "Action · data source".
+- Checkbox tampilan chart: `showLabels` (default on), `showKeys` (baru), `showValues`, `showLegend` (default on), berlaku
+  untuk bar/line/area dan legenda pie/donut. Builder: checkbox ber-default on menulis `false` saat dimatikan.
+- Template Builder: `navigate.screen` (dari `screens`; di app: semua template) dan `api.request` (dari `requests`) kini
+  berupa pilihan, bukan teks bebas. Nilai di luar daftar ditandai "(not a template)" / "(unknown request)"; action
+  navigate/api baru langsung menunjuk entri pertama.
+
+### Diubah (breaking): value set hanya berisi konten
+- Maker hanya mengisi **konten**: per tipe komponen, prop di `spec/content.json` / `CONTENT_PROPS` (`text.value`,
+  `image.name`/`systemName`, `button.title`, `list.items`, `label`/`placeholder` field form, `picker.options`,
+  `chart.data`/`labels`/`labelKey`/`valueKey`) ditambah `a11yLabel`. Style, layout, aturan form, dan action milik template.
+- `validateValues` menolak prop non-konten ("not content of a text — the template decides it"); value set tidak lagi
+  punya `action` (dihapus dari skema `componentValue`; `ValueSet.decode` menolaknya). `compose` selalu memakai action
+  template. Tipe di luar daftar (slot adapter) tidak punya prop konten.
+- `ValuesEditor`: `setAction` dihapus; baru `editable(id, key)` dan `node(id)`; `setValue` menolak prop non-konten;
+  `importJSON` memvalidasi terhadap template; `setTemplate` membuang prop yang bukan konten tipe barunya.
+- Screen Builder: inspector hanya menampilkan field konten (field style/layout dan editor action hilang).
+- Fixture: `values_promo` / `bundle_promo` tanpa action; `invalid/values_raw_url` → `invalid/values_action`.
+
 ### Ditambahkan
 - Komponen bawaan **`chart`**: `kind` bar | line | area | pie | donut, digambar sebagai SVG `path` (identik di React/Vue/vanilla,
   aman di CSP ketat). `data` berupa array angka atau objek (`labelKey`/`valueKey`, `color` per item), atau key path ke
@@ -25,7 +107,7 @@ versi mengikuti Semantic Versioning (0.x: breaking change boleh di minor dengan 
 ### Diubah
 - Slot milik adapter (`render({ slots })`) kini mengalahkan komponen bawaan bernama sama, jadi app tetap bisa menggambar
   `chart` dengan toolkit sendiri.
-- Budget bundle core 22 → 24 KB (terukur 22,6 KB) untuk `chart`.
+- Budget bundle core 22 → 24 KB (terukur 23,0 KB) untuk `chart` dan aturan konten.
 
 ## [0.1.0] — sdui-r
 

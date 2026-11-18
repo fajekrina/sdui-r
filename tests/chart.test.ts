@@ -3,14 +3,15 @@ import { describe, expect, it } from 'vitest'
 import { ScreenSource, type RenderNode } from '../src/core'
 import { devEngine } from './helpers'
 
-async function render(props: Record<string, unknown>, seed: Record<string, unknown> = {}) {
-  const screen = devEngine().screen(ScreenSource.inline({ schemaVersion: '2.0', screen: { key: 's', root: { type: 'chart', id: 'c', props } } }), { seed: seed as never })
+async function render(props: Record<string, unknown>, seed: Record<string, unknown> = {}, action?: Record<string, unknown>) {
+  const screen = devEngine().screen(ScreenSource.inline({ schemaVersion: '2.0', screen: { key: 's', root: { type: 'chart', id: 'c', props, ...(action ? { action } : {}) } } }), { seed: seed as never })
   await screen.load()
   return screen.render().nodes[0]!
 }
 const all = (n: RenderNode): RenderNode[] => [n, ...n.children.flatMap(all)]
 const paths = (n: RenderNode) => all(n).filter((x) => x.element === 'path')
 const texts = (n: RenderNode) => all(n).filter((x) => x.text !== undefined).map((x) => x.text)
+const api = (request: string) => ({ type: 'api', request })
 
 describe('chart', () => {
   it('bar: one path per value, labels, values, a generated accessible name', async () => {
@@ -34,6 +35,28 @@ describe('chart', () => {
       expect(paths(c)[0]!.style.fill).toBe('var(--sdui-color-danger, #B91C1C)')
       expect(texts(c)).toEqual(['Sen', 'Sel'])
     }
+  })
+
+  it('the data source is the api action: its request\'s summary { items: [{ key, label, value }] }; no action = static data', async () => {
+    const seed = { salesSummary: { title: 'Penjualan', items: [{ key: 'jan', label: 'Januari', value: 120 }, { key: 'feb', label: 'Februari', value: 80 }] } }
+    const c = await render({ data: [1, 2, 3, 4, 5] }, seed, api('salesSummary'))
+    expect(paths(c)).toHaveLength(2)
+    expect(texts(c)).toEqual(['Januari', 'Februari'])
+    expect(c.on ?? {}).toEqual({})                                     // the action loads data; the chart is not tappable
+    // the array itself is a summary too; another action type (or none) draws the static data
+    expect(paths(await render({}, { list: [{ label: 'a', value: 1 }] }, api('list')))).toHaveLength(1)
+    expect(paths(await render({ data: [1, 2] }, seed, { type: 'navigate', screen: 'x' }))).toHaveLength(2)
+    expect(paths(await render({ data: [1, 2] }, seed))).toHaveLength(2)
+  })
+
+  it('checkboxes choose what the drawing shows: labels (default on), keys, values, legend (default on)', async () => {
+    const seed = { s: { items: [{ key: 'jan', label: 'Januari', value: 120 }, { key: 'feb', label: 'Februari', value: 80 }] } }
+    expect(texts(await render({ showKeys: true, showValues: true }, seed, api('s')))).toEqual(['120', '80', 'Januari', 'Februari', 'jan', 'feb'])
+    expect(texts(await render({ showLabels: false, showValues: true }, seed, api('s')))).toEqual(['120', '80'])
+    expect(texts(await render({ kind: 'pie', showKeys: true, showValues: true }, seed, api('s')))).toEqual(['Januari', 'jan', '120 · 60%', 'Februari', 'feb', '80 · 40%'])
+    expect(texts(await render({ kind: 'pie', showLegend: false }, seed, api('s')))).toEqual([])
+    // a custom mapping
+    expect(texts(await render({ keyKey: 'id', labelKey: 'name', valueKey: 'n', showKeys: true }, { t: [{ id: 'x1', name: 'Satu', n: 1 }] }, api('t')))).toEqual(['Satu', 'x1'])
   })
 
   it('line / area: a non-scaling stroke; area adds a translucent fill', async () => {

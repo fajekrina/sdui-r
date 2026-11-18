@@ -85,4 +85,22 @@ export const STUDIO_CSS = `
 .sdui-studio .insp .fld.on input,.sdui-studio .insp .fld.on select,.sdui-studio .insp .fld.on textarea{border-color:#2563eb}
 .sdui-studio .tplref{font:12px ui-monospace,monospace;color:#334155;border:1px solid #e2e8f0;border-radius:999px;padding:2px 8px}
 .sdui-studio [hidden]{display:none!important}
+.sdui-studio .device [data-sdui-frame]{display:flex!important;align-items:center;justify-content:center;border:2px dashed #94a3b8;border-radius:8px;color:#64748b;font:12px/1.3 system-ui,sans-serif;text-align:center;padding:6px}
+.sdui-studio .device [data-sdui-frame]::before{content:'🖼 ' attr(data-frame-label)}
+.sdui-studio .device [data-sdui-frame="missing"]{border-color:#f59e0b}
+.sdui-studio .device [data-file-over]{border-color:#22c55e!important;background:#f0fdf4!important;outline:2px solid #22c55e}
+.sdui-studio .device [data-fn]{position:relative}
+.sdui-studio .device [data-fn]::before{content:attr(data-fn);position:absolute;bottom:-16px;right:0;padding:0 5px;border-radius:4px;background:#0f172a;color:#fff;font:10px/14px system-ui,sans-serif;white-space:nowrap;pointer-events:none;z-index:1;opacity:.8}
+.sdui-studio .insp .fn{padding:6px 8px;border-radius:6px;background:#eff6ff;color:#1e3a8a;font-size:12px;line-height:1.4}
+.sdui-studio .insp .fn ul{margin:0;padding-left:16px}
+.sdui-studio .insp .drop{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px;border:2px dashed #cbd5e1;border-radius:8px;text-align:center;font-size:12px;color:#64748b}
+.sdui-studio .insp .drop.over{border-color:#22c55e;background:#f0fdf4}
+.sdui-studio .insp .drop img{max-width:100%;max-height:120px;border-radius:4px;object-fit:contain}
+.sdui-studio .insp .urlrow{display:flex;gap:4px}
+.sdui-studio .insp .urlrow input{flex:1}
+.sdui-studio .row .fnb{margin-left:6px;font-size:11px;color:#64748b}
+.sdui-studio .dep{padding:6px 10px;background:#fef3c7;color:#78350f;border-bottom:1px solid #fcd34d;font-size:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.sdui-studio .dep strong{color:#92400e}
+.sdui-studio .tpl .depb,.sdui-studio .depb{display:inline-block;margin-left:4px;padding:0 6px;border-radius:999px;background:#fef3c7;color:#92400e;font:10px/16px system-ui,sans-serif}
+.sdui-studio .tpl.dep-t{border-style:dashed;opacity:.85}
 `

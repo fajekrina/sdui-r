@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { templateScreenProvider } from '../src/browser'
 import {
   MemoryCacheStore, PayloadSecurity, ScreenSource, SduiCache, SchemaValidator, TemplateDocument, ValuesDocument,
-  base64Encode, bundleBytes, compose, createEngine, utf8, utf8String
+  base64Encode, bundleBytes, compose, createEngine, isContentProp, utf8, utf8String
 } from '../src/core'
 import { devEngine, envelopeJSON, fixture, fixtureJSON, signingKey } from './helpers'
 
@@ -17,13 +17,14 @@ describe('compose', () => {
   const template = TemplateDocument.fromJSON(fixture('valid/template_promo.json')).template
   const values = ValuesDocument.fromJSON(fixture('valid/values_promo.json')).values
 
-  it('sorts children by order, merges props over the defaults, replaces the action', () => {
+  it('sorts children by order, merges props over the defaults, keeps the template action', () => {
     const screen = compose(template, values)
     expect(screen.key).toBe('home')
     expect(screen.root.children.map((c) => c.id)).toEqual(['headline', 'hero-image', 'cta'])
     expect(screen.root.children[0]!.props).toEqual({ value: 'Cashback 20% untuk {{user.name}}', style: 'title' })
     expect(screen.root.children[1]!.props).toEqual({ name: 'promo-cashback', height: 120 })
-    expect(screen.root.children[2]!.action!.toJSON()).toEqual({ type: 'navigate', screen: 'promoDetail', params: { id: 'cb20' } })
+    expect(screen.root.children[2]!.props.title).toBe('Ambil promo')
+    expect(screen.root.children[2]!.action!.toJSON()).toEqual({ type: 'navigate', screen: 'offers' })
     expect(screen.load.map((l) => l.request)).toEqual(['getOffers'])
   })
 
@@ -32,6 +33,17 @@ describe('compose', () => {
     expect(wide.type).toBe('hstack')
     expect(wide.children.map((c) => c.id)).toEqual(['hero-image', 'headline', 'cta'])
     expect(wide.children[1]!.props.value).toBe('Cashback 20% untuk {{user.name}}')
+  })
+
+  it('a chart\'s api action (its data source) joins screen.load once, with its params; template load first', () => {
+    const t = TemplateDocument.decode({ schemaVersion: '2.0', template: { key: 'dash', version: 1, load: [{ request: 'getOffers' }], root: { type: 'vstack', id: 'root', order: 0, children: [
+      { type: 'chart', id: 'a', order: 0, action: { type: 'api', request: 'salesSummary', params: { period: 'month' } } },
+      { type: 'chart', id: 'b', order: 1, props: { data: [1, 2] } },
+      { type: 'chart', id: 'c', order: 2, action: { type: 'api', request: 'getOffers' } },
+      { type: 'button', id: 'd', order: 3, action: { type: 'api', request: 'submitCheckout' } }
+    ] } } }).template
+    const screen = compose(t)
+    expect(screen.load).toEqual([{ request: 'getOffers' }, { request: 'salesSummary', params: { period: 'month' } }])
   })
 
   it('without values: the template key and its defaults (a preview)', () => {
@@ -65,8 +77,21 @@ describe('SchemaValidator: template + values', () => {
     const v = (patch: (x: { values: Record<string, unknown> }) => void) => { const x = clone(VALUES); patch(x); return ValuesDocument.decode(x) }
     expect(() => validator.validateValues(v((x) => { (x.values.template as { version: number }).version = 2 }), t)).toThrow(/promoCard@2/)
     expect(() => validator.validateValues(v((x) => { (x.values.components as Record<string, unknown>).ghost = { props: { value: 'x' } } }), t)).toThrow(/ghost: no such component/)
-    expect(() => validator.validateValues(v((x) => { (x.values.components as Record<string, unknown>).cta = { action: { type: 'navigate', screen: 'https://x' } } }), t)).toThrow()
+    expect(() => validator.validateValues(v((x) => { (x.values.components as Record<string, unknown>).cta = { action: { type: 'navigate', screen: 'https://x' } } }), t)).toThrow(/action is decided by the template/)
     expect(() => validator.validateValues(v(() => undefined), t)).not.toThrow()
+  })
+
+  it('only content props: style, layout and form rules are decided by the template', () => {
+    const t = doc(TEMPLATE.template)
+    const v = (components: Record<string, unknown>) => ValuesDocument.decode({ ...clone(VALUES), values: { ...clone(VALUES).values, components } })
+    expect(() => validator.validateValues(v({ headline: { props: { value: 'Halo', a11yLabel: 'Judul' } }, 'hero-image': { props: { name: 'x' } }, cta: { props: { title: 'Ya' } } }), t)).not.toThrow()
+    expect(() => validator.validateValues(v({ headline: { props: { style: 'caption' } } }), t)).toThrow(/headline.props.style: not content of a text/)
+    expect(() => validator.validateValues(v({ 'hero-image': { props: { height: 400 } } }), t)).toThrow(/props.height: not content of a image/)
+    expect(() => validator.validateValues(v({ cta: { props: { variant: 'plain' } } }), t)).toThrow(/variant/)
+    expect(() => validator.validateValues(v({ root: { props: { padding: 0 } } }), t)).toThrow(/root.props.padding/)
+    expect(isContentProp('chart', 'data')).toBe(true)
+    expect(isContentProp('chart', 'kind')).toBe(false)
+    expect(isContentProp('mySlot', 'anything')).toBe(false)
   })
 
   it('a different major is rejected', () => {

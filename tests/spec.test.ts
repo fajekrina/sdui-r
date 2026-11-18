@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import Ajv2020 from 'ajv/dist/2020'
-import { SchemaValidator, SduiBounds, SduiEnvelope, SduiPayload, TemplateDocument, ValuesDocument } from '../src/core'
+import { CONTENT_PROPS, SHARED_CONTENT_PROPS, SchemaValidator, SduiBounds, SduiEnvelope, SduiPayload, TemplateDocument, ValuesDocument } from '../src/core'
 import { ROOT, devEngine, fixture, fixtureJSON, fixtureNames } from './helpers'
 
 const schema = JSON.parse(readFileSync(resolve(ROOT, 'spec/sdui.schema.json'), 'utf8'))
@@ -55,6 +55,17 @@ describe('client validator vs spec fixtures', () => {
 })
 
 // F1: one source of bounds — the published spec/bounds.json, the schema, and the client defaults agree
+// sdui-r: one source of what a value set may fill — backends read spec/content.json
+describe('spec/content.json', () => {
+  it('is CONTENT_PROPS / SHARED_CONTENT_PROPS, and no action', () => {
+    const content = JSON.parse(readFileSync(resolve(ROOT, 'spec/content.json'), 'utf8')) as Record<string, unknown>
+    expect(content.schemaVersion).toBe('2.0')
+    expect(content.props).toEqual(CONTENT_PROPS)
+    expect(content.shared).toEqual(SHARED_CONTENT_PROPS)
+    expect(content.action).toBe(false)
+  })
+})
+
 describe('spec/bounds.json', () => {
   const bounds = JSON.parse(readFileSync(resolve(ROOT, 'spec/bounds.json'), 'utf8')) as Record<string, unknown>
   const { $comment: _comment, schemaVersion, ...numbers } = bounds

@@ -104,15 +104,20 @@ export class TextComponent implements Component {
 export class ImageComponent implements Component {
   static readonly type = 'image'
   static readonly category = 'content'
-  static readonly defaultProps = { systemName: 'star.fill' }
+  /// a new image is an empty FRAME the maker fills (upload / link / drop); `systemName`
+  /// makes it an icon instead
+  static readonly defaultProps = { height: 160 }
   makeView(node: SduiNode, ctx: RenderContext): RenderNode {
-    // `systemName` renders a symbol glyph; `name` renders an app-resolved asset.
-    // A raw URL is never taken from the payload.
+    // `name` renders an app-resolved asset (a maker's picture wins over the template's
+    // icon); `systemName` renders a symbol glyph; neither → an empty frame. A raw URL is
+    // never taken from the payload.
     const key = ctx.keyFor(node)
     const width = numberProp(node, 'width')
     const height = numberProp(node, 'height')
+    const name = node.string('name')
+    const src = name ? ctx.env.assetURL(name) : ''
     const systemName = node.string('systemName')
-    if (systemName) {
+    if (!src && systemName) {
       return renderNode(key, 'span', {
         type: node.type,
         attrs: a11y(node, ctx),
@@ -121,16 +126,18 @@ export class ImageComponent implements Component {
       })
     }
     const label = node.string('a11yLabel')
+    const box = { display: 'block', width: width !== undefined ? px(width) : '100%', height: height !== undefined ? px(height) : 'auto' }
+    if (!src) {
+      return renderNode(key, 'span', {
+        type: node.type,
+        attrs: cleanAttrs({ role: 'img', 'aria-label': label ? ctx.resolve(label) : 'image', 'data-sdui-frame': name ? 'missing' : 'empty', ...a11y(node, ctx) }),
+        style: { ...box, minHeight: '48px', background: color('surface')!, ...sharedStyle(node) }
+      })
+    }
     return renderNode(key, 'img', {
       type: node.type,
-      attrs: cleanAttrs({ src: ctx.env.assetURL(node.string('name')), alt: label ? ctx.resolve(label) : '', loading: 'lazy', ...a11y(node, ctx) }),
-      style: {
-        display: 'block',
-        width: width !== undefined ? px(width) : '100%',
-        height: height !== undefined ? px(height) : 'auto',
-        objectFit: node.string('contentMode') === 'fill' ? 'cover' : 'contain',
-        ...sharedStyle(node)
-      }
+      attrs: cleanAttrs({ src, alt: label ? ctx.resolve(label) : '', loading: 'lazy', ...a11y(node, ctx) }),
+      style: { ...box, objectFit: node.string('contentMode') === 'fill' ? 'cover' : 'contain', ...sharedStyle(node) }
     })
   }
 }

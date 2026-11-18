@@ -32,16 +32,18 @@ function StudioHost({ className, style, mount, ...options }: SduiBuilderProps & 
       onSave: optionsRef.current.onSave && ((p) => optionsRef.current.onSave?.(p)),
       onPublish: optionsRef.current.onPublish && ((p) => optionsRef.current.onPublish?.(p)),
       onSubmitForReview: optionsRef.current.onSubmitForReview && ((p, note) => optionsRef.current.onSubmitForReview?.(p, note)),
+      onDeprecate: optionsRef.current.onDeprecate && ((info) => optionsRef.current.onDeprecate?.(info)),
+      onRestore: optionsRef.current.onRestore && (() => optionsRef.current.onRestore?.()),
       onChange: (p) => optionsRef.current.onChange?.(p)
     })
     return () => { studio.current?.destroy(); studio.current = undefined }
   }, [options.document])
   // options that may arrive or change after mounting (lists, the title, the reviewer
   // role, a new active release after publishing)
-  const { title, screens, requests, links, commands, catalog, readOnly, baseline, sampleData, assetURL } = options
+  const { title, screens, requests, sources, links, commands, catalog, readOnly, baseline, sampleData, assetURL, deprecation } = options
   useEffect(() => {
-    studio.current?.update({ title, screens, requests, links, commands, catalog, readOnly, baseline, sampleData, assetURL })
-  }, [title, screens, requests, links, commands, catalog, readOnly, baseline, sampleData, assetURL])
+    studio.current?.update({ title, screens, requests, sources, links, commands, catalog, readOnly, baseline, sampleData, assetURL, deprecation })
+  }, [title, screens, requests, sources, links, commands, catalog, readOnly, baseline, sampleData, assetURL, deprecation])
   return <div ref={host} className={className} style={{ height: '100%', ...style }} />
 }
 
@@ -63,6 +65,7 @@ export function SduiScreenBuilder({ className, style, ...options }: SduiScreenBu
       loadTemplate: optionsRef.current.loadTemplate && ((c) => optionsRef.current.loadTemplate!(c)),
       onSave: optionsRef.current.onSave && ((v) => optionsRef.current.onSave?.(v)),
       onSubmitForReview: optionsRef.current.onSubmitForReview && ((v, note) => optionsRef.current.onSubmitForReview?.(v, note)),
+      uploadAsset: optionsRef.current.uploadAsset && ((source) => optionsRef.current.uploadAsset!(source)),
       onChange: (v) => optionsRef.current.onChange?.(v)
     })
     return () => { builder.current?.destroy(); builder.current = undefined }

@@ -5,6 +5,7 @@ import type { SduiPayload } from './payload'
 import type { TemplateDocument, ValuesDocument } from './template'
 import type { ActionSpec } from './actions/spec'
 import type { SduiValue } from './value'
+import { isContentProp } from '../spec'
 
 /// Validation layers 2 (schema conformance) and the bounds JSON Schema can't
 /// express. Pure — it walks an already-decoded tree (layer 1) and throws
@@ -59,8 +60,9 @@ export class SchemaValidator {
   }
 
   /// sdui-r — a value set against its template: same major, same template key and
-  /// version, and only ids the template has. Prop/action bounds are checked on the
-  /// composed screen.
+  /// version, only ids the template has, and only CONTENT props of each component's type
+  /// (`isContentProp`: style, layout and the action are the template's). Bounds are
+  /// checked again on the composed screen.
   validateValues(doc: ValuesDocument, template: TemplateDocument): void {
     this.validateVersion(doc.schemaVersion)
     const v = doc.values
@@ -69,13 +71,22 @@ export class SchemaValidator {
     if (v.template.key !== t.key || v.template.version !== t.version) {
       throw SduiError.schema(`values are for template ${v.template.key}@${v.template.version}, got ${t.key}@${t.version}`)
     }
-    const ids = t.ids()
+    const types = new Map<string, string>()
+    const collect = (n: SduiNode): void => { if (n.id !== undefined) types.set(n.id, n.type); n.children.forEach(collect) }
+    collect(t.root)
+    if (t.variants.compact) collect(t.variants.compact)
+    if (t.variants.wide) collect(t.variants.wide)
     const entries = Object.entries(v.components)
     if (entries.length > this.bounds.maxNodes) throw SduiError.bounds(`node count exceeds ${this.bounds.maxNodes}`)
     for (const [id, value] of entries) {
-      if (!ids.has(id)) throw SduiError.schema(`values.components.${id}: no such component in template ${t.key}@${t.version}`)
-      if (value.props) this.validateParams(value.props)
-      if (value.action) this.validateAction(value.action, 1)
+      const type = types.get(id)
+      if (type === undefined) throw SduiError.schema(`values.components.${id}: no such component in template ${t.key}@${t.version}`)
+      if (value.props) {
+        for (const key of Object.keys(value.props)) {
+          if (!isContentProp(type, key)) throw SduiError.schema(`values.components.${id}.props.${key}: not content of a ${type} — the template decides it`)
+        }
+        this.validateParams(value.props)
+      }
     }
   }
 

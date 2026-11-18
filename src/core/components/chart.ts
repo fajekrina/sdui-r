@@ -1,7 +1,7 @@
 import type { Component } from '../component-factory'
 import type { RenderContext } from '../render-context'
 import type { SduiNode } from '../node'
-import { SduiValue } from '../value'
+import { SduiValue, type SduiProps } from '../value'
 import { renderNode, type RenderNode } from '../render-node'
 import { color, numberProp, sharedStyle } from '../style'
 
@@ -11,19 +11,25 @@ import { color, numberProp, sharedStyle } from '../style'
 //
 // props
 //   kind        bar | line | area | pie | donut                       (default bar)
-//   data        [12, 30, …] or [{ label, value, color? }, …] — or a key path into the
-//               screen data (`"sales.items"` / `"{{sales.items}}"`, e.g. a `screen.load` result)
+// action       the DATA SOURCE: an `api` action names the request (e.g. `salesSummary`, with
+//               its params); the composer adds it to `screen.load` and its response — a DATA
+//               SUMMARY `{ items: [{ key, label, value }] }`, or the array itself — is drawn.
+//               No action: the chart draws its static `data`. (A chart is never tappable.)
+//   data        static: [12, 30, …] or [{ key?, label, value, color? }, …] — or a key path into
+//               the screen data (`"sales.items"` / `"{{sales.items}}"`)
 //   labels      [string]  labels for a plain number array ({{tokens}} allowed)
-//   labelKey / valueKey   object fields (default `label` / `value`)
+//   keyKey / labelKey / valueKey   the mapping of an item's fields (default key / label / value)
 //   color       bar/line/area color: a theme token or hex (default `primary`)
 //   height      px (default 160; pie/donut: the diameter)
 //   min / max   value axis bounds (default: from the data, always including 0)
-//   showValues  bool — the value above each bar/point or in the legend
+//   showLabels  bool — each item's label (default true)
+//   showKeys    bool — each item's key
+//   showValues  bool — each item's value (above the bar/point, or in the legend)
 //   showLegend  bool — pie/donut legend (default true)
 //   a11yLabel   the chart's accessible name (default: a generated summary)
 
 type Kind = 'bar' | 'line' | 'area' | 'pie' | 'donut'
-interface Point { label: string; value: number; color?: string }
+interface Point { key: string; label: string; value: number; color?: string }
 
 const KINDS: readonly Kind[] = ['bar', 'line', 'area', 'pie', 'donut']
 /// slice colors, in order, for pie/donut (theme tokens, so a host theme restyles them)
@@ -31,11 +37,24 @@ const PALETTE = ['primary', 'success', 'warning', 'danger', 'secondary', 'muted'
 const VIEW = 100
 const num = (n: number) => String(Math.round(n * 100) / 100)
 
+/// A chart's data source: the request of its `api` action (none: static `data`).
+export function chartSource(node: SduiNode): { request: string; params?: SduiProps } | undefined {
+  const action = node.type === 'chart' ? node.action : undefined
+  if (action?.type !== 'api' || !action.request || !/^[A-Za-z][A-Za-z0-9_]*$/.test(action.request)) return undefined
+  return action.params ? { request: action.request, params: action.params } : { request: action.request }
+}
+
 function points(node: SduiNode, ctx: RenderContext): { points: Point[]; path?: string } {
   const raw = node.value('data')
+  const source = chartSource(node)?.request
   let path: string | undefined
   let items: SduiValue[] | undefined
-  if (typeof raw === 'string') {
+  if (source) {
+    // a data summary: `{ items: [...] }`, or the array itself
+    path = source
+    const v = ctx.data.value(source)
+    items = SduiValue.arrayValue(v) ?? SduiValue.arrayValue(SduiValue.objectValue(v)?.items)
+  } else if (typeof raw === 'string') {
     path = raw.replace(/^\{\{\s*|\s*\}\}$/g, '')
     items = SduiValue.arrayValue(ctx.data.value(path))
   } else {
@@ -44,6 +63,7 @@ function points(node: SduiNode, ctx: RenderContext): { points: Point[]; path?: s
   const labels = node.array('labels')
   const labelKey = node.string('labelKey') || 'label'
   const valueKey = node.string('valueKey') || 'value'
+  const keyKey = node.string('keyKey') || 'key'
   const out: Point[] = []
   ;(items ?? []).forEach((item, i) => {
     const obj = SduiValue.objectValue(item)
@@ -51,7 +71,8 @@ function points(node: SduiNode, ctx: RenderContext): { points: Point[]; path?: s
     if (value === undefined || !Number.isFinite(value)) return
     const label = obj ? SduiValue.displayString(obj[labelKey] ?? '') : SduiValue.displayString(labels[i] ?? '')
     const c = obj ? SduiValue.stringValue(obj.color) : undefined
-    out.push({ label: ctx.resolve(label), value, ...(c ? { color: c } : {}) })
+    const k = obj ? SduiValue.displayString(obj[keyKey] ?? '') : ''
+    out.push({ key: k, label: ctx.resolve(label), value, ...(c ? { color: c } : {}) })
   })
   return { points: out, path }
 }
@@ -68,6 +89,16 @@ export class ChartComponent implements Component {
   static readonly type = 'chart'
   static readonly category = 'content'
   static readonly defaultProps = { kind: 'bar', data: [3, 5, 2, 6], labels: ['Q1', 'Q2', 'Q3', 'Q4'], height: 160 }
+
+  /// which parts of each item the drawing shows (the checkboxes of the builders)
+  static shows(node: SduiNode) {
+    return {
+      labels: node.value('showLabels') !== false,
+      keys: node.bool('showKeys'),
+      values: node.bool('showValues'),
+      legend: node.value('showLegend') !== false
+    }
+  }
 
   makeView(node: SduiNode, ctx: RenderContext): RenderNode {
     const key = ctx.keyFor(node)
@@ -146,7 +177,8 @@ export class ChartComponent implements Component {
       }))
     }
     const out: RenderNode[] = []
-    if (node.bool('showValues')) {
+    const show = ChartComponent.shows(node)
+    if (show.values) {
       out.push(renderNode(`${key}:values`, 'div', {
         style: { display: 'flex' },
         children: data.map((p, i) => label(`${key}:v${i}`, format(p.value), { color: 'var(--sdui-color-onSurface, #111827)', fontWeight: '600' }))
@@ -157,8 +189,11 @@ export class ChartComponent implements Component {
       style: { display: 'block', overflow: 'visible' },
       children: shapes
     }))
-    if (data.some((p) => p.label)) {
+    if (show.labels && data.some((p) => p.label)) {
       out.push(renderNode(`${key}:labels`, 'div', { style: { display: 'flex' }, children: data.map((p, i) => label(`${key}:l${i}`, p.label)) }))
+    }
+    if (show.keys && data.some((p) => p.key)) {
+      out.push(renderNode(`${key}:keys`, 'div', { style: { display: 'flex' }, children: data.map((p, i) => label(`${key}:k${i}`, p.key, { fontFamily: 'ui-monospace, monospace', fontSize: '10px' })) }))
     }
     return out
   }
@@ -199,14 +234,16 @@ export class ChartComponent implements Component {
       style: { display: 'block', flex: '0 0 auto' },
       children: shapes
     })
-    const legend = node.value('showLegend') === false ? [] : [renderNode(`${key}:legend`, 'ul', {
+    const show = ChartComponent.shows(node)
+    const legend = !show.legend ? [] : [renderNode(`${key}:legend`, 'ul', {
       style: { margin: '0', padding: '0', display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '0' },
       children: slices.map((p, i) => renderNode(`${key}:item${i}`, 'li', {
         style: { listStyle: 'none', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--sdui-color-onSurface, #111827)' },
         children: [
           renderNode(`${key}:swatch${i}`, 'span', { style: { width: '10px', height: '10px', borderRadius: '2px', flex: '0 0 auto', background: (p.color ? color(p.color) : undefined) ?? color(PALETTE[i % PALETTE.length]!)! } }),
-          renderNode(`${key}:name${i}`, 'span', { text: p.label || '•', style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }),
-          ...(node.bool('showValues') ? [renderNode(`${key}:pct${i}`, 'span', { text: `${format(p.value)} · ${Math.round((p.value / total) * 100)}%`, style: { color: 'var(--sdui-color-muted, #6B7280)' } })] : [])
+          ...(show.labels || !p.key ? [renderNode(`${key}:name${i}`, 'span', { text: p.label || '•', style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } })] : []),
+          ...(show.keys && p.key ? [renderNode(`${key}:key${i}`, 'span', { text: p.key, style: { fontFamily: 'ui-monospace, monospace', fontSize: '11px', color: 'var(--sdui-color-muted, #6B7280)' } })] : []),
+          ...(show.values ? [renderNode(`${key}:pct${i}`, 'span', { text: `${format(p.value)} · ${Math.round((p.value / total) * 100)}%`, style: { color: 'var(--sdui-color-muted, #6B7280)' } })] : [])
         ]
       }))
     })]

@@ -14,7 +14,7 @@ export interface ValidationIssue {
 }
 
 /// `screen`: a resolved screen (sdui). `template` (sdui-r Template Builder): the output is a
-/// template — readable component ids (`text1`, `button2`, renameable), `order` from the
+/// template — readable component ids (`text1`, `button2`; fixed, never reused), `order` from the
 /// position, a release `version` and a palette `title`.
 export type EditorMode = 'screen' | 'template'
 
@@ -36,6 +36,10 @@ export class EditorDocument {
   private readonly listeners = new Set<() => void>()
   /// warnings from the last legacy import (`fromUniversal`)
   importWarnings: string[] = []
+  /// template mode: every component id this document has ever held (or was told about with
+  /// `reserveIds`) → its type. A generated id never repeats one of them, so a deleted
+  /// component's id never comes back on a different component (value sets are keyed by ids).
+  private readonly seen = new Map<string, string>()
 
   constructor(init: { key?: string; root?: SduiNode; load?: LoadRequest[]; factory?: ComponentFactory; mode?: EditorMode; version?: number; title?: string } = {}) {
     this.factory = init.factory ?? ComponentFactory.withBuiltins()
@@ -43,14 +47,44 @@ export class EditorDocument {
     this._key = init.key ?? (this.mode === 'template' ? 'template' : 'screen')
     this._version = init.version ?? 1
     this._title = init.title
-    this._root = this.ensureIds(init.root ?? new SduiNode({ id: this.mode === 'template' ? 'root' : undefined, type: 'vstack', props: { spacing: 12, alignment: 'leading', padding: 16 } }), new Set())
+    this._root = this.ensureIds(init.root ?? new SduiNode({ id: this.mode === 'template' ? 'root' : undefined, type: 'vstack', props: { spacing: 12, alignment: 'leading', padding: 16 } }))
+    this.remember(this._root)
     this._load = init.load ?? []
   }
 
-  /// Missing ids: generated (screen) or readable `type<n>` (template).
-  private ensureIds(node: SduiNode, taken?: Set<string>): SduiNode {
+  /// template mode: ids that must never be generated again — those of every released version
+  /// of this template (`reserveIds(releasedTemplateJSON)`), or plain ids. A deleted id stays
+  /// reserved for the life of the document anyway.
+  reserveIds(source: Iterable<string> | object): void {
+    if (Symbol.iterator in source) {
+      for (const id of source as Iterable<string>) if (!this.seen.has(id)) this.seen.set(id, '')
+      return
+    }
+    this.remember(TemplateDocument.decode(source).template.root)
+  }
+
+  /// Ids (with their type) the document has held, and must not hand out again.
+  private remember(node: SduiNode): void {
+    if (this.mode !== 'template') return
+    const walk = (n: SduiNode) => {
+      if (n.id !== undefined && !this.seen.get(n.id)) this.seen.set(n.id, n.type)
+      n.children.forEach(walk)
+    }
+    walk(node)
+  }
+
+  /// Ids a new component may not take: the current tree's and every id ever seen.
+  private reservedIds(): Set<string> {
+    const out = new Set(this.seen.keys())
+    // the constructor asks before `_root` is set
+    const root = this._root as SduiNode | undefined
+    return root ? idsOf(root, out) : out
+  }
+
+  /// Missing ids: generated (screen) or readable `type<n>` (template), never a reserved one.
+  private ensureIds(node: SduiNode): SduiNode {
     if (this.mode !== 'template') return withEnsuredIds(node)
-    const used = taken ?? idsOf(this._root)
+    const used = this.reservedIds()
     idsOf(node, used)
     const walk = (n: SduiNode): SduiNode => {
       let id = n.id
@@ -60,10 +94,28 @@ export class EditorDocument {
     return walk(node)
   }
 
+  /// Refuses a tree that renames a component: every explicit id must already exist here,
+  /// on a component of the same type. (Putting back a deleted component under its own id is
+  /// allowed; giving that id to another type is not.)
+  private assertIdsKept(next: SduiNode): void {
+    const types = new Map(this.seen)
+    const collect = (n: SduiNode) => { if (n.id !== undefined) types.set(n.id, n.type); n.children.forEach(collect) }
+    collect(this._root)
+    const check = (n: SduiNode) => {
+      if (n.id !== undefined) {
+        const was = types.get(n.id)
+        if (was === undefined) throw SduiError.decode(`component id "${n.id}" is new — ids are generated and cannot be changed; leave "id" out for a new component`)
+        if (was !== n.type) throw SduiError.decode(`component id "${n.id}" ${was ? `belongs to a ${was}` : 'was used by an earlier release'}; ids cannot be changed or reused`)
+      }
+      n.children.forEach(check)
+    }
+    check(next)
+  }
+
   /// A copy with fresh ids (duplicate).
   private freshIds(node: SduiNode): SduiNode {
     if (this.mode !== 'template') return cloningWithNewIds(node)
-    const taken = idsOf(this._root)
+    const taken = this.reservedIds()
     const walk = (n: SduiNode): SduiNode => {
       const id = readableId(n.type, taken)
       taken.add(id)
@@ -102,6 +154,8 @@ export class EditorDocument {
   private snapshot(): Snapshot { return { root: this._root, load: this._load, key: this._key, version: this._version, title: this._title } }
 
   private restore(s: Snapshot): void {
+    this.remember(this._root)
+    this.remember(s.root)
     this._root = s.root
     this._load = s.load
     this._key = s.key
@@ -233,16 +287,9 @@ export class EditorDocument {
   setVersion(version: number): void { if (Number.isInteger(version) && version >= 1) this.mutate({ version }) }
   setTitle(title: string | undefined): void { this.mutate({ title: title || undefined }) }
 
-  /// template mode: rename a component id (the key value sets use). Refuses an invalid
-  /// or taken id; returns whether it changed.
-  renameId(id: string, next: string): boolean {
-    const node = find(this._root, id)
-    if (!node || next === id || !/^[A-Za-z][A-Za-z0-9_-]{0,127}$/.test(next) || find(this._root, next)) return false
-    const selected = this._selection === id
-    this.mutate({ root: replacing(this._root, id, new SduiNode({ id: next, type: node.type, props: node.props, children: node.children, action: node.action })) })
-    if (selected) this.select(next)
-    return true
-  }
+  /// template mode: component ids are generated once (`text1`, `button2` …) and never change —
+  /// value sets are keyed by them. There is no rename; `importJSON(…, { keepIds: true })`
+  /// refuses an edit that would introduce or reassign an id.
 
   /// template mode: the template document (ids kept, `order` = position).
   templateDocument(): TemplateDocument {
@@ -267,16 +314,21 @@ export class EditorDocument {
 
   /// Replace the document with a spec payload — or a legacy UniversalPageConfig,
   /// converted with `fromUniversal` (its warnings land in `importWarnings`).
-  importJSON(data: BytesLike | object): void {
+  ///
+  /// `keepIds` (template mode, the live JSON editor): the edit may delete components and add
+  /// new ones without an `id` (they get a generated one), but may not give a component an id
+  /// the document does not already have, nor move an id to a component of another type.
+  importJSON(data: BytesLike | object, options: { keepIds?: boolean } = {}): void {
     const raw = typeof data === 'object' && !(data instanceof Uint8Array) && !(data instanceof ArrayBuffer) ? data : parseJSON(data as BytesLike)
     let payload: SduiPayload
     const obj = raw as Record<string, unknown>
     if (obj && typeof obj === 'object' && 'template' in obj && 'schemaVersion' in obj) {
       // a template document: ids kept, children in `order`
       const t = TemplateDocument.decode(raw).template
+      if (options.keepIds && this.mode === 'template') this.assertIdsKept(t.root)
       this.undoStack.push(this.snapshot())
       this.redoStack = []
-      this.restore({ root: this.ensureIds(sortedByOrder(t.root), new Set()), load: t.load, key: t.key, version: t.version, title: t.title })
+      this.restore({ root: this.ensureIds(sortedByOrder(t.root)), load: t.load, key: t.key, version: t.version, title: t.title })
       this.importWarnings = []
       this._selection = undefined
       this.changed()
@@ -294,7 +346,8 @@ export class EditorDocument {
     this.undoStack.push(this.snapshot())
     this.redoStack = []
     this._key = payload.screen.key
-    this._root = this.ensureIds(payload.screen.root, new Set())
+    this._root = this.ensureIds(payload.screen.root)
+    this.remember(this._root)
     this._load = payload.screen.load
     this._selection = undefined
     this.changed()

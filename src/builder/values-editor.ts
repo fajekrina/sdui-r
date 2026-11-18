@@ -1,8 +1,9 @@
 // sdui-r — the headless model of the Screen Builder (maker): a merchant screen = a chosen
 // template release + the values of its components. The template's structure is never
-// edited here; only per-component props and actions (the value set).
+// edited here, nor its style, layout or actions: only the CONTENT props of each component
+// (`isContentProp` — texts, labels, image names, data arrays). That is the value set.
 import {
-  ActionSpec, SchemaValidator, SduiPayload, TemplateDocument, ValueSet, ValuesDocument, compose, parseJSON,
+  SchemaValidator, isContentProp, SduiNode, SduiPayload, TemplateDocument, ValueSet, ValuesDocument, compose, parseJSON,
   sortedJSONStringify, SPEC_VERSION, type BytesLike, type ComponentValue, type ScreenSpec, type SduiProps, type SduiValue
 } from '../core'
 import type { ValidationIssue } from './document'
@@ -14,6 +15,9 @@ export interface TemplateChoice {
   title?: string
   /// the template document (or envelope payload JSON); else `loadTemplate` fetches it
   document?: unknown
+  /// set when the template is deprecated: shown in the palette and as a banner; a builder
+  /// offers it only to pages that already use it
+  deprecated?: { reason?: string; replacedBy?: string; by?: string; at?: string }
 }
 
 type Components = Record<string, ComponentValue>
@@ -81,7 +85,19 @@ export class ValuesEditor {
     const ids = doc.template.ids()
     const kept: Components = {}
     const dropped: string[] = []
-    for (const [id, v] of Object.entries(this._components)) (ids.has(id) ? (kept[id] = v) : dropped.push(id))
+    const types = new Map<string, string>()
+    const collect = (n: SduiNode): void => { if (n.id !== undefined) types.set(n.id, n.type); n.children.forEach(collect) }
+    collect(doc.template.root)
+    if (doc.template.variants.compact) collect(doc.template.variants.compact)
+    if (doc.template.variants.wide) collect(doc.template.variants.wide)
+    for (const [id, v] of Object.entries(this._components)) {
+      const type = types.get(id)
+      if (type === undefined) { dropped.push(id); continue }
+      // a component whose type changed keeps only what is content of the new type
+      const props: SduiProps = {}
+      for (const [key, value] of Object.entries(v.props ?? {})) (isContentProp(type, key) ? (props[key] = value) : dropped.push(`${id}.${key}`))
+      if (Object.keys(props).length > 0) kept[id] = { props }
+    }
     this.dropped = dropped
     if (this._selection && !ids.has(this._selection)) this._selection = undefined
     this.mutate({ template: doc, components: kept })
@@ -95,35 +111,40 @@ export class ValuesEditor {
 
   /// The template's props for `id` (its defaults).
   defaults(id: string): SduiProps | undefined {
-    if (!this._template) return undefined
-    const find = (n: ScreenSpec['root']): ScreenSpec['root'] | undefined => n.id === id ? n : n.children.map(find).find(Boolean)
-    const t = this._template.template
-    return (find(t.root) ?? (t.variants.compact && find(t.variants.compact)) ?? (t.variants.wide && find(t.variants.wide)))?.props
+    return this.node(id)?.props
   }
 
   isOverridden(id: string, key?: string): boolean {
     const v = this._components[id]
     if (!v) return false
-    if (key === undefined) return !!v.action || Object.keys(v.props ?? {}).length > 0
+    if (key === undefined) return Object.keys(v.props ?? {}).length > 0
     return v.props?.[key] !== undefined
   }
 
   /// Override (or, with `undefined` / `''`, reset to the default) one prop of a component.
+  /// Only content props (`editable`); clearing is always allowed.
   setValue(id: string, key: string, value: SduiValue | undefined): void {
+    const cleared = value === undefined || value === ''
+    if (!cleared && !this.editable(id, key)) throw new TypeError(`${id}.${key} is not content — the template decides it`)
     const current = this._components[id] ?? {}
     const props = { ...(current.props ?? {}) }
-    if (value === undefined || value === '') delete props[key]
+    if (cleared) delete props[key]
     else props[key] = value
     this.put(id, { ...current, props })
   }
 
-  /// Override the component's action (`undefined`: the template's action).
-  setAction(id: string, action: ActionSpec | undefined): void {
-    const current = this._components[id] ?? {}
-    const next: ComponentValue = { ...current }
-    if (action) next.action = action
-    else delete next.action
-    this.put(id, next)
+  /// The template component `id` (root or a variant).
+  node(id: string): SduiNode | undefined {
+    if (!this._template) return undefined
+    const find = (n: SduiNode): SduiNode | undefined => n.id === id ? n : n.children.map(find).find(Boolean)
+    const t = this._template.template
+    return find(t.root) ?? (t.variants.compact && find(t.variants.compact)) ?? (t.variants.wide && find(t.variants.wide)) ?? undefined
+  }
+
+  /// Whether a maker may fill `key` of component `id` (a content prop of its type).
+  editable(id: string, key: string): boolean {
+    const n = this.node(id)
+    return n !== undefined && isContentProp(n.type, key)
   }
 
   /// Back to the template defaults for this component.
@@ -135,9 +156,8 @@ export class ValuesEditor {
 
   private put(id: string, value: ComponentValue): void {
     const next = { ...this._components }
-    const empty = !value.action && Object.keys(value.props ?? {}).length === 0
-    if (empty) delete next[id]
-    else next[id] = value.props && Object.keys(value.props).length === 0 ? { action: value.action } : value
+    if (Object.keys(value.props ?? {}).length === 0) delete next[id]
+    else next[id] = value
     this.mutate({ components: next })
   }
 
@@ -184,6 +204,7 @@ export class ValuesEditor {
     if (t && (t.key !== values.template.key || t.version !== values.template.version)) {
       throw new TypeError(`these values are for ${values.template.key}@${values.template.version}; the chosen template is ${t.key}@${t.version}`)
     }
+    if (this._template) new SchemaValidator().validateValues(new ValuesDocument(SPEC_VERSION, values), this._template)
     this._screen = values.screen
     this.mutate({ components: { ...values.components } })
   }

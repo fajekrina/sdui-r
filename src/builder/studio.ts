@@ -2,10 +2,11 @@
 // and Vue (builder/react, builder/vue), so both builders behave identically.
 // The canvas uses the client's own components (`renderPreview`): preview == client.
 
-import { ActionSpec, ActionType, ComponentFactory, FIELD_PATTERNS, SduiNode, SPEC_VERSION, TemplateSpec, compose, type SduiProps, type SduiValue } from '../core'
+import { ActionSpec, ActionType, BUILDER_NOTE_PROP, ComponentFactory, FIELD_PATTERNS, SduiNode, SPEC_VERSION, TemplateSpec, compose, type SduiProps, type SduiValue } from '../core'
 import { renderNodeDOM } from '../vanilla'
 import { EditorDocument } from './document'
-import { ancestorsOf, find, flatten, flattenVisible, isGeneratedId, outlineLabel } from './tree'
+import { ancestorsOf, find, flatten, flattenVisible, isGeneratedId, ordersOf, outlineLabel } from './tree'
+import { ACTION_USES, actionWarnings, describeComponent } from './describe'
 import { clippedContainers, findNodeJsonRange, renderPreview } from './preview'
 import { STUDIO_CSS } from './studio-css'
 import { diff, type ScreenChange } from './diff'
@@ -23,7 +24,11 @@ export interface StudioOptions {
   /// named requests, named links, host commands). Names only, never URLs; any
   /// other name can still be typed.
   screens?: readonly string[]
+  /// the requests an `api` action sends (a button's submit …) — not the chart data sources
   requests?: readonly string[]
+  /// the data sources a chart reads (its `api` action; `{ items: [{ key, label, value }] }`
+  /// summaries). Absent = charts pick from `requests` (the lists are not split)
+  sources?: readonly string[]
   links?: readonly string[]
   commands?: readonly string[]
   /// label shown in the toolbar, e.g. "merchant / home"
@@ -42,18 +47,46 @@ export interface StudioOptions {
   onSave?: (payload: unknown) => void | Promise<void>
   onPublish?: (payload: unknown) => void | Promise<void>
   onChange?: (payload: unknown) => void
+  /// template mode: this template's deprecation (catalog state kept by the backend, not part of
+  /// the template document); `null` / absent = in use. Shown as a banner.
+  deprecation?: TemplateDeprecation | null
+  /// template mode: deprecate the template (no new pages from it; existing pages keep working)
+  onDeprecate?: (info: { reason: string; replacedBy?: string }) => void | Promise<void>
+  /// template mode: take the deprecation back
+  onRestore?: () => void | Promise<void>
+}
+
+/// A deprecated template: why, what to use instead, who and when.
+export interface TemplateDeprecation {
+  reason?: string
+  /// the template key makers should use instead
+  replacedBy?: string
+  by?: string
+  at?: string
 }
 
 /// Options that may change after mounting (async lists, a new title, …).
-export type StudioUpdate = Pick<StudioOptions, 'title' | 'screens' | 'requests' | 'links' | 'commands' | 'catalog' | 'readOnly' | 'baseline' | 'sampleData' | 'assetURL'>
+export type StudioUpdate = Pick<StudioOptions, 'title' | 'screens' | 'requests' | 'sources' | 'links' | 'commands' | 'catalog' | 'readOnly' | 'baseline' | 'sampleData' | 'assetURL' | 'deprecation'>
 
 export interface StudioCatalog {
   screens?: readonly string[]
+  /// what an `api` action sends (buttons and other components)
   requests?: readonly string[]
+  /// what a chart reads (a chart's `api` action); absent = charts use `requests`
+  sources?: readonly string[]
   links?: readonly string[]
   commands?: readonly string[]
   /// image names the app's `assetURL` maps
   assets?: readonly string[]
+  /// deprecated template keys: marked in the page picker of `navigate` (and the Screen Builder)
+  deprecated?: readonly string[]
+}
+
+/// The deprecation banner text: what it means for makers and pages.
+export function deprecationText(key: string, dep: TemplateDeprecation): string {
+  return `Template ${key} is deprecated${dep.reason ? `: ${dep.reason}` : ''}.` +
+    `${dep.replacedBy ? ` Use ${dep.replacedBy} instead.` : ''} No new pages can be made from it; existing pages keep working.` +
+    `${dep.by ? ` (${dep.by}${dep.at ? `, ${dep.at.slice(0, 10)}` : ''})` : ''}`
 }
 
 export interface MountedStudio {
@@ -64,6 +97,8 @@ export interface MountedStudio {
 }
 
 export type FieldKind = 'text' | 'number' | 'bool' | 'json' | string[]
+/// checkboxes whose prop defaults to true: unchecked writes `false`, checked removes the prop
+export const DEFAULT_TRUE = new Set(['showLabels', 'showLegend'])
 type Drag = { kind: 'type'; type: string } | { kind: 'node'; id: string }
 type Zone = 'inside' | 'before' | 'after'
 type RawAction = Record<string, unknown>
@@ -88,14 +123,32 @@ export const FIELDS: Record<string, Array<[string, FieldKind]>> = {
   textArea: [['name', 'text'], ['label', 'text'], ['placeholder', 'text'], ['rows', 'number'], ['required', 'bool'], ['maxLength', 'number']],
   picker: [['name', 'text'], ['label', 'text'], ['placeholder', 'text'], ['required', 'bool'], ['options', 'json']],
   // sdui-r: data = a JSON array, or a key path into the screen data (e.g. a screen.load result)
-  chart: [['kind', ['', 'bar', 'line', 'area', 'pie', 'donut']], ['data', 'json'], ['labels', 'json'], ['labelKey', 'text'], ['valueKey', 'text'],
-    ['color', 'text'], ['height', 'number'], ['min', 'number'], ['max', 'number'], ['showValues', 'bool'], ['showLegend', 'bool']]
+  // the data source is the chart's ACTION (api → its request); no action = the static `data`
+  chart: [['kind', ['', 'bar', 'line', 'area', 'pie', 'donut']], ['data', 'json'], ['labels', 'json'],
+    ['keyKey', 'text'], ['labelKey', 'text'], ['valueKey', 'text'],
+    ['color', 'text'], ['height', 'number'], ['min', 'number'], ['max', 'number'],
+    ['showLabels', 'bool'], ['showKeys', 'bool'], ['showValues', 'bool'], ['showLegend', 'bool']]
 }
 
 // action editor: the named target of each action type, and its picker list
 const TARGETS: Record<string, [field: string, list: 'screens' | 'requests' | 'links' | 'commands']> = {
   navigate: ['screen', 'screens'], api: ['request', 'requests'], openURL: ['link', 'links'], native: ['command', 'commands']
 }
+/// action targets picked from a list: field, list, the "none" option, the label of a value not in the list
+type Picked = [field: string, list: 'screens' | 'requests' | 'sources' | 'links', none: string, foreign: string]
+const PICKED: Record<string, Picked> = {
+  navigate: ['screen', 'screens', '— choose a page —', 'not a template'],
+  api: ['request', 'requests', '— choose a request —', 'unknown request'],
+  openURL: ['link', 'links', '— choose a link —', 'unknown link']
+}
+/// what an action without a target does, in the editor
+const ACTION_TIPS: Record<string, string> = {
+  dismiss: 'Closes this page (back in a browser, closes the sheet in the app). Ends the chain.',
+  refresh: 'Reloads this page: the latest release, and its load requests run again. Ends the chain.',
+  openURL: 'Opens the link in a new tab (https only; names from the app\'s link list). Ends the chain.'
+}
+/// a chart's own `api` action reads a data source, not a request a button sends
+const CHART_SOURCE: Picked = ['request', 'sources', '— choose a data source —', 'not a data source']
 const STARTERS: Record<string, RawAction> = {
   navigate: { type: 'navigate', screen: 'next' }, api: { type: 'api', request: 'myRequest' }, dismiss: { type: 'dismiss' },
   refresh: { type: 'refresh' }, openURL: { type: 'openURL', link: 'helpCenter' }, toast: { type: 'toast', message: 'Done', level: 'success' },
@@ -106,6 +159,7 @@ const MAX_NESTED = 3
 const DRAG_MIME = 'application/x-sdui'
 
 const CSS = STUDIO_CSS
+const NOTE_PROP = BUILDER_NOTE_PROP
 
 /// sdui-r — the **Template Builder** (admin / template designer): the Studio with a
 /// component palette whose output is a template — readable component ids (renameable in
@@ -168,10 +222,16 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
   // datalists for the action editor's named targets (one set per Studio)
   const uid = Math.random().toString(36).slice(2, 8)
   const listId = (name: string) => `sdui-${uid}-${name}`
-  const LISTS = ['screens', 'requests', 'links', 'commands', 'assets'] as const
+  const LISTS = ['screens', 'requests', 'sources', 'links', 'commands', 'assets'] as const
   const datalists = new Map(LISTS.map((name) => [name, el('datalist', { id: listId(name) })] as const))
-  const namesOf = (name: typeof LISTS[number]): readonly string[] =>
-    (name === 'assets' ? undefined : opts[name]) ?? opts.catalog?.[name] ?? []
+  const namesOf = (name: typeof LISTS[number]): readonly string[] => {
+    const own = (name === 'assets' ? undefined : opts[name]) ?? opts.catalog?.[name]
+    // not split by the app: charts pick from the one request list, as before
+    return own ?? (name === 'sources' ? namesOf('requests') : [])
+  }
+  /// the picker of an action type; `source` = a chart's own action (its data source)
+  const pickedFor = (type: string, source: boolean): Picked | undefined =>
+    source && type === 'api' ? CHART_SOURCE : PICKED[type]
   const fillLists = () => {
     for (const [name, list] of datalists) list.replaceChildren(...namesOf(name).map((v) => el('option', { value: v })))
   }
@@ -231,12 +291,48 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
     ...(options.onSave ? [button('Save draft', () => void emit(options.onSave, 'Saved ✔', 'Save failed'))] : []),
     ...(options.onPublish ? [button('Publish', () => void emit(options.onPublish, 'Published ✔', 'Publish failed'), 'btn pri')] : []),
     ...(options.onSubmitForReview ? [noteInput, button('Submit for review', () => void submit(), 'btn pri')] : [])]
+  // template mode: deprecation — a banner when deprecated (with Restore), else a Deprecate… form
+  const depBar = el('div', { class: 'dep', role: 'region', 'aria-label': 'Deprecation' })
+  let depFormOpen = false
+  const depReason = el('input', { 'aria-label': 'Deprecation reason', placeholder: 'Why (required)', class: 'note' }) as HTMLInputElement
+  const depReplace = el('select', { 'aria-label': 'Replaced by', class: 'btn' }) as HTMLSelectElement
+  const runDeprecation = async (fn: () => void | Promise<void> | undefined, done: string, failed: string) => {
+    try { await fn(); depFormOpen = false; showStatus(done, true) } catch (error) { showStatus(`${failed}: ${error instanceof Error ? error.message : String(error)}`, false) }
+    paint()
+  }
+  const depConfirm = button('Deprecate', () => {
+    const reason = depReason.value.trim()
+    if (!reason) { showStatus('Deprecate: give a reason', false); paint(); return }
+    void runDeprecation(() => opts.onDeprecate?.({ reason, ...(depReplace.value ? { replacedBy: depReplace.value } : {}) }), 'Deprecated ✔', 'Deprecate failed')
+  }, 'btn pri')
+  const depOpen = button('Deprecate…', () => { depFormOpen = !depFormOpen; paint() })
+  const paintDeprecation = () => {
+    const dep = opts.deprecation
+    const canAct = templateMode && opts.readOnly !== true
+    depOpen.hidden = !templateMode || !!dep || !opts.onDeprecate || !canAct
+    if (!templateMode || (!dep && !depFormOpen)) { depBar.hidden = true; return }
+    depBar.hidden = false
+    if (dep) {
+      depBar.replaceChildren(el('strong', {}, 'Deprecated'), el('span', {}, deprecationText(doc.key, dep)),
+        ...(opts.onRestore && canAct ? [button('Restore', () => void runDeprecation(() => opts.onRestore?.(), 'Restored ✔', 'Restore failed'))] : []))
+      return
+    }
+    const others = namesOf('screens').filter((k) => k !== doc.key && !(opts.catalog?.deprecated ?? []).includes(k))
+    const current = depReplace.value
+    depReplace.replaceChildren(el('option', { value: '' }, '— no replacement —'), ...others.map((k) => el('option', { value: k }, `use ${k}`)))
+    depReplace.value = others.includes(current) ? current : ''
+    depBar.replaceChildren(el('strong', {}, 'Deprecate this template?'),
+      el('span', {}, 'Makers can no longer start new pages from it; live pages keep working.'),
+      depReason, depReplace, depConfirm, button('Cancel', () => { depFormOpen = false; paint() }))
+  }
+
   const toolbar = el('div', { class: 'tb' },
     el('strong', {}, templateMode ? 'Template Builder' : 'SDUI Studio'), titleEl,
     keyInput, ...templateFields, undo, redo, widthSel, previewBtn, el('span', { class: 'sp' }), statusEl,
     importBtn,
     button('Export DSL', () => { void navigator.clipboard?.writeText(doc.exportDSL()); message = 'DSL copied to clipboard'; paint() }),
-    ...editing.slice(3)
+    ...editing.slice(3),
+    depOpen
   )
 
   // drag & drop: palette → canvas/outline (insert), canvas/outline node → elsewhere (move)
@@ -343,7 +439,7 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
     el('div', { class: 'col canvas' }, device),
     el('div', { class: 'col' }, el('h3', {}, 'Inspector'), inspector)
   )
-  root.append(toolbar, main)
+  root.append(toolbar, depBar, main)
 
   // JSON panel (collapsible; the selected node is highlighted and scrolled to)
   const LINE = 18
@@ -364,7 +460,8 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
     jsonEditing = true
     clearTimeout(editTimer)
     editTimer = setTimeout(() => {
-      try { doc.importJSON(jsonText.value); message = '' } catch (error) { message = `JSON: ${error instanceof Error ? error.message : error}` }
+      // template mode: the JSON editor cannot rename a component id (value sets are keyed by it)
+      try { doc.importJSON(jsonText.value, { keepIds: templateMode }); message = '' } catch (error) { message = `JSON: ${error instanceof Error ? error.message : error}` }
       jsonEditing = false
       paint()
     }, 500)
@@ -383,10 +480,16 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
   /// A structured action editor: type, its named target (picked from the app's
   /// allow-list or typed), presentation / message / level, params, and the
   /// onSuccess / onError chain. Edits the raw JSON form; `commit` decodes it.
-  const actionEditor = (raw: RawAction | undefined, commit: (next: RawAction | undefined) => void, depth: number): HTMLElement => {
+  const actionEditor = (raw: RawAction | undefined, commit: (next: RawAction | undefined) => void, depth: number, source = false): HTMLElement => {
     const box = el('div', { class: 'act' })
     const typeSel = selectOf(['', ...ActionType.allCases], raw?.type, (v) => v || '— none —')
-    typeSel.addEventListener('change', () => commit(typeSel.value ? { ...STARTERS[typeSel.value] } : undefined))
+    typeSel.addEventListener('change', () => {
+      const starter: RawAction | undefined = typeSel.value ? { ...STARTERS[typeSel.value] } : undefined
+      // a new navigate / api points at a real page / request / source (the first one), not a placeholder
+      const picked = starter && pickedFor(String(starter.type), source)
+      if (starter && picked && namesOf(picked[1]).length > 0) starter[picked[0]] = namesOf(picked[1])[0]
+      commit(starter)
+    })
     box.append(el('label', {}, 'type', typeSel))
     if (!raw) return box
     const set = (key: string, value: unknown) => {
@@ -403,7 +506,23 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
       return el('label', {}, key, input)
     }
     const target = TARGETS[type]
-    if (target) box.append(textField(target[0], listId(target[1])))
+    const uses = ACTION_USES[type] ?? { params: true, chain: ['onSuccess', 'onError'] }
+    if (ACTION_TIPS[type]) box.append(el('div', { class: 'tip' }, ACTION_TIPS[type]))
+    const picked = pickedFor(type, source)
+    if (picked && namesOf(picked[1]).length > 0) {
+      // pages (the templates), requests (what a button sends) and data sources (what a chart
+      // reads) are picked, not typed: no typo reaches a payload
+      const [field, list, none, foreign] = picked
+      const names = namesOf(list)
+      const current = typeof raw[field] === 'string' ? raw[field] as string : ''
+      const deprecated = list === 'screens' ? new Set(opts.catalog?.deprecated ?? []) : new Set<string>()
+      const select = el('select', { 'aria-label': field }, el('option', { value: '' }, none),
+        ...names.map((p) => el('option', { value: p }, deprecated.has(p) ? `${p} (deprecated)` : p))) as HTMLSelectElement
+      if (current && !names.includes(current)) select.append(el('option', { value: current }, `${current} (${foreign})`))
+      select.value = current
+      select.addEventListener('change', () => set(field, select.value))
+      box.append(el('label', {}, field, select))
+    } else if (target) box.append(textField(target[0], listId(target[1])))
     if (type === 'navigate') {
       const select = selectOf(['', 'push', 'sheet', 'fullScreen'], raw.presentation)
       select.addEventListener('change', () => set('presentation', select.value))
@@ -415,16 +534,20 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
       select.addEventListener('change', () => set('level', select.value))
       box.append(el('label', {}, 'level', select))
     }
-    if (target) {
+    // only what the engine reads: params where they are sent, follow-up steps that can run.
+    // A field the type ignores stays visible while it holds something, so it can be removed.
+    if (uses.params || raw.params !== undefined) {
       const area = el('textarea', { 'aria-label': 'params' }) as HTMLTextAreaElement
       area.value = raw.params === undefined ? '' : JSON.stringify(raw.params)
       area.addEventListener('change', () => { try { set('params', area.value.trim() ? JSON.parse(area.value) : undefined) } catch { /* keep editing */ } })
-      box.append(el('label', {}, 'params (JSON)', area))
+      box.append(el('label', {}, uses.params ? 'params (JSON)' : `params (ignored by ${type}: clear it)`, area))
     }
     if (depth < MAX_NESTED) {
       for (const key of ['onSuccess', 'onError'] as const) {
         const nested = raw[key] as RawAction | undefined
-        const details = el('details', nested ? { open: '' } : {}, el('summary', {}, key), actionEditor(nested, (v) => set(key, v), depth + 1))
+        const runs = uses.chain.includes(key)
+        if (!runs && !nested) continue
+        const details = el('details', nested ? { open: '' } : {}, el('summary', {}, runs ? key : `${key} (never runs after ${type}: remove it)`), actionEditor(nested, (v) => set(key, v), depth + 1))
         box.append(details)
       }
     }
@@ -439,8 +562,9 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
       const current = props[key]
       if (kind === 'bool') {
         const input = el('input', { type: 'checkbox' }) as HTMLInputElement
-        input.checked = current === true
-        input.addEventListener('change', () => doc.setProp(id, key, input.checked || undefined))
+        const onByDefault = DEFAULT_TRUE.has(key)
+        input.checked = onByDefault ? current !== false : current === true
+        input.addEventListener('change', () => doc.setProp(id, key, onByDefault ? (input.checked ? undefined : false) : input.checked || undefined))
         return el('label', { class: 'chk' }, input, key)
       }
       if (Array.isArray(kind) || key === 'background' || key === 'foreground' || key === 'color') {
@@ -490,21 +614,31 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
     propsJSON.value = JSON.stringify(props)
     propsJSON.addEventListener('change', () => { try { doc.setProps(id, JSON.parse(propsJSON.value) as SduiProps) } catch { /* keep editing */ } })
 
-    // template mode: the component id is what makers' value sets are keyed by
+    // template mode: the component id is what makers' value sets are keyed by — generated
+    // once (`text1`, `button2` …) and never edited, so a released value set never loses its key
     const identity: Node[] = []
     if (templateMode) {
-      const idInput = el('input', { 'aria-label': 'Component id', class: 'cid' }) as HTMLInputElement
+      const idInput = el('input', { 'aria-label': 'Component id', class: 'cid', readonly: '', tabindex: '-1' }) as HTMLInputElement
       idInput.value = id
-      idInput.addEventListener('change', () => {
-        if (!doc.renameId(id, idInput.value.trim())) { message = `Component id "${idInput.value.trim()}" is invalid or already used`; paint() }
-      })
-      identity.push(el('label', {}, 'component id', idInput), el('div', { class: 'tip' }, `order ${(flatten(doc.root).find(([n]) => n.children.some((c) => c.id === id))?.[0].children.findIndex((c) => c.id === id) ?? 0)} · ↑ ↓ or drag to reorder`))
+      idInput.readOnly = true
+      idInput.title = 'Generated; value sets are keyed by it, so it cannot be changed'
+      const order = ordersOf(doc.root).get(id) ?? 0
+      const noteInput = el('textarea', { 'aria-label': 'Note for makers', placeholder: 'e.g. "Buy ticket — goes to checkout"', rows: '2' }) as HTMLTextAreaElement
+      noteInput.value = typeof props[NOTE_PROP] === 'string' ? props[NOTE_PROP] as string : ''
+      noteInput.addEventListener('change', () => doc.setProp(id, NOTE_PROP, noteInput.value.trim() || undefined))
+      identity.push(el('label', {}, 'component id', idInput),
+        el('div', { class: 'tip' }, `order ${order} (place in the page, top to bottom) · ↑ ↓ or drag to reorder`),
+        el('label', {}, 'note for makers', noteInput),
+        el('div', { class: 'tip fn' }, describeComponent(node).join(' · ')))
     }
 
     inspector.replaceChildren(
       el('fieldset', {}, el('legend', {}, `${node.type}${node.id && !isGeneratedId(node.id) ? ` #${node.id}` : ''}`), ...identity, ...controls, ...placement),
-      el('fieldset', {}, el('legend', {}, 'Action'),
-        actionEditor(node.action?.toJSON(), commitAction, 0),
+      el('fieldset', {}, el('legend', {}, node.type === 'chart' ? 'Action · data source' : 'Action'),
+        ...(node.type === 'chart' ? [el('div', { class: 'tip' }, node.action?.type === 'api'
+          ? `Data from source "${node.action.request ?? ''}" (a { items: [{ key, label, value }] } summary)`
+          : 'No api action: the chart draws its static data. Choose type api + a data source to load it.')] : []),
+        actionEditor(node.action?.toJSON(), commitAction, 0, node.type === 'chart'),
         el('details', {}, el('summary', {}, 'Action JSON'), actionJSON)),
       el('fieldset', {}, el('legend', {}, 'Props (JSON)'), propsJSON),
       el('div', { class: 'acts' },
@@ -525,6 +659,9 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
       element.setAttribute('title', `${node.type}${isGeneratedId(id) ? '' : ` #${id}`}`)
       if (id === doc.selection) element.setAttribute('data-label', element.getAttribute('title')!)
       if (doc.isContainer(id) && node.children.length === 0) element.append(el('div', { class: 'hint' }, `Empty ${node.type} — drop components here`))
+      // an image without a picture is a frame the maker fills in the Screen Builder
+      if (element.hasAttribute('data-sdui-frame')) element.setAttribute('data-frame-label', element.getAttribute('data-sdui-frame') === 'missing'
+        ? `unknown image "${node.string('name')}"` : 'Image frame — the maker uploads the picture')
     }
   }
 
@@ -549,6 +686,7 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
     paletteBox.hidden = readOnly
     keyInput.disabled = readOnly
     jsonText.readOnly = readOnly
+    paintDeprecation()
     statusEl.textContent = status?.text ?? ''
     statusEl.className = `st${status ? (status.ok ? ' ok' : ' err') : ''}`
     // outline
@@ -603,6 +741,9 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
     issues.replaceChildren(
       ...[message, ...problems].filter(Boolean).map((m) => el('div', {}, `⚠ ${m}`)),
       ...clipped.map((w) => el('div', { class: 'warn' }, `⚠ ${w}`)),
+      // an api action naming the wrong kind (a chart reading a button's request, a button sending a data source)
+      ...actionWarnings(doc.root, { requests: namesOf('requests'), sources: opts.sources ?? opts.catalog?.sources, links: namesOf('links') })
+        .map((w) => el('div', { class: 'warn' }, `⚠ ${w}`)),
       ...doc.importWarnings.map((w) => el('div', { class: 'warn' }, `↳ ${w}`))
     )
     const payload = templateMode ? doc.templateDocument().toJSON() : doc.payload().toJSON()

@@ -14,3 +14,31 @@ export const V11_COMPONENTS = ['spacer', 'divider', 'grid', 'scroll', 'list', 'f
 /// sdui-r 2.0 additions.
 export const V20_COMPONENTS = ['chart'] as const
 export type BuiltinComponentType = typeof V1_COMPONENTS[number] | typeof V11_COMPONENTS[number] | typeof V20_COMPONENTS[number]
+
+/// sdui-r — what a value set may fill: per component type, the CONTENT props (text,
+/// labels, image names, data arrays). Everything else — style, layout, form rules, the
+/// action — is the template's decision. A value set that sets anything else is rejected
+/// (client and backend); a type not listed here (an adapter slot) has no content props.
+/// Mirrored in spec/content.json for backends (gated by tests/spec.test.ts).
+export const CONTENT_PROPS: Readonly<Record<string, readonly string[]>> = {
+  text: ['value'],
+  image: ['name', 'systemName'],
+  button: ['title'],
+  list: ['items'],
+  textField: ['label', 'placeholder'],
+  textArea: ['label', 'placeholder'],
+  picker: ['label', 'placeholder', 'options'],
+  chart: ['data', 'labels', 'keyKey', 'labelKey', 'valueKey']
+}
+/// content props every component type has
+export const SHARED_CONTENT_PROPS: readonly string[] = ['a11yLabel']
+
+/// Whether a value set may set `key` on a component of `type`.
+export function isContentProp(type: string, key: string): boolean {
+  return SHARED_CONTENT_PROPS.includes(key) || (CONTENT_PROPS[type]?.includes(key) ?? false)
+}
+
+/// sdui-r — a template author's note for makers on one component ("Buy ticket — goes to
+/// checkout"). Template-only: never content (a value set cannot set it) and dropped by
+/// `compose`, so it never reaches a client.
+export const BUILDER_NOTE_PROP = 'builderNote'

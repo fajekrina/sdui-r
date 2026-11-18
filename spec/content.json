@@ -1,0 +1,43 @@
+{
+  "$comment": "sdui-r content props: per component type, the props a value set (maker) may fill; everything else - style, layout, form rules, the action - is decided by the template. A value set setting anything else is invalid. Types not listed have no content props. Must equal CONTENT_PROPS / SHARED_CONTENT_PROPS in src/spec/index.ts (gated by tests/spec.test.ts).",
+  "schemaVersion": "2.0",
+  "shared": [
+    "a11yLabel"
+  ],
+  "props": {
+    "text": [
+      "value"
+    ],
+    "image": [
+      "name",
+      "systemName"
+    ],
+    "button": [
+      "title"
+    ],
+    "list": [
+      "items"
+    ],
+    "textField": [
+      "label",
+      "placeholder"
+    ],
+    "textArea": [
+      "label",
+      "placeholder"
+    ],
+    "picker": [
+      "label",
+      "placeholder",
+      "options"
+    ],
+    "chart": [
+      "data",
+      "labels",
+      "keyKey",
+      "labelKey",
+      "valueKey"
+    ]
+  },
+  "action": false
+}

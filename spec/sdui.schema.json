@@ -263,12 +263,9 @@
         "props": {
           "$ref": "#/$defs/props",
           "description": "Merged over the template props (shallow)."
-        },
-        "action": {
-          "$ref": "#/$defs/action",
-          "description": "Replaces the template action."
         }
-      }
+      },
+      "description": "Content props merged over the template props (shallow). Only the content props of the component type (spec/content.json) are valid - style, layout and the action belong to the template (checked against the template by the client validator and the backend)."
     },
     "bundle": {
       "type": "object",

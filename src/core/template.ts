@@ -5,6 +5,8 @@ import { SduiError } from './errors'
 import { SduiNode } from './node'
 import { SduiValue, type SduiProps } from './value'
 import { ActionSpec } from './actions/spec'
+import { chartSource } from './components/chart'
+import { BUILDER_NOTE_PROP } from '../spec'
 import { ScreenSpec, type LoadRequest, type ScreenVariants, parseJSON } from './payload'
 import type { BytesLike } from './bytes'
 
@@ -91,11 +93,11 @@ export class TemplateDocument {
   toJSON() { return { schemaVersion: this.schemaVersion, template: this.template.toJSON() } }
 }
 
-/// The content of one template component: props merged over the template's defaults
-/// (shallow), and an action that replaces the template's.
+/// The content of one template component: content props merged over the template's
+/// defaults (shallow). Style, layout and the action belong to the template
+/// (`isContentProp` says which props a value set may fill).
 export interface ComponentValue {
   props?: SduiProps
-  action?: ActionSpec
 }
 
 /// The content of one merchant screen, for one template release.
@@ -115,8 +117,8 @@ export class ValueSet {
       for (const [id, entry] of Object.entries(asObject(o.components, `${path}.components`))) {
         const e = asObject(entry, `${path}.components.${id}`)
         const value: ComponentValue = {}
+        if (e.action !== undefined) throw SduiError.schema(`${path}.components.${id}.action: the action is decided by the template`)
         if (e.props != null) value.props = SduiValue.decodeObject(e.props, `${path}.components.${id}.props`)
-        if (e.action != null) value.action = ActionSpec.decode(e.action, `${path}.components.${id}.action`)
         components[id] = value
       }
     }
@@ -129,7 +131,6 @@ export class ValueSet {
       const v = this.components[id]!
       const out: Record<string, unknown> = {}
       if (v.props && Object.keys(v.props).length > 0) out.props = v.props
-      if (v.action) out.action = v.action.toJSON()
       components[id] = out
     }
     return { screen: this.screen, template: { key: this.template.key, version: this.template.version }, components }
@@ -171,8 +172,9 @@ export function bundleBytes(templateJSON: string, valuesJSON?: string): string {
 
 /// Compose a template and its value set into the screen the renderers draw: children
 /// sorted by `order` (ties keep array order), props = template defaults + values
-/// (shallow), action = the value's or the template's. The screen key is the value
+/// (shallow), action = the template's. The screen key is the value
 /// set's screen (a template is reusable), or the template key for a bare preview.
+/// A chart's data source (its `api` action) joins `screen.load` (once), so the summary is fetched with the screen.
 ///
 /// Structural checks (ids, orders, value ids, template ref) are the validator's —
 /// call `SchemaValidator.validateTemplate` / `validateValues` first.
@@ -184,16 +186,27 @@ export function compose(template: TemplateSpec, values?: ValueSet): ScreenSpec {
       .map((child, index) => ({ child, index }))
       .sort((a, b) => (a.child.order ?? a.index) - (b.child.order ?? b.index) || a.index - b.index)
       .map(({ child }) => build(child))
+    let props = v?.props ? { ...n.props, ...v.props } : n.props
+    // the author's note for makers is template-only: it never reaches a client
+    if (props[BUILDER_NOTE_PROP] !== undefined) { props = { ...props }; delete props[BUILDER_NOTE_PROP] }
     return new SduiNode({
       id: n.id,
       type: n.type,
-      props: v?.props ? { ...n.props, ...v.props } : n.props,
+      props,
       children,
-      action: v?.action ?? n.action
+      action: n.action
     })
   }
   const variants: ScreenVariants = {}
   if (template.variants.compact) variants.compact = build(template.variants.compact)
   if (template.variants.wide) variants.wide = build(template.variants.wide)
-  return new ScreenSpec(values?.screen ?? template.key, build(template.root), { load: template.load, variants })
+  const root = build(template.root)
+  const load: LoadRequest[] = [...template.load]
+  const walk = (n: SduiNode): void => {
+    const source = chartSource(n)
+    if (source && !load.some((l) => l.request === source.request)) load.push(source)
+    n.children.forEach(walk)
+  }
+  ;[root, variants.compact, variants.wide].forEach((n) => n && walk(n))
+  return new ScreenSpec(values?.screen ?? template.key, root, { load, variants })
 }

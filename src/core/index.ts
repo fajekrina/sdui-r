@@ -2,7 +2,7 @@
 // every side effect goes through ports (see "../ports"). Structure and names
 // follow MurtiCore one-to-one where they overlap (see NOTICE).
 
-export { SPEC_VERSION, SUPPORTED_MAJOR, V1_COMPONENTS, V11_COMPONENTS, V20_COMPONENTS, type BuiltinComponentType } from '../spec'
+export { SPEC_VERSION, SUPPORTED_MAJOR, V1_COMPONENTS, V11_COMPONENTS, V20_COMPONENTS, CONTENT_PROPS, SHARED_CONTENT_PROPS, BUILDER_NOTE_PROP, isContentProp, type BuiltinComponentType } from '../spec'
 
 // Model
 export { SduiValue, type SduiProps } from './value'

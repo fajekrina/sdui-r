@@ -6,7 +6,7 @@ import {
   DSLExport, EditorDocument, api, button, find, findNodeJsonRange, form, list, mountStudio, navigate, native, renderPreview,
   screen, text, textField, toast, vstack
 } from '../src/builder'
-import { ComponentFactory, SduiError, SduiNode, SduiPayload } from '../src/core'
+import { ActionSpec, ComponentFactory, SduiError, SduiNode, SduiPayload } from '../src/core'
 import { ROOT, fixture } from './helpers'
 
 describe('DSL', () => {
@@ -228,8 +228,9 @@ describe('Studio (DOM)', () => {
       fire(control, 'change')
     }
     set('type', 'navigate')
-    const screenInput = labelled(host, 'screen').querySelector('input')!
-    expect([...host.querySelectorAll(`#${screenInput.getAttribute('list')} option`)].map((o) => o.getAttribute('value'))).toEqual(['home', 'transfer'])
+    // the pages are a selection (no typing): every known page
+    const screenSelect = labelled(host, 'screen').querySelector('select')!
+    expect([...screenSelect.options].map((o) => o.value)).toEqual(['', 'home', 'transfer'])
     set('screen', 'transfer')
     set('presentation', 'sheet')
     set('params (JSON)', '{"from":"home"}')
@@ -240,6 +241,45 @@ describe('Studio (DOM)', () => {
     expect(studio.document.selected!.action!.onSuccess!.toJSON()).toEqual({ type: 'toast', message: 'Done', level: 'success' })
     set('type', '')                                                     // none removes the action
     expect(find(studio.document.root, id)!.action).toBeUndefined()
+    studio.destroy()
+  })
+
+  it('a navigate to a page that is not a template is shown as such; a chart\'s data source is its api action; display checkboxes', () => {
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const studio = mountStudio(host, { screens: ['home'], catalog: { requests: ['salesSummary', 'cancelSummary'] } })
+    const b = studio.document.add('button')
+    studio.document.setAction(b, ActionSpec.decode({ type: 'navigate', screen: 'oldPage' }))
+    studio.document.select(b)
+    expect([...labelled(host, 'screen').querySelector('select')!.options].map((o) => o.textContent)).toEqual(['— choose a page —', 'home', 'oldPage (not a template)'])
+    // an api request is picked from the same list as a chart source
+    studio.document.setAction(b, ActionSpec.decode({ type: 'api', request: 'salesSummary' }))
+    studio.document.select(b)
+    const request = labelled(host, 'request').querySelector('select')!
+    expect([...request.options].map((o) => o.textContent)).toEqual(['— choose a request —', 'salesSummary', 'cancelSummary'])
+    expect(request.value).toBe('salesSummary')
+    request.value = 'cancelSummary'
+    fire(request, 'change')
+    expect(find(studio.document.root, b)!.action!.toJSON()).toMatchObject({ type: 'api', request: 'cancelSummary' })
+    const c = studio.document.add('chart')
+    studio.document.select(c)
+    // no source field: the Action is the data source (none = static data)
+    expect(labelled(host, 'source')).toBeUndefined()
+    expect(host.querySelector('.insp')!.textContent).toContain('No api action: the chart draws its static data')
+    labelled(host, 'type').querySelector('select')!.value = 'api'
+    fire(labelled(host, 'type').querySelector('select')!, 'change')
+    expect(find(studio.document.root, c)!.action!.toJSON()).toMatchObject({ type: 'api', request: 'salesSummary' })
+    expect(host.querySelector('.insp')!.textContent).toContain('Data from source "salesSummary"')
+    // showLabels is on by default: unchecking writes false, checking again removes it
+    const labels = [...host.querySelectorAll<HTMLLabelElement>('.insp label.chk')].find((l) => l.textContent === 'showLabels')!.querySelector('input')!
+    expect(labels.checked).toBe(true)
+    labels.checked = false
+    fire(labels, 'change')
+    expect(find(studio.document.root, c)!.props.showLabels).toBe(false)
+    const keys = [...host.querySelectorAll<HTMLLabelElement>('.insp label.chk')].find((l) => l.textContent === 'showKeys')!.querySelector('input')!
+    keys.checked = true
+    fire(keys, 'change')
+    expect(find(studio.document.root, c)!.props.showKeys).toBe(true)
     studio.destroy()
   })
 

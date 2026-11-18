@@ -1,8 +1,8 @@
 // @fajekrina/sdui-r/builder/vue — <SduiTemplateBuilder /> (admin) and <SduiScreenBuilder />
 // (maker) wrap the DOM builders; <SduiBuilder /> is the plain Studio.
 import { defineComponent, h, onBeforeUnmount, onMounted, ref, watch, type PropType } from 'vue'
-import { mountStudio, mountTemplateBuilder, type MountedStudio, type StudioCatalog } from './studio'
-import { mountScreenBuilder, type MountedScreenBuilder } from './screen-builder'
+import { mountStudio, mountTemplateBuilder, type MountedStudio, type StudioCatalog, type TemplateDeprecation } from './studio'
+import { mountScreenBuilder, type AssetSource, type MountedScreenBuilder } from './screen-builder'
 import { EditorDocument } from './document'
 import type { TemplateChoice, ValuesEditor } from './values-editor'
 import type { ComponentFactory, SduiValue } from '../core'
@@ -15,10 +15,12 @@ const studioProps = {
   /// names offered by the action editor (the app's allow-lists; never URLs)
   screens: { type: Array as PropType<readonly string[]>, default: undefined },
   requests: { type: Array as PropType<readonly string[]>, default: undefined },
+  /// chart data sources (a chart's api action); absent = charts use `requests`
+  sources: { type: Array as PropType<readonly string[]>, default: undefined },
   links: { type: Array as PropType<readonly string[]>, default: undefined },
   commands: { type: Array as PropType<readonly string[]>, default: undefined },
   title: { type: String, default: undefined },
-  /// the app's names: screens, requests, links, commands, assets (an explicit list wins)
+  /// the app's names: screens, requests, sources, links, commands, assets (an explicit list wins)
   catalog: { type: Object as PropType<StudioCatalog>, default: undefined },
   /// view only (a reviewer role)
   readOnly: { type: Boolean, default: false },
@@ -31,7 +33,11 @@ const studioProps = {
   onPublish: { type: Function as PropType<(payload: unknown) => void | Promise<void>>, default: undefined },
   /// `@submit-for-review` (payload, note): maker-checker instead of publishing directly
   onSubmitForReview: { type: Function as PropType<(payload: unknown, note: string) => void | Promise<void>>, default: undefined },
-  onChange: { type: Function as PropType<(payload: unknown) => void>, default: undefined }
+  onChange: { type: Function as PropType<(payload: unknown) => void>, default: undefined },
+  /// template mode: the template's deprecation (null = in use) and `@deprecate` / `@restore`
+  deprecation: { type: Object as PropType<TemplateDeprecation | null>, default: undefined },
+  onDeprecate: { type: Function as PropType<(info: { reason: string; replacedBy?: string }) => void | Promise<void>>, default: undefined },
+  onRestore: { type: Function as PropType<() => void | Promise<void>>, default: undefined }
 }
 
 const studioComponent = (name: string, mount: typeof mountStudio, template: boolean) => defineComponent({
@@ -48,6 +54,7 @@ const studioComponent = (name: string, mount: typeof mountStudio, template: bool
         assetURL: props.assetURL,
         screens: props.screens,
         requests: props.requests,
+        sources: props.sources,
         links: props.links,
         commands: props.commands,
         title: props.title,
@@ -58,15 +65,18 @@ const studioComponent = (name: string, mount: typeof mountStudio, template: bool
         onSave: props.onSave && ((p) => props.onSave?.(p)),
         onPublish: props.onPublish && ((p) => props.onPublish?.(p)),
         onSubmitForReview: props.onSubmitForReview && ((p, note) => props.onSubmitForReview?.(p, note)),
+        deprecation: props.deprecation,
+        onDeprecate: props.onDeprecate && ((info) => props.onDeprecate?.(info)),
+        onRestore: props.onRestore && (() => props.onRestore?.()),
         onChange: (p) => props.onChange?.(p)
       })
     })
     // options that may arrive or change after mounting (lists loaded from a backend, the title)
-    watch(() => [props.title, props.screens, props.requests, props.links, props.commands, props.catalog, props.readOnly, props.baseline, props.sampleData, props.assetURL], () => {
+    watch(() => [props.title, props.screens, props.requests, props.sources, props.links, props.commands, props.catalog, props.readOnly, props.baseline, props.sampleData, props.assetURL, props.deprecation], () => {
       studio?.update({
-        title: props.title, screens: props.screens, requests: props.requests, links: props.links,
+        title: props.title, screens: props.screens, requests: props.requests, sources: props.sources, links: props.links,
         commands: props.commands, catalog: props.catalog, readOnly: props.readOnly, baseline: props.baseline,
-        sampleData: props.sampleData, assetURL: props.assetURL
+        sampleData: props.sampleData, assetURL: props.assetURL, deprecation: props.deprecation
       })
     })
     onBeforeUnmount(() => studio?.destroy())
@@ -97,7 +107,10 @@ export const SduiScreenBuilder = defineComponent({
     stylesheet: { type: String as PropType<'adopt' | 'external'>, default: undefined },
     onSave: { type: Function as PropType<(values: unknown) => void | Promise<void>>, default: undefined },
     onSubmitForReview: { type: Function as PropType<(values: unknown, note: string) => void | Promise<void>>, default: undefined },
-    onChange: { type: Function as PropType<(values: unknown) => void>, default: undefined }
+    onChange: { type: Function as PropType<(values: unknown) => void>, default: undefined },
+    /// store a dropped / picked picture or copy a link; answers the asset name
+    uploadAsset: { type: Function as PropType<(source: AssetSource) => Promise<string>>, default: undefined },
+    maxAssetBytes: { type: Number, default: undefined }
   },
   setup(props) {
     const host = ref<HTMLDivElement>()
@@ -118,6 +131,8 @@ export const SduiScreenBuilder = defineComponent({
         stylesheet: props.stylesheet,
         onSave: props.onSave && ((v) => props.onSave?.(v)),
         onSubmitForReview: props.onSubmitForReview && ((v, note) => props.onSubmitForReview?.(v, note)),
+        uploadAsset: props.uploadAsset && ((source) => props.uploadAsset!(source)),
+        maxAssetBytes: props.maxAssetBytes,
         onChange: (v) => props.onChange?.(v)
       })
     })

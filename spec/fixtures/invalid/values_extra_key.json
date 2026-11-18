@@ -23,13 +23,6 @@
       "cta": {
         "props": {
           "title": "Ambil promo"
-        },
-        "action": {
-          "type": "navigate",
-          "screen": "promoDetail",
-          "params": {
-            "id": "cb20"
-          }
         }
       }
     }

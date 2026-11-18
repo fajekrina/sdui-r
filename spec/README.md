@@ -62,6 +62,16 @@ vocabulary (unknown types render a Null-Object placeholder); `props` is an open 
 | 3 · Client-only bounds | client validator | depth, total nodes, chain depth |
 | 4 · Render fallback | renderer | unknown type → Null Object |
 
+## Content props (what a value set may fill)
+
+A value set carries **content only**: per component type, the props listed in
+[`content.json`](./content.json) (texts, labels, image names, data arrays) plus `a11yLabel`.
+Style, layout, form rules and the action belong to the template: a value set that sets
+anything else, or any `action`, is invalid. The client validator (`validateValues`) and the
+backend (on save and publish) both check it against the template. A type not listed (an
+adapter slot) has no content props. `tests/spec.test.ts` fails if the file and
+`CONTENT_PROPS` disagree.
+
 ## Bounds
 
 The defaults are published as [`bounds.json`](./bounds.json) — the single source of these numbers.
