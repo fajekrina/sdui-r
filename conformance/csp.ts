@@ -19,7 +19,8 @@ for (const name of names) {
 }
 
 const doc = new EditorDocument()
-doc.importJSON(await (await fetch(`/spec/fixtures/valid/${names[0]}`)).json())
+// a screen payload (fixtures also hold templates, value sets and bundles)
+doc.importJSON(await (await fetch('/spec/fixtures/valid/dashboard.json')).json())
 mountStudio(document.getElementById('studio')!, { document: doc })
 
 await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))

@@ -410,7 +410,14 @@ const FIELD_STYLE: Record<string, string> = {
   padding: '10px 12px', border: `1px solid ${color('border')}`, borderRadius: '8px',
   background: color('background')!, color: color('onSurface')!, appearance: 'none'
 }
-const CHEVRON = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%236B7280' stroke-width='2'/%3E%3C/svg%3E\")"
+/// the select's chevron, drawn with two gradients: no image, so a strict `img-src` allows it
+const CHEVRON_INK = 'var(--sdui-color-muted, #6B7280)'
+const CHEVRON = {
+  backgroundImage: `linear-gradient(45deg, transparent 50%, ${CHEVRON_INK} 50%), linear-gradient(135deg, ${CHEVRON_INK} 50%, transparent 50%)`,
+  backgroundPosition: 'calc(100% - 18px) 50%, calc(100% - 13px) 50%',
+  backgroundSize: '5px 5px, 5px 5px',
+  backgroundRepeat: 'no-repeat'
+}
 
 function field(node: SduiNode, ctx: RenderContext, control: (attrs: Record<string, string | number | boolean>, value: string) => RenderNode): RenderNode {
   const key = ctx.keyFor(node)
@@ -487,7 +494,7 @@ export class PickerComponent implements Component {
     })
     return field(node, ctx, (attrs, value) => renderNode(`${key}:control`, 'select', {
       attrs: cleanAttrs({ ...attrs, value: ctx.interactive ? value : undefined }),
-      style: { ...FIELD_STYLE, paddingRight: '32px', backgroundImage: CHEVRON, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center' },
+      style: { ...FIELD_STYLE, paddingRight: '32px', ...CHEVRON },
       children: [renderNode(`${key}:opt`, 'option', { attrs: { value: '' }, text: node.string('placeholder') || 'Select…' }), ...options]
     }))
   }
