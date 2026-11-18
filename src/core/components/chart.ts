@@ -87,6 +87,8 @@ const format = (v: number) => (Number.isInteger(v) ? String(v) : String(Math.rou
 
 export class ChartComponent implements Component {
   static readonly type = 'chart'
+  /// its `api` action names the data source; it is never run on a tap
+  static readonly action = 'source'
   static readonly category = 'content'
   static readonly defaultProps = { kind: 'bar', data: [3, 5, 2, 6], labels: ['Q1', 'Q2', 'Q3', 'Q4'], height: 160 }
 

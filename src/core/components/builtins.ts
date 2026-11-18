@@ -7,6 +7,7 @@ import { color, fontWeight, numberProp, sharedStyle, textStyle } from '../style'
 import { Symbols } from './symbols'
 import type { FieldRule } from '../patterns'
 import { ChartComponent } from './chart'
+import { parseMarkup } from '../markup'
 
 export { ChartComponent }
 
@@ -67,6 +68,9 @@ function container(node: SduiNode, ctx: RenderContext, style: Record<string, str
 
 // MARK: - text
 
+/// spec 2.1 — `align` of a text: leading · center · trailing
+const TEXT_ALIGN: Record<string, string> = { leading: 'start', center: 'center', trailing: 'end' }
+
 export class TextComponent implements Component {
   static readonly type = 'text'
   static readonly category = 'content'
@@ -82,6 +86,13 @@ export class TextComponent implements Component {
     }
     const c = color(node.string('color'))
     if (c) style.color = c
+    const align = TEXT_ALIGN[node.string('align')]
+    if (align) style.textAlign = align
+    // spec 2.1 — at most `maxLines` lines, the rest cut with an ellipsis
+    const maxLines = numberProp(node, 'maxLines')
+    if (maxLines !== undefined && maxLines >= 1) {
+      Object.assign(style, { display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: String(Math.floor(maxLines)), overflow: 'hidden' })
+    }
     if (ctx.pending(template)) {
       // a `screen.load` result this text needs hasn't arrived yet → skeleton
       return renderNode(ctx.keyFor(node), 'span', {
@@ -90,11 +101,25 @@ export class TextComponent implements Component {
         style: { ...style, ...sharedStyle(node), minWidth: '6em', minHeight: `${size * 1.3}px`, background: 'rgba(120,120,128,0.16)', borderRadius: '4px' }
       })
     }
-    return renderNode(ctx.keyFor(node), 'span', {
+    const key = ctx.keyFor(node)
+    // spec 2.1 — `markup: true`: **bold** / *italic* runs, parsed before the tokens resolve
+    const runs = node.bool('markup') && template.includes('*') ? parseMarkup(template) : undefined
+    if (runs && runs.some((r) => r.bold || r.italic)) {
+      return renderNode(key, 'span', {
+        type: node.type,
+        attrs: a11y(node, ctx),
+        style: { ...style, ...sharedStyle(node) },
+        children: runs.map((r, i) => renderNode(`${key}:${i}`, 'span', {
+          style: { ...(r.bold ? { fontWeight: '700' } : {}), ...(r.italic ? { fontStyle: 'italic' } : {}) },
+          text: ctx.resolve(r.text)
+        }))
+      })
+    }
+    return renderNode(key, 'span', {
       type: node.type,
       attrs: a11y(node, ctx),
       style: { ...style, ...sharedStyle(node) },
-      text: ctx.resolve(template)
+      text: ctx.resolve(runs ? runs.map((r) => r.text).join('') : template)
     })
   }
 }
@@ -229,6 +254,7 @@ const BUTTON_VARIANTS: Record<string, Record<string, string>> = {
 export class ButtonComponent implements Component {
   static readonly type = 'button'
   static readonly category = 'action'
+  static readonly action = 'tap'
   static readonly defaultProps = { title: 'Button' }
   makeView(node: SduiNode, ctx: RenderContext): RenderNode {
     const variant = BUTTON_VARIANTS[node.string('variant')] ?? BUTTON_VARIANTS.plain!

@@ -257,18 +257,19 @@ describe('Requests and chart data sources', () => {
     expect(find(studio.document.root, button)!.action!.toJSON()).toMatchObject({ type: 'api', request: 'submitCheckout' })
     expect(options(host, 'request')).toEqual(['— choose a request —', 'submitCheckout'])
 
+    // a chart: only a data source (opsi A) — no action type to choose
     const chart = studio.document.add('chart')
     studio.document.select(chart)
-    const chartType = typeSelect(host)
-    chartType.value = 'api'
-    chartType.dispatchEvent(new Event('change'))
-    expect(find(studio.document.root, chart)!.action!.toJSON()).toMatchObject({ type: 'api', request: 'salesSummary' })
-    expect(options(host, 'request')).toEqual(['— choose a data source —', 'salesSummary', 'refundSummary'])
+    expect(options(host, 'data source')).toEqual(['— static data (no source) —', 'salesSummary', 'refundSummary'])
+    const source = host.querySelector<HTMLSelectElement>('select[aria-label="data source"]')!
+    source.value = 'salesSummary'
+    source.dispatchEvent(new Event('change'))
+    expect(find(studio.document.root, chart)!.action!.toJSON()).toEqual({ type: 'api', request: 'salesSummary' })
 
     // a template made before the split: the wrong kind is shown for what it is, never dropped
     studio.document.setAction(chart, ActionSpec.decode({ type: 'api', request: 'submitCheckout' }))
     studio.document.select(chart)
-    expect(options(host, 'request')).toContain('submitCheckout (not a data source)')
+    expect(options(host, 'data source')).toContain('submitCheckout (not a data source)')
     studio.document.setAction(button, ActionSpec.decode({ type: 'api', request: 'salesSummary' }))
     studio.document.select(button)
     expect(options(host, 'request')).toContain('salesSummary (unknown request)')
@@ -283,7 +284,7 @@ describe('Requests and chart data sources', () => {
     const chart = studio.document.add('chart')
     studio.document.setAction(chart, ActionSpec.decode({ type: 'api', request: 'salesSummary' }))
     studio.document.select(chart)
-    expect(options(host, 'request')).toEqual(['— choose a data source —', 'salesSummary'])
+    expect(options(host, 'data source')).toEqual(['— static data (no source) —', 'salesSummary'])
     studio.destroy()
     host.remove()
   })
@@ -326,7 +327,8 @@ describe('Request warnings', () => {
 })
 
 describe('Action editor: only what each type uses', () => {
-  const summaries = (host: Element) => [...host.querySelectorAll('.insp details > summary')].map((s) => s.textContent).filter((t) => t !== 'Action JSON')
+  // the onSuccess / onError steps of the action editor (not the inspector groups)
+  const summaries = (host: Element) => [...host.querySelectorAll('.insp .act details > summary')].map((s) => s.textContent)
   const hasParams = (host: Element) => host.querySelector('.insp textarea[aria-label="params"]') !== null
 
   it('openURL picks a link, has no params and no follow-up steps; dismiss / refresh only explain', () => {

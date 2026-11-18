@@ -141,7 +141,7 @@ describe('templateScreenProvider', () => {
   const routes = (overrides: Record<string, () => Response> = {}) => vi.fn(async (url: unknown, _init?: RequestInit) => {
     const u = String(url)
     for (const [k, f] of Object.entries(overrides)) if (u.endsWith(k)) return f()
-    if (u.endsWith('/templates/promoCard/v1')) return new Response(JSON.stringify(TEMPLATE), { status: 200 })
+    if (u.endsWith('/templates/m/promoCard/v1')) return new Response(JSON.stringify(TEMPLATE), { status: 200 })
     if (u.includes('/screens/m/home')) return new Response(JSON.stringify(VALUES), { status: 200, headers: { ETag: '"v-1"' } })
     return new Response('{}', { status: 404 })
   })
@@ -153,7 +153,7 @@ describe('templateScreenProvider', () => {
     const b = await engine.load(ScreenSource.key('home'))
     expect(a.kind === 'loaded' && a.screen.root.children.map((c) => c.id)).toEqual(['headline', 'hero-image', 'cta'])
     expect(b.kind).toBe('loaded')
-    expect(fetchImpl.mock.calls.map((c) => c[0])).toEqual(['/api/client/screens/m/home', '/api/client/templates/promoCard/v1', '/api/client/screens/m/home'])
+    expect(fetchImpl.mock.calls.map((c) => c[0])).toEqual(['/api/client/screens/m/home', '/api/client/templates/m/promoCard/v1', '/api/client/screens/m/home'])
   })
 
   it('reads the template ref from inside an envelope; a bad ref fails closed', async () => {

@@ -1,5 +1,6 @@
-// @fajekrina/sdui-r/builder/vue — <SduiTemplateBuilder /> (admin) and <SduiScreenBuilder />
-// (maker) wrap the DOM builders; <SduiBuilder /> is the plain Studio.
+// @fajekrina/sdui-r/builder/vue — <SduiTemplateBuilder /> (the admin designs a template) and
+// <SduiScreenBuilder /> (the admin fills its content — `:show-templates="false"` for the
+// Studio's "Isi konten" mode) wrap the DOM builders; <SduiBuilder /> is the plain Studio.
 import { defineComponent, h, onBeforeUnmount, onMounted, ref, watch, type PropType } from 'vue'
 import { mountStudio, mountTemplateBuilder, type MountedStudio, type StudioCatalog, type TemplateDeprecation } from './studio'
 import { mountScreenBuilder, type AssetSource, type MountedScreenBuilder } from './screen-builder'
@@ -22,17 +23,13 @@ const studioProps = {
   title: { type: String, default: undefined },
   /// the app's names: screens, requests, sources, links, commands, assets (an explicit list wins)
   catalog: { type: Object as PropType<StudioCatalog>, default: undefined },
-  /// view only (a reviewer role)
-  readOnly: { type: Boolean, default: false },
   /// the active release: the builder lists the draft's changes against it
   baseline: { type: Object as PropType<object>, default: undefined },
   /// `adopt` (default, constructable stylesheet) or `external` (link studio.css yourself)
   stylesheet: { type: String as PropType<'adopt' | 'external'>, default: undefined },
-  /// `@save` / `@publish` show the Save/Publish buttons; `@change` fires on every edit
+  /// `@save` / `@publish` show the Save/Publish buttons (publish is direct); `@change` fires on every edit
   onSave: { type: Function as PropType<(payload: unknown) => void | Promise<void>>, default: undefined },
   onPublish: { type: Function as PropType<(payload: unknown) => void | Promise<void>>, default: undefined },
-  /// `@submit-for-review` (payload, note): maker-checker instead of publishing directly
-  onSubmitForReview: { type: Function as PropType<(payload: unknown, note: string) => void | Promise<void>>, default: undefined },
   onChange: { type: Function as PropType<(payload: unknown) => void>, default: undefined },
   /// template mode: the template's deprecation (null = in use) and `@deprecate` / `@restore`
   deprecation: { type: Object as PropType<TemplateDeprecation | null>, default: undefined },
@@ -59,12 +56,10 @@ const studioComponent = (name: string, mount: typeof mountStudio, template: bool
         commands: props.commands,
         title: props.title,
         catalog: props.catalog,
-        readOnly: props.readOnly,
         baseline: props.baseline,
         stylesheet: props.stylesheet,
         onSave: props.onSave && ((p) => props.onSave?.(p)),
         onPublish: props.onPublish && ((p) => props.onPublish?.(p)),
-        onSubmitForReview: props.onSubmitForReview && ((p, note) => props.onSubmitForReview?.(p, note)),
         deprecation: props.deprecation,
         onDeprecate: props.onDeprecate && ((info) => props.onDeprecate?.(info)),
         onRestore: props.onRestore && (() => props.onRestore?.()),
@@ -72,10 +67,10 @@ const studioComponent = (name: string, mount: typeof mountStudio, template: bool
       })
     })
     // options that may arrive or change after mounting (lists loaded from a backend, the title)
-    watch(() => [props.title, props.screens, props.requests, props.sources, props.links, props.commands, props.catalog, props.readOnly, props.baseline, props.sampleData, props.assetURL, props.deprecation], () => {
+    watch(() => [props.title, props.screens, props.requests, props.sources, props.links, props.commands, props.catalog, props.baseline, props.sampleData, props.assetURL, props.deprecation], () => {
       studio?.update({
         title: props.title, screens: props.screens, requests: props.requests, sources: props.sources, links: props.links,
-        commands: props.commands, catalog: props.catalog, readOnly: props.readOnly, baseline: props.baseline,
+        commands: props.commands, catalog: props.catalog, baseline: props.baseline,
         sampleData: props.sampleData, assetURL: props.assetURL, deprecation: props.deprecation
       })
     })
@@ -89,7 +84,8 @@ export const SduiBuilder = studioComponent('SduiBuilder', mountStudio, false)
 /// sdui-r — the Template Builder (admin): components → a template document.
 export const SduiTemplateBuilder = studioComponent('SduiTemplateBuilder', mountTemplateBuilder, true)
 
-/// sdui-r — the Screen Builder (maker): pick a template, fill in its components → a value set.
+/// sdui-r — the content editor: fill in a template's components → a value set (with
+/// `:show-templates="false"` the page's template is fixed).
 export const SduiScreenBuilder = defineComponent({
   name: 'SduiScreenBuilder',
   props: {
@@ -102,11 +98,13 @@ export const SduiScreenBuilder = defineComponent({
     assetURL: { type: Function as PropType<(name: string) => string>, default: undefined },
     title: { type: String, default: undefined },
     catalog: { type: Object as PropType<StudioCatalog>, default: undefined },
-    readOnly: { type: Boolean, default: false },
     baseline: { type: Object as PropType<object>, default: undefined },
     stylesheet: { type: String as PropType<'adopt' | 'external'>, default: undefined },
     onSave: { type: Function as PropType<(values: unknown) => void | Promise<void>>, default: undefined },
-    onSubmitForReview: { type: Function as PropType<(values: unknown, note: string) => void | Promise<void>>, default: undefined },
+    /// publish the values now (no review step)
+    onPublish: { type: Function as PropType<(values: unknown) => void | Promise<void>>, default: undefined },
+    /// false: no template list (the page's template is fixed)
+    showTemplates: { type: Boolean, default: true },
     onChange: { type: Function as PropType<(values: unknown) => void>, default: undefined },
     /// store a dropped / picked picture or copy a link; answers the asset name
     uploadAsset: { type: Function as PropType<(source: AssetSource) => Promise<string>>, default: undefined },
@@ -126,19 +124,19 @@ export const SduiScreenBuilder = defineComponent({
         assetURL: props.assetURL,
         title: props.title,
         catalog: props.catalog,
-        readOnly: props.readOnly,
         baseline: props.baseline,
         stylesheet: props.stylesheet,
+        showTemplates: props.showTemplates,
         onSave: props.onSave && ((v) => props.onSave?.(v)),
-        onSubmitForReview: props.onSubmitForReview && ((v, note) => props.onSubmitForReview?.(v, note)),
+        onPublish: props.onPublish && ((v) => props.onPublish?.(v)),
         uploadAsset: props.uploadAsset && ((source) => props.uploadAsset!(source)),
         maxAssetBytes: props.maxAssetBytes,
         onChange: (v) => props.onChange?.(v)
       })
     })
-    watch(() => [props.templates, props.title, props.catalog, props.readOnly, props.baseline, props.sampleData, props.assetURL], () => {
+    watch(() => [props.templates, props.title, props.catalog, props.baseline, props.sampleData, props.assetURL], () => {
       builder?.update({
-        templates: props.templates, title: props.title, catalog: props.catalog, readOnly: props.readOnly,
+        templates: props.templates, title: props.title, catalog: props.catalog,
         baseline: props.baseline, sampleData: props.sampleData, assetURL: props.assetURL
       })
     })

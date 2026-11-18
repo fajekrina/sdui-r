@@ -1,5 +1,6 @@
-// @fajekrina/sdui-r/builder/react — <SduiTemplateBuilder /> (admin) and
-// <SduiScreenBuilder /> (maker) wrap the DOM builders; <SduiBuilder /> is the plain Studio.
+// @fajekrina/sdui-r/builder/react — <SduiTemplateBuilder /> (the admin designs a template) and
+// <SduiScreenBuilder /> (the admin fills its content — `showTemplates={false}` for the Studio's
+// "Isi konten" mode) wrap the DOM builders; <SduiBuilder /> is the plain Studio.
 import React, { useEffect, useMemo, useRef } from 'react'
 import { mountStudio, mountTemplateBuilder, type MountedStudio, type StudioOptions } from './studio'
 import { mountScreenBuilder, type MountedScreenBuilder, type ScreenBuilderOptions } from './screen-builder'
@@ -31,19 +32,18 @@ function StudioHost({ className, style, mount, ...options }: SduiBuilderProps & 
       ...optionsRef.current,
       onSave: optionsRef.current.onSave && ((p) => optionsRef.current.onSave?.(p)),
       onPublish: optionsRef.current.onPublish && ((p) => optionsRef.current.onPublish?.(p)),
-      onSubmitForReview: optionsRef.current.onSubmitForReview && ((p, note) => optionsRef.current.onSubmitForReview?.(p, note)),
       onDeprecate: optionsRef.current.onDeprecate && ((info) => optionsRef.current.onDeprecate?.(info)),
       onRestore: optionsRef.current.onRestore && (() => optionsRef.current.onRestore?.()),
       onChange: (p) => optionsRef.current.onChange?.(p)
     })
     return () => { studio.current?.destroy(); studio.current = undefined }
   }, [options.document])
-  // options that may arrive or change after mounting (lists, the title, the reviewer
-  // role, a new active release after publishing)
-  const { title, screens, requests, sources, links, commands, catalog, readOnly, baseline, sampleData, assetURL, deprecation } = options
+  // options that may arrive or change after mounting (lists, the title, a new active
+  // release after publishing)
+  const { title, screens, requests, sources, links, commands, catalog, baseline, sampleData, assetURL, deprecation } = options
   useEffect(() => {
-    studio.current?.update({ title, screens, requests, sources, links, commands, catalog, readOnly, baseline, sampleData, assetURL, deprecation })
-  }, [title, screens, requests, sources, links, commands, catalog, readOnly, baseline, sampleData, assetURL, deprecation])
+    studio.current?.update({ title, screens, requests, sources, links, commands, catalog, baseline, sampleData, assetURL, deprecation })
+  }, [title, screens, requests, sources, links, commands, catalog, baseline, sampleData, assetURL, deprecation])
   return <div ref={host} className={className} style={{ height: '100%', ...style }} />
 }
 
@@ -52,7 +52,8 @@ export interface SduiScreenBuilderProps extends ScreenBuilderOptions {
   style?: React.CSSProperties
 }
 
-/// sdui-r — the Screen Builder (maker): pick a template, fill in its components → a value set.
+/// sdui-r — the content editor: fill in a template's components → a value set (with
+/// `showTemplates={false}` the page's template is fixed).
 export function SduiScreenBuilder({ className, style, ...options }: SduiScreenBuilderProps) {
   const host = useRef<HTMLDivElement>(null)
   const builder = useRef<MountedScreenBuilder>()
@@ -64,16 +65,16 @@ export function SduiScreenBuilder({ className, style, ...options }: SduiScreenBu
       ...optionsRef.current,
       loadTemplate: optionsRef.current.loadTemplate && ((c) => optionsRef.current.loadTemplate!(c)),
       onSave: optionsRef.current.onSave && ((v) => optionsRef.current.onSave?.(v)),
-      onSubmitForReview: optionsRef.current.onSubmitForReview && ((v, note) => optionsRef.current.onSubmitForReview?.(v, note)),
+      onPublish: optionsRef.current.onPublish && ((v) => optionsRef.current.onPublish?.(v)),
       uploadAsset: optionsRef.current.uploadAsset && ((source) => optionsRef.current.uploadAsset!(source)),
       onChange: (v) => optionsRef.current.onChange?.(v)
     })
     return () => { builder.current?.destroy(); builder.current = undefined }
   }, [options.editor, options.screen])
-  const { templates, title, catalog, readOnly, baseline, sampleData, assetURL } = options
+  const { templates, title, catalog, baseline, sampleData, assetURL } = options
   useEffect(() => {
-    builder.current?.update({ templates, title, catalog, readOnly, baseline, sampleData, assetURL })
-  }, [templates, title, catalog, readOnly, baseline, sampleData, assetURL])
+    builder.current?.update({ templates, title, catalog, baseline, sampleData, assetURL })
+  }, [templates, title, catalog, baseline, sampleData, assetURL])
   return <div ref={host} className={className} style={{ height: '100%', ...style }} />
 }
 

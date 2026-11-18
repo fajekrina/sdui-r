@@ -1,11 +1,13 @@
-// sdui-r — the **Screen Builder** (maker): the palette lists TEMPLATES; picking one loads
-// its layout on the canvas, and the inspector edits the VALUES of the selected component.
-// The template structure is locked (no insert / move / delete). The output is a value
-// set for one merchant screen. Same canvas, preview, review and CSP rules as the Studio.
+// sdui-r — the **content editor** (the Studio's "Isi konten" mode; also mountable on its
+// own as the Screen Builder): the palette lists TEMPLATES (or is hidden when the page's
+// template is fixed); the inspector edits the VALUES of the selected component. The
+// template structure is locked (no insert / move / delete). The output is a value set for
+// one merchant page. Same canvas, preview and CSP rules as the Studio; publishing is direct.
 import { ComponentFactory, TemplateDocument, type SduiNode, type SduiValue } from '../core'
 import { renderNodeDOM } from '../vanilla'
 import { COLORS, FIELDS, SHARED, attachStyles, deprecationText, foldSection, outlineTwisty, type FieldKind, type StudioCatalog } from './studio'
 import { actionBadge, describeComponent } from './describe'
+import { multilineText, optionsTable } from './controls'
 import { STUDIO_CSS } from './studio-css'
 import { ancestorsOf, flatten, flattenVisible, outlineLabel } from './tree'
 import { clippedContainers, findValueJsonRange, renderPreview } from './preview'
@@ -27,13 +29,15 @@ export interface ScreenBuilderOptions {
   title?: string
   /// names offered for image names (assets) and action targets
   catalog?: StudioCatalog
-  /// view only (checker role)
-  readOnly?: boolean
   /// the value set of the active release: the builder lists what the draft changes
   baseline?: unknown
   onSave?: (values: unknown) => void | Promise<void>
-  onSubmitForReview?: (values: unknown, note: string) => void | Promise<void>
+  /// publish the values now (no review step): the page goes live at once
+  onPublish?: (values: unknown) => void | Promise<void>
   onChange?: (values: unknown) => void
+  /// false: no template list — the page's template is fixed (the Studio's "Isi konten" mode,
+  /// where the template being designed IS the page's template)
+  showTemplates?: boolean
   /// store a picture for an image component — a file (picked or dropped) or a link the
   /// backend copies — and answer its asset NAME (what the value set holds; the app's
   /// `assetURL` maps it). Without it the maker can only pick a name from `catalog.assets`.
@@ -49,7 +53,7 @@ export type AssetSource = { file: Blob & { name?: string } } | { url: string }
 export const IMAGE_TYPES: readonly string[] = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
 const DEFAULT_MAX_ASSET = 2 * 1024 * 1024
 
-export type ScreenBuilderUpdate = Pick<ScreenBuilderOptions, 'templates' | 'title' | 'catalog' | 'readOnly' | 'baseline' | 'sampleData' | 'assetURL' | 'uploadAsset'>
+export type ScreenBuilderUpdate = Pick<ScreenBuilderOptions, 'templates' | 'title' | 'catalog' | 'baseline' | 'sampleData' | 'assetURL' | 'uploadAsset'>
 
 export interface MountedScreenBuilder {
   readonly editor: ValuesEditor
@@ -112,27 +116,16 @@ export function mountScreenBuilder(target: HTMLElement, options: ScreenBuilderOp
   widthSel.addEventListener('change', () => { width = Number(widthSel.value); paint() })
   const previewBtn = button('Preview', () => { previewMode = !previewMode; paint() })
   const statusEl = el('span', { class: 'st', role: 'status' })
-  const noteInput = el('input', { 'aria-label': 'Review note', placeholder: 'Note for the reviewer', class: 'note' }) as HTMLInputElement
-  const save = async () => {
-    try { await opts.onSave?.(JSON.parse(editor.exportJSON())); showStatus('Saved ✔', true) } catch (error) { showStatus(`Save failed: ${failure(error)}`, false) }
+  const emit = async (fn: ScreenBuilderOptions['onSave'], done: string, failed: string) => {
+    try { await fn?.(JSON.parse(editor.exportJSON())); showStatus(done, true) } catch (error) { showStatus(`${failed}: ${failure(error)}`, false) }
     paint()
   }
-  const submit = async () => {
-    try {
-      await opts.onSubmitForReview?.(JSON.parse(editor.exportJSON()), noteInput.value.trim())
-      noteInput.value = ''
-      showStatus('Submitted for review ✔', true)
-    } catch (error) {
-      showStatus(`Submit failed: ${failure(error)}`, false)
-    }
-    paint()
-  }
-  const editing: HTMLElement[] = [undo, redo,
-    ...(options.onSave ? [button('Save draft', () => void save())] : []),
-    ...(options.onSubmitForReview ? [noteInput, button('Submit for review', () => void submit(), 'btn pri')] : [])]
+  const saving: HTMLElement[] = [
+    ...(options.onSave ? [button('Save draft', () => void emit(options.onSave, 'Saved ✔', 'Save failed'))] : []),
+    ...(options.onPublish ? [button('Publish', () => void emit(options.onPublish, 'Published ✔', 'Publish failed'), 'btn pri')] : [])]
   root.append(el('div', { class: 'tb' },
-    el('strong', {}, 'Screen Builder'), titleEl, screenEl, templateEl, undo, redo, widthSel, previewBtn,
-    el('span', { class: 'sp' }), statusEl, ...editing.slice(2)))
+    el('strong', {}, options.showTemplates === false ? 'Content' : 'Screen Builder'), titleEl, screenEl, templateEl, undo, redo, widthSel, previewBtn,
+    el('span', { class: 'sp' }), statusEl, ...saving))
   // the chosen template is deprecated: say so (the page keeps working; new pages cannot use it)
   const depBar = el('div', { class: 'dep', role: 'status' })
   root.append(depBar)
@@ -141,7 +134,7 @@ export function mountScreenBuilder(target: HTMLElement, options: ScreenBuilderOp
   // pictures: upload a file, copy a link, or drop a file on the image (inspector or canvas)
   let uploading: string | undefined
   const upload = async (id: string, source: AssetSource) => {
-    if (!opts.uploadAsset || opts.readOnly) return
+    if (!opts.uploadAsset) return
     try {
       if ('file' in source) {
         if (!IMAGE_TYPES.includes(source.file.type)) throw new Error(`${source.file.type || 'this file'} is not a picture (PNG, JPEG, WebP or GIF)`)
@@ -171,7 +164,6 @@ export function mountScreenBuilder(target: HTMLElement, options: ScreenBuilderOp
   // palette: templates
   const templatesEl = el('div', { class: 'tpls', role: 'listbox', 'aria-label': 'Templates' })
   const choose = async (choice: TemplateChoice) => {
-    if (opts.readOnly) return
     const current = editor.template?.template
     if (current && current.key === choice.key && current.version === choice.version) return
     try {
@@ -194,6 +186,7 @@ export function mountScreenBuilder(target: HTMLElement, options: ScreenBuilderOp
   const templatesToggle = button('', () => { templatesOpen = !templatesOpen; paint() }, 'fold')
   templatesToggle.setAttribute('aria-controls', templatesBody.id)
   const paletteBox = el('div', {}, el('h3', { class: 'fold-h' }, templatesToggle), templatesBody)
+  paletteBox.hidden = options.showTemplates === false
   const device = el('div', { class: 'device' })
   device.addEventListener('click', (event) => {
     if (previewMode) return
@@ -212,7 +205,7 @@ export function mountScreenBuilder(target: HTMLElement, options: ScreenBuilderOp
     return hit && id && editor.node(id)?.type === 'image' && editor.editable(id, 'name') ? [hit, id] : undefined
   }
   device.addEventListener('dragover', (event) => {
-    if (previewMode || opts.readOnly || !opts.uploadAsset || !carriesFiles(event)) return
+    if (previewMode || !opts.uploadAsset || !carriesFiles(event)) return
     const at = imageTarget(event)
     markFile(at?.[0])
     if (at) { event.preventDefault(); if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy' }
@@ -222,7 +215,7 @@ export function mountScreenBuilder(target: HTMLElement, options: ScreenBuilderOp
     const at = imageTarget(event)
     markFile(undefined)
     const file = imageFile(event)
-    if (!at || !file || previewMode || opts.readOnly || !opts.uploadAsset) return
+    if (!at || !file || previewMode || !opts.uploadAsset) return
     event.preventDefault()
     editor.select(at[1])
     void upload(at[1], { file })
@@ -281,7 +274,17 @@ export function mountScreenBuilder(target: HTMLElement, options: ScreenBuilderOp
       input.checked = current === true
       input.addEventListener('change', () => editor.setValue(id, key, input.checked === (def === true) ? undefined : input.checked))
       control = el('label', { class: 'chk' }, input, key)
-    } else if (Array.isArray(kind) || key === 'background' || key === 'foreground' || key === 'color') {
+    } else if (kind === 'textarea') {
+      // a text's value: Enter = new line; bold / italic when the template turned markup on
+      const markup = node.type === 'text' && key === 'value' && editor.value(id, 'markup') === true
+      control = multilineText(d, {
+        label: key, value: own && typeof current === 'string' ? current : '', placeholder: typeof def === 'string' ? def : undefined,
+        onChange: (v) => editor.setValue(id, key, v === '' ? undefined : v),
+        ...(markup ? { onMarkup: () => undefined, markupOn: true } : {})
+      })
+    } else if (kind === 'options') {
+      control = optionsTable(d, key, current, (v) => editor.setValue(id, key, v))
+    } else if (Array.isArray(kind) || kind === 'color') {
       const values = Array.isArray(kind) ? kind : COLORS
       const select = el('select', {}, ...values.map((v) => el('option', { value: v }, v || '—'))) as HTMLSelectElement
       if (typeof current === 'string' && !values.includes(current)) select.append(el('option', { value: current }, current))
@@ -325,12 +328,12 @@ export function mountScreenBuilder(target: HTMLElement, options: ScreenBuilderOp
       const picker = el('input', { type: 'file', accept: IMAGE_TYPES.join(','), hidden: '', 'aria-label': 'Picture file' }) as HTMLInputElement
       picker.addEventListener('change', () => { const file = picker.files?.[0]; if (file) void upload(id, { file }) })
       zone.append(el('div', {}, 'Drop a picture here, or'), picker, button('Choose file…', () => picker.click()))
-      zone.addEventListener('dragover', (event) => { if (carriesFiles(event) && !opts.readOnly) { event.preventDefault(); zone.classList.add('over') } })
+      zone.addEventListener('dragover', (event) => { if (carriesFiles(event)) { event.preventDefault(); zone.classList.add('over') } })
       zone.addEventListener('dragleave', () => zone.classList.remove('over'))
       zone.addEventListener('drop', (event) => {
         zone.classList.remove('over')
         const file = imageFile(event)
-        if (!file || opts.readOnly) return
+        if (!file) return
         event.preventDefault()
         void upload(id, { file })
       })
@@ -384,7 +387,6 @@ export function mountScreenBuilder(target: HTMLElement, options: ScreenBuilderOp
 
   const paint = () => {
     const template = editor.template?.template
-    const readOnly = opts.readOnly === true
     titleEl.textContent = opts.title ?? ''
     titleEl.style.display = opts.title ? '' : 'none'
     screenEl.textContent = `screen ${editor.screen}`
@@ -395,9 +397,6 @@ export function mountScreenBuilder(target: HTMLElement, options: ScreenBuilderOp
     previewBtn.className = previewMode ? 'btn on' : 'btn'
     main.classList.toggle('pv', previewMode)
     jsonPanel.style.display = previewMode ? 'none' : ''
-    root.classList.toggle('ro', readOnly)
-    for (const control of editing) control.hidden = readOnly
-    jsonText.readOnly = readOnly
     statusEl.textContent = status?.text ?? ''
     statusEl.className = `st${status ? (status.ok ? ' ok' : ' err') : ''}`
 
@@ -419,7 +418,6 @@ export function mountScreenBuilder(target: HTMLElement, options: ScreenBuilderOp
       b.title = `${choice.title ? `${choice.title} — ` : ''}${choice.key}@${choice.version}${choice.deprecated ? ` — ${deprecationText(choice.key, choice.deprecated)}` : ''}`
       b.setAttribute('role', 'option')
       b.setAttribute('aria-selected', String(on))
-      b.disabled = readOnly
       return b
     }))
     if (!opts.templates?.length) templatesEl.replaceChildren(el('p', { class: 'empty' }, 'No templates'))
@@ -453,7 +451,6 @@ export function mountScreenBuilder(target: HTMLElement, options: ScreenBuilderOp
     const selected = editor.selection && screen ? flatten(screen.root).find(([n]) => n.id === editor.selection)?.[0] : undefined
     if (selected) inspectorFor(selected)
     else inspector.replaceChildren(el('p', { class: 'empty' }, screen ? 'Select a component' : 'Choose a template'))
-    if (readOnly) for (const c of inspector.querySelectorAll('input, select, textarea, button')) (c as HTMLInputElement).disabled = true
 
     let values: unknown
     try { values = template ? editor.valuesDocument().toJSON() : undefined } catch { values = undefined }

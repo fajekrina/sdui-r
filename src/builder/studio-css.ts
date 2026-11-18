@@ -103,4 +103,25 @@ export const STUDIO_CSS = `
 .sdui-studio .dep strong{color:#92400e}
 .sdui-studio .tpl .depb,.sdui-studio .depb{display:inline-block;margin-left:4px;padding:0 6px;border-radius:999px;background:#fef3c7;color:#92400e;font:10px/16px system-ui,sans-serif}
 .sdui-studio .tpl.dep-t{border-style:dashed;opacity:.85}
+.sdui-studio .insp details.grp{border:1px solid #e2e8f0;border-radius:6px;padding:0 8px 8px;display:flex;flex-direction:column;gap:6px}
+.sdui-studio .insp details.grp>summary{margin:0 -8px;padding:6px 8px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#64748b}
+.sdui-studio .insp details.grp[open]>summary{border-bottom:1px solid #f1f5f9;margin-bottom:6px}
+.sdui-studio .insp details.grp>*:not(summary){margin-top:6px}
+.sdui-studio .insp .mtext textarea{font:13px/1.4 system-ui,sans-serif;min-height:64px;resize:vertical}
+.sdui-studio .insp .fmtbar{display:flex;gap:4px;align-items:center;margin-top:4px}
+.sdui-studio .insp .fmtbar .btn{height:24px;min-width:28px;padding:0 6px}
+.sdui-studio .insp .fmtbar .fmt-b{font-weight:700}
+.sdui-studio .insp .fmtbar .fmt-i{font-style:italic}
+.sdui-studio .insp .fmtbar .tip{padding:0;flex:1}
+.sdui-studio .insp .fldset{display:flex;flex-direction:column;gap:4px;font-size:12px;color:#475569}
+.sdui-studio .insp .opts{display:flex;flex-direction:column;gap:4px}
+.sdui-studio .insp .opt{display:grid;grid-template-columns:1fr 1fr auto;gap:4px;align-items:center}
+.sdui-studio .insp .opt.hd{font-size:11px;color:#94a3b8}
+.sdui-studio .insp .opt .ops{display:flex;gap:2px}
+.sdui-studio .insp .opt .btn{height:24px;padding:0 6px}
+.sdui-studio .insp .color{display:flex;gap:4px;align-items:center}
+.sdui-studio .insp .color select{flex:1}
+.sdui-studio .insp .color .hex{width:90px;font-family:ui-monospace,monospace}
+.sdui-studio .insp .color .sw{width:32px;height:26px;padding:0 2px}
+.sdui-studio .insp .tip.warn{color:#b45309;padding:0}
 `

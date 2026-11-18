@@ -41,7 +41,7 @@ describe('DSL', () => {
         }),
         onError: toast('Confirmation cancelled', { level: 'warning' })
       }), { a11yId: 'send_button' })
-    ]).id('transfer'))
+    ]).id('transfer'), { schemaVersion: '2.0' })   // the fixture is a 2.0 payload (still valid under 2.1)
     expect(built.payload.equals(SduiPayload.fromJSON(fixture('valid/transfer_form.json')))).toBe(true)
   })
 
@@ -161,7 +161,8 @@ describe('Studio (DOM)', () => {
     paletteText.click()
     const id = studio.document.selection!
     expect(studio.document.selected?.type).toBe('text')
-    const valueInput = [...host.querySelectorAll('.insp label')].find((l) => l.firstChild?.textContent === 'value')!.querySelector('input')!
+    // a text's value is a multi-line box (Enter = new line)
+    const valueInput = [...host.querySelectorAll('.insp label')].find((l) => l.firstChild?.textContent === 'value')!.querySelector('textarea')!
     valueInput.value = 'Hello'
     valueInput.dispatchEvent(new Event('change'))
     expect(host.querySelector('.device')!.textContent).toContain('Hello')
@@ -237,7 +238,7 @@ describe('Studio (DOM)', () => {
     expect(studio.document.selected!.action!.toJSON()).toEqual({ type: 'navigate', screen: 'transfer', presentation: 'sheet', params: { from: 'home' } })
 
     // chain: onSuccess → toast
-    set('type', 'toast', '.insp details > .act')
+    set('type', 'toast', '.insp .act details > .act')
     expect(studio.document.selected!.action!.onSuccess!.toJSON()).toEqual({ type: 'toast', message: 'Done', level: 'success' })
     set('type', '')                                                     // none removes the action
     expect(find(studio.document.root, id)!.action).toBeUndefined()
@@ -263,13 +264,16 @@ describe('Studio (DOM)', () => {
     expect(find(studio.document.root, b)!.action!.toJSON()).toMatchObject({ type: 'api', request: 'cancelSummary' })
     const c = studio.document.add('chart')
     studio.document.select(c)
-    // no source field: the Action is the data source (none = static data)
-    expect(labelled(host, 'source')).toBeUndefined()
-    expect(host.querySelector('.insp')!.textContent).toContain('No api action: the chart draws its static data')
-    labelled(host, 'type').querySelector('select')!.value = 'api'
-    fire(labelled(host, 'type').querySelector('select')!, 'change')
-    expect(find(studio.document.root, c)!.action!.toJSON()).toMatchObject({ type: 'api', request: 'salesSummary' })
-    expect(host.querySelector('.insp')!.textContent).toContain('Data from source "salesSummary"')
+    // a chart's action is its data source only: a source picker, no action type, no chain
+    expect(labelled(host, 'type')).toBeUndefined()
+    expect(host.querySelector('.insp')!.textContent).toContain('No source: the chart draws its static data')
+    const source = labelled(host, 'source').querySelector('select')!
+    expect([...source.options].map((o) => o.value)).toEqual(['', 'salesSummary', 'cancelSummary'])
+    source.value = 'salesSummary'
+    fire(source, 'change')
+    expect(find(studio.document.root, c)!.action!.toJSON()).toEqual({ type: 'api', request: 'salesSummary' })
+    expect(host.querySelector('.insp')!.textContent).toContain('Loaded when the page opens')
+    expect(host.querySelector('.insp')!.textContent).not.toContain('onSuccess')
     // showLabels is on by default: unchecking writes false, checking again removes it
     const labels = [...host.querySelectorAll<HTMLLabelElement>('.insp label.chk')].find((l) => l.textContent === 'showLabels')!.querySelector('input')!
     expect(labels.checked).toBe(true)

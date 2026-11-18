@@ -1,4 +1,4 @@
-# SDUI-R spec (v2.0)
+# SDUI-R spec (v2.1)
 
 The contract between the backend and `@fajekrina/sdui-r`. The machine-readable source
 of truth is [`sdui.schema.json`](./sdui.schema.json) (JSON Schema Draft 2020-12);
@@ -7,6 +7,8 @@ this file is the human guide. When the two disagree, the schema wins.
 v1 is the [murti](https://github.com/iQbalADR/murti) v1 contract, copied and owned
 here (Apache-2.0, see [`../NOTICE`](../NOTICE)); v1.1 is `@fajekrina/sdui`. **v2.0 (sdui-r)**
 splits a screen into a template and a value set — a new major, so 1.x payloads are rejected.
+**v2.1** adds props only (a 2.0 document is a valid 2.1 document): `text.align`,
+`text.maxLines` and `text.markup` — see [Text (v2.1)](#text-v21).
 
 ## v2.0 — template + value set
 
@@ -97,7 +99,7 @@ v1 (murti):
 
 | `type` | Props |
 | --- | --- |
-| `text` | `value` (tokens), `style` `title`·`headline`·`body`·`caption`, `color`, `weight`, `size` |
+| `text` | `value` (tokens; a newline is a line break), `style` `title`·`headline`·`body`·`caption`, `color`, `weight`, `size`; v2.1: `align`, `maxLines`, `markup` |
 | `image` | `systemName` (symbol) · `name` (app-resolved asset), `contentMode` `fit`·`fill`, `width`, `height` |
 | `vstack` / `hstack` | `spacing`, `alignment` (`leading`·`center`·`trailing` / `top`·`center`·`bottom`) |
 | `zstack` | `width`, `height`; children carry `x`, `y`, `width`, `height` |
@@ -140,6 +142,28 @@ An unknown name fails the field closed.
 
 `secure: true` fields (PIN, OTP) are never logged, cached, or placed in the data
 context outside their form; a WebView host may take them over with native input.
+
+### Text (v2.1)
+
+| Prop | Values | Effect |
+| --- | --- | --- |
+| `align` | `leading` · `center` · `trailing` | text alignment (unknown → ignored) |
+| `maxLines` | integer ≥ 1 | at most N lines, the rest cut with an ellipsis |
+| `markup` | `true` | `**bold**` and `*italic*` in `value` (they may nest); `\*` is a literal `*` |
+
+`markup` is opt-in per text, so a 2.0 text with asterisks renders unchanged. The markers
+are parsed on the **template string, before `{{tokens}}` resolve**: a token's value (API
+data, a form field) is always plain text and never becomes formatting. A marker without its
+partner stays literal. No HTML, links or colors — the vocabulary is closed. A 2.0 client
+ignores the three props (it shows the asterisks). Native hosts parse the same way
+(`parseMarkup` in the core is the reference).
+
+### Actions per component
+
+Only a `button` runs its action when tapped. A `chart` reads its `api` action's `request` as
+its data source (loaded with the screen, never run on a tap; other action types and
+`onSuccess` / `onError` are ignored). Every other built-in ignores an action; the builder
+warns about one. A third-party component may run its own (`ComponentInfo.action`).
 
 ## Actions
 

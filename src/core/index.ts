@@ -27,7 +27,8 @@ export { FIELD_PATTERNS, MESSAGES_EN, validateField, type FieldRule, type FieldM
 // Rendering
 export { renderNode, cleanAttrs, type RenderNode, type RenderElement, type RenderResult } from './render-node'
 export { RenderContext, type RenderEnvironment, type RenderSink } from './render-context'
-export { ComponentFactory, type Component, type ComponentType, type ComponentInfo, type ViewBuilder } from './component-factory'
+export { ComponentFactory, type Component, type ComponentType, type ComponentInfo, type ActionUse, type ViewBuilder } from './component-factory'
+export { parseMarkup, type MarkupRun } from './markup'
 export * from './components/builtins'
 export { Symbols } from './components/symbols'
 export { parseHexColor, color, fontWeight, textStyle, sharedStyle, COLOR_TOKENS, type SduiRGBA } from './style'

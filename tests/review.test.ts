@@ -1,5 +1,5 @@
-// HLD Target F5 · Studio for review: diff(base, next), readOnly, onSubmitForReview,
-// baseline changes panel, catalog names.
+// Studio: diff(base, next), direct publish (no review step), baseline changes panel,
+// catalog names.
 import { describe, expect, it } from 'vitest'
 import { EditorDocument, diff, mountStudio } from '../src/builder'
 
@@ -54,42 +54,17 @@ function studioWith(options: Parameters<typeof mountStudio>[1] = {}) {
   return { host, doc, studio, buttons, done: () => { studio.destroy(); host.remove() } }
 }
 
-describe('Studio · readOnly', () => {
-  it('hides editing controls and the palette, disables the inspector and JSON, blocks drag', () => {
-    const { host, doc, studio, buttons, done } = studioWith({ readOnly: true, onSave: () => undefined, onPublish: () => undefined })
-    expect(buttons()).not.toContain('Save draft')
-    expect(buttons()).not.toContain('Publish')
-    expect(buttons()).not.toContain('↶ Undo')
-    expect(buttons()).toContain('Preview')                                  // viewing still works
-    expect(host.querySelector('.pal')!.closest('[hidden]')).not.toBeNull()
-    expect((host.querySelector('textarea[aria-label="Payload JSON"]') as HTMLTextAreaElement).readOnly).toBe(true)
-    doc.select(doc.root.children[0]!.id)
-    const controls = [...host.querySelectorAll('.insp input, .insp select, .insp textarea, .insp button')] as HTMLInputElement[]
-    expect(controls.length).toBeGreaterThan(0)
-    expect(controls.every((c) => c.disabled)).toBe(true)
-    expect(host.querySelectorAll('.device [draggable="true"], [role="tree"] [draggable="true"]').length).toBe(0)
-
-    studio.update({ readOnly: false })                                       // e.g. the role changes
-    expect(buttons()).toContain('Save draft')
-    expect(host.querySelector('.pal')!.closest('[hidden]')).toBeNull()
-    done()
-  })
-})
-
-describe('Studio · onSubmitForReview', () => {
-  it('submits the validated payload with the note; shows the status', async () => {
-    const submitted: Array<[unknown, string]> = []
-    const { host, buttons, done } = studioWith({ onSubmitForReview: (p, note) => { submitted.push([p, note]) } })
-    expect(buttons()).toContain('Submit for review')
-    const note = host.querySelector('input[aria-label="Review note"]') as HTMLInputElement
-    note.value = '  new hero text  '
-    ;[...host.querySelectorAll('button')].find((b) => b.textContent === 'Submit for review')!.click()
+describe('Studio · direct publish (one admin role, no review step)', () => {
+  it('Save draft and Publish only — no review note, no submit; Publish hands over the validated payload', async () => {
+    const published: unknown[] = []
+    const { host, buttons, done } = studioWith({ onSave: () => undefined, onPublish: (p) => { published.push(p) } })
+    expect(buttons()).toEqual(expect.arrayContaining(['Save draft', 'Publish', '↶ Undo']))
+    expect(buttons()).not.toContain('Submit for review')
+    expect(host.querySelector('input[aria-label="Review note"]')).toBeNull()
+    ;[...host.querySelectorAll('button')].find((b) => b.textContent === 'Publish')!.click()
     await new Promise((r) => setTimeout(r, 0))
-    expect(submitted).toHaveLength(1)
-    expect(submitted[0]![1]).toBe('new hero text')
-    expect((submitted[0]![0] as { screen: { key: string } }).screen.key).toBe('home')
-    expect(host.querySelector('[role="status"]')!.textContent).toBe('Submitted for review ✔')
-    expect(note.value).toBe('')
+    expect((published[0] as { screen: { key: string } }).screen.key).toBe('home')
+    expect(host.querySelector('[role="status"]')!.textContent).toBe('Published ✔')
     done()
   })
 })

@@ -44,9 +44,11 @@ const engine = createEngine({
   action replaces the template action; width variants get the same values through the ids.
 - Fail-closed: a value set for another template release, an id the template lacks, a
   value set for another screen, or either part unsigned/forged → the screen is rejected.
-- **Two builders**: the **Template Builder** (`mountTemplateBuilder` / `<SduiTemplateBuilder>`,
-  admin: components → template) and the **Screen Builder** (`mountScreenBuilder` /
-  `<SduiScreenBuilder>`, maker: pick a template, fill in its components → value set).
+- **Two builders, one admin**: the **Template Builder** (`mountTemplateBuilder` /
+  `<SduiTemplateBuilder>`: components → template) and the **content editor**
+  (`mountScreenBuilder` / `<SduiScreenBuilder>`: fill in a template's components → value set;
+  `showTemplates: false` when the page's template is fixed). The same admin designs and fills;
+  `onPublish` publishes directly (no review step).
 
 - **Spec** — [`spec/sdui.schema.json`](spec/sdui.schema.json): our own contract,
   derived from [murti](https://github.com/iQbalADR/murti) v1 with additive v1.1
@@ -245,14 +247,19 @@ screen back into code.
   from the app's allow-lists — URLs never enter a payload.
 - Save/Publish report `Saved ✔` / `Save failed: …` in the toolbar.
 
-For maker-checker review:
+- The inspector groups the props (Content · Field · Data · Layout · Style · Accessibility).
+  A text's value is a multi-line box with **B** / *I* buttons (spec 2.1 `markup`); picker
+  options are a table; colors are theme tokens or hex.
+- The action section follows what the component does with an action (`ComponentInfo.action`):
+  **Interaction** for a button (or a custom component), **Data source** for a chart (an `api`
+  request only), nothing for other built-ins (a leftover action is shown only to remove it).
 
 ```tsx
-<SduiBuilder
-  catalog={{ screens, requests, links, commands, assets }}   // names from the app's catalog
+<SduiTemplateBuilder
+  catalog={{ screens, requests, sources, links, commands, assets }}   // names from the app's catalog
   baseline={activeRelease}            // lists the draft's changes against the active release
-  readOnly={role === 'reviewer'}      // view only: no palette, drag & drop, edits or save
-  onSubmitForReview={(payload, note) => submit(payload, note)}  // instead of onPublish
+  onSave={(payload) => saveDraft(payload)}
+  onPublish={(payload) => publish(payload)}   // live at once: no review step
 />
 ```
 

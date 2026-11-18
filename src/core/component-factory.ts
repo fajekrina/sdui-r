@@ -17,12 +17,19 @@ export interface Component {
   makeView(node: SduiNode, context: RenderContext): RenderNode | null
 }
 
+/// What a component does with its node's `action`: runs it when tapped (`tap`), reads its
+/// `api` request as a data source (`source`, the chart), or nothing (`none`). The builder
+/// shows the action editor accordingly.
+export type ActionUse = 'tap' | 'source' | 'none'
+
 export interface ComponentType {
   readonly type: string
   /// builder palette metadata (optional)
   readonly category?: 'layout' | 'content' | 'form' | 'action'
   readonly acceptsChildren?: boolean
   readonly defaultProps?: Readonly<Record<string, unknown>>
+  /// default: `none` for a built-in category, `tap` for a custom component
+  readonly action?: ActionUse
 }
 
 /// An inline view builder: the one-line way to add a component.
@@ -33,6 +40,7 @@ export interface ComponentInfo {
   category: 'layout' | 'content' | 'form' | 'action' | 'custom'
   acceptsChildren: boolean
   defaultProps: Readonly<Record<string, unknown>>
+  action: ActionUse
 }
 
 /// The one registry: a `type` string → a component (Factory pattern). Unknown
@@ -47,7 +55,7 @@ export class ComponentFactory {
       if (!makeView) throw new TypeError('register(type, makeView) requires a view builder')
       this.components.set(componentOrType, {
         component: { makeView },
-        info: { type: componentOrType, category: info.category ?? 'custom', acceptsChildren: info.acceptsChildren ?? false, defaultProps: info.defaultProps ?? {} }
+        info: { type: componentOrType, category: info.category ?? 'custom', acceptsChildren: info.acceptsChildren ?? false, defaultProps: info.defaultProps ?? {}, action: info.action ?? 'tap' }
       })
       return this
     }
@@ -55,7 +63,11 @@ export class ComponentFactory {
     if (typeof ctor.type !== 'string' || ctor.type.length === 0) throw new TypeError(`${componentOrType.constructor.name} has no static 'type'`)
     this.components.set(ctor.type, {
       component: componentOrType,
-      info: { type: ctor.type, category: ctor.category ?? 'custom', acceptsChildren: ctor.acceptsChildren ?? false, defaultProps: ctor.defaultProps ?? {} }
+      info: {
+        type: ctor.type, category: ctor.category ?? 'custom', acceptsChildren: ctor.acceptsChildren ?? false, defaultProps: ctor.defaultProps ?? {},
+        // a custom component may run its action (it can call `ctx.onClick`); built-ins say so
+        action: ctor.action ?? (ctor.category === undefined ? 'tap' : 'none')
+      }
     })
     return this
   }

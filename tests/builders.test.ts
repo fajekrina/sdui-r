@@ -113,7 +113,7 @@ describe('Template Builder model (EditorDocument, template mode)', () => {
     expect(JSON.parse(panel.value).template.root.children[0]).toMatchObject({ id: 'text1', order: 1, type: 'text' })
     ;[...host.querySelectorAll('button')].find((b) => b.textContent === 'Save draft')!.click()
     await flush()
-    expect(onSave.mock.calls[0]![0]).toMatchObject({ schemaVersion: '2.0', template: { key: 'template', version: 1 } })
+    expect(onSave.mock.calls[0]![0]).toMatchObject({ schemaVersion: '2.1', template: { key: 'template', version: 1 } })
     expect(() => mountTemplateBuilder(host, { document: new EditorDocument() })).toThrow(TypeError)
     studio.destroy()
     host.remove()
@@ -136,7 +136,7 @@ describe('Screen Builder model (ValuesEditor)', () => {
     expect(editor.isOverridden('headline', 'value')).toBe(true)
     expect(editor.composed()!.root.children[0]!.props.value).toBe('Halo')
     expect(JSON.parse(editor.exportJSON())).toEqual({
-      schemaVersion: '2.0',
+      schemaVersion: '2.1',
       values: { screen: 'home', template: { key: 'promoCard', version: 1 }, components: { cta: { props: { title: 'Ambil' } }, headline: { props: { value: 'Halo' } } } }
     })
     editor.setValue('headline', 'value', '')
@@ -163,9 +163,9 @@ describe('mountScreenBuilder', () => {
   it('palette of templates → canvas; a canvas click selects; the inspector writes values', async () => {
     const host = document.createElement('div')
     document.body.append(host)
-    const onSubmitForReview = vi.fn()
+    const onPublish = vi.fn()
     const loadTemplate = vi.fn(async () => { throw new Error('offline') })
-    const builder = mountScreenBuilder(host, { screen: 'home', templates: choices, loadTemplate, onSubmitForReview })
+    const builder = mountScreenBuilder(host, { screen: 'home', templates: choices, loadTemplate, onPublish })
     const tpl = host.querySelectorAll<HTMLButtonElement>('.tpl')
     expect([...tpl].map((b) => b.textContent)).toEqual(['Kartu promopromoCard@1', 'lazylazy@4'])
     tpl[1]!.click()
@@ -175,7 +175,8 @@ describe('mountScreenBuilder', () => {
     await flush()
     expect(host.querySelector('.tplref[aria-label="Template"]')!.textContent).toBe('promoCard@1')
     host.querySelector<HTMLElement>('[data-sdui-node="headline"]')!.click()
-    const input = [...host.querySelectorAll<HTMLInputElement>('.insp input')].find((i) => i.placeholder === 'Judul')!
+    // a text's value is a multi-line box (Enter = new line); the template default is its placeholder
+    const input = [...host.querySelectorAll<HTMLTextAreaElement>('.insp textarea')].find((i) => i.placeholder === 'Judul')!
     input.value = 'Promo spesial'
     input.dispatchEvent(new Event('change'))
     expect(builder.editor.components.headline).toEqual({ props: { value: 'Promo spesial' } })
@@ -189,10 +190,11 @@ describe('mountScreenBuilder', () => {
     expect(host.querySelector('[data-sdui-row="headline"] .ovr')).not.toBeNull()
     // structure is locked: no component palette, no delete
     expect([...host.querySelectorAll('button')].some((b) => b.textContent === 'Delete')).toBe(false)
-    host.querySelector<HTMLInputElement>('input[aria-label="Review note"]')!.value = 'cek ya'
-    ;[...host.querySelectorAll('button')].find((b) => b.textContent === 'Submit for review')!.click()
+    // publishing is direct: no review note, no submit
+    expect(host.querySelector('input[aria-label="Review note"]')).toBeNull()
+    ;[...host.querySelectorAll('button')].find((b) => b.textContent === 'Publish')!.click()
     await flush()
-    expect(onSubmitForReview).toHaveBeenCalledWith(expect.objectContaining({ values: expect.objectContaining({ screen: 'home', components: { headline: { props: { value: 'Promo spesial' } } } }) }), 'cek ya')
+    expect(onPublish).toHaveBeenCalledWith(expect.objectContaining({ values: expect.objectContaining({ screen: 'home', components: { headline: { props: { value: 'Promo spesial' } } } }) }))
     builder.destroy()
     host.remove()
   })
@@ -326,14 +328,15 @@ describe('mountScreenBuilder', () => {
     builder.destroy()
   })
 
-  it('read-only + baseline: nothing editable, the changes vs. the active release are listed', async () => {
+  it('content mode (fixed template) + baseline: no template list, the changes vs. the active release are listed', async () => {
     const host = document.createElement('div')
     const editor = new ValuesEditor({ values: VALUES, template: TemplateDocument.decode(TEMPLATE) })
     const base = structuredClone(VALUES) as { values: { components: Record<string, { props?: Record<string, unknown> }> } }
     base.values.components.headline!.props!.value = 'Lama'
-    const builder = mountScreenBuilder(host, { editor, templates: choices, readOnly: true, baseline: base, onSubmitForReview: vi.fn() })
-    expect(host.querySelector<HTMLButtonElement>('.tpl')!.disabled).toBe(true)
-    expect([...host.querySelectorAll<HTMLElement>('button')].find((b) => b.textContent === 'Submit for review')!.hidden).toBe(true)
+    const builder = mountScreenBuilder(host, { editor, templates: choices, showTemplates: false, baseline: base, onPublish: vi.fn() })
+    expect(host.querySelector<HTMLElement>('.tpls')!.closest('[hidden]')).not.toBeNull()
+    expect(host.querySelector('.tb strong')!.textContent).toBe('Content')
+    expect([...host.querySelectorAll<HTMLElement>('button')].some((b) => b.textContent === 'Submit for review')).toBe(false)
     expect(host.querySelector('.changes')!.textContent).toContain('props.value: "Lama" → "Cashback 20% untuk {{user.name}}"')
     builder.destroy()
   })

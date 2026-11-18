@@ -5,6 +5,47 @@ versi mengikuti Semantic Versioning (0.x: breaking change boleh di minor dengan 
 
 ## [Unreleased]
 
+### Ditambah: spec 2.1 — `text.align`, `text.maxLines`, `text.markup`
+
+- `SPEC_VERSION` naik ke **2.1** (aditif: hanya prop baru, tanpa komponen baru). Dokumen 2.0 tetap valid
+  dan tetap dirender; backend menerima 2.0 dan 2.1 dan menandatangani sebagai 2.1.
+- `text.align`: `leading` · `center` · `trailing`. `text.maxLines`: N baris lalu dipotong dengan elipsis.
+- `text.markup: true`: `**tebal**` dan `*miring*` di `value` (boleh bertumpuk); `\*` = bintang literal; penanda
+  tanpa pasangan tetap literal. Opt-in per teks, jadi teks lama tidak berubah tampilannya. Diparse dari string
+  **template sebelum** `{{token}}` diganti — data (jawaban API, isian form) tidak pernah menjadi format.
+  Kosakata tertutup: tanpa HTML, link, atau warna. `parseMarkup` diekspor dari core untuk host native.
+- Budget core tetap 24 KB (23,9 KB setelah perubahan).
+
+### Diubah: satu peran admin, terbit langsung (builder) — BREAKING
+
+- Dihapus: `readOnly` dan `onSubmitForReview` (Studio, Screen Builder, React/Vue), catatan review, dan tombol
+  "Submit for review". Tidak ada lagi peran reviewer/maker-checker; `onPublish` menerbitkan langsung.
+- Screen Builder menjadi **editor konten**: `onPublish` baru, dan `showTemplates: false` menyembunyikan daftar
+  template (template halaman sudah pasti) — dipakai sebagai tab "Isi konten" di Studio.
+- `templateScreenProvider` mengambil template milik merchant: `GET {basePath}/templates/{merchantId}/{key}/v{n}`
+  (setiap merchant memiliki template sendiri; delivery-service mengikuti).
+
+### Diubah: panel action mengikuti apa yang dilakukan komponen (builder)
+
+- `ComponentInfo.action` (`ActionUse`): `tap` (button, dan komponen custom secara default), `source` (chart),
+  `none` (komponen bawaan lain). Komponen custom bisa menyatakannya (`static action` / `register(…, { action })`).
+- Studio: bagian "Interaction" hanya untuk `tap`. Chart mendapat bagian "Data source" yang terkunci ke `api`
+  (pilih sumber + params; tanpa tipe action dan tanpa `onSuccess`/`onError`). Komponen `none` yang masih membawa
+  action menampilkan "Action (ignored)" dengan tombol hapus.
+- `describeComponent(node, factory?)` hanya menyebut "Tappable" untuk komponen `tap`; `actionWarnings(root, lists,
+  factory?)` memperingatkan action yang tidak pernah jalan (mis. di `card`/`text`) dan action chart selain `api`.
+  `actionUseOf(type, factory?)` diekspor.
+
+### Diubah: inspector Studio dikelompokkan, field terstruktur (builder)
+
+- Grup yang bisa dilipat: Content · Field · Data · Layout · Style · Accessibility, lalu Interaction/Data source dan
+  Props (JSON). `groupOf(type, key)` dan `GROUPS` diekspor.
+- `text.value` berupa textarea multi-baris (Enter = baris baru) dengan tombol **B** / *I* yang membungkus seleksi
+  dan menyalakan `markup`. Di editor konten tombol itu hanya muncul bila template menyalakan `markup`.
+- Opsi `picker` berupa tabel (value + label, tambah/hapus/urutkan); warna berupa token tema atau hex (color
+  picker); `list.items` dipilih dari request `screen.load` atau key path. Kontrol diekspor (`multilineText`,
+  `optionsTable`, `colorField`).
+
 ### Diubah: action editor hanya menampilkan yang dipakai engine (builder)
 
 - `openURL`: `link` dipilih dari daftar `links` ("— choose a link —", nilai lain "unknown link"); tanpa `params`

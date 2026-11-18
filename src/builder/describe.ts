@@ -3,7 +3,7 @@
 // whether an image is a frame to fill. Plus the template author's own note
 // (`builderNote`, never delivered to clients). Shown in the Screen Builder (and as a check
 // in the Template Builder inspector).
-import { BUILDER_NOTE_PROP, type ActionSpec, type SduiNode } from '../core'
+import { BUILDER_NOTE_PROP, V11_COMPONENTS, V1_COMPONENTS, type ActionSpec, type ActionUse, type ComponentFactory, type SduiNode } from '../core'
 
 const quote = (s: string | undefined) => `"${s ?? '?'}"`
 
@@ -19,6 +19,17 @@ export const ACTION_USES: Record<string, { params: boolean; chain: ReadonlyArray
   refresh: { params: false, chain: [] }
 }
 const usesOf = (type: string) => ACTION_USES[type] ?? { params: true, chain: ['onSuccess', 'onError'] as const }
+
+/// What a component type does with its action: `tap` (a button runs it), `source` (a chart
+/// reads its api request), `none` (every other built-in). The factory's own answer wins (a
+/// custom component declares it); an unknown type is assumed to be tappable.
+export function actionUseOf(type: string, factory?: ComponentFactory): ActionUse {
+  const info = factory?.info(type)
+  if (info) return info.action
+  if (type === 'button') return 'tap'
+  if (type === 'chart') return 'source'
+  return (V1_COMPONENTS as readonly string[]).includes(type) || (V11_COMPONENTS as readonly string[]).includes(type) ? 'none' : 'tap'
+}
 
 /// One action in a sentence, with its onSuccess / onError chain.
 export function describeAction(action: ActionSpec | undefined): string {
@@ -63,7 +74,8 @@ export function actionBadge(action: ActionSpec | undefined): string | undefined 
 }
 
 /// Every line that explains `node`: the author's note first, then what it does.
-export function describeComponent(node: SduiNode): string[] {
+export function describeComponent(node: SduiNode, factory?: ComponentFactory): string[] {
+  const use = actionUseOf(node.type, factory)
   const out: string[] = []
   const note = node.props[BUILDER_NOTE_PROP]
   if (typeof note === 'string' && note.trim()) out.push(note.trim())
@@ -88,11 +100,14 @@ export function describeComponent(node: SduiNode): string[] {
     case 'list': out.push('Repeats its content for every item'); break
     case 'text': out.push('Text'); break
     default:
-      if (node.action) out.push(`Tappable; ${lower(describeAction(node.action))}`)
+      if (node.action && use === 'tap') out.push(`Tappable; ${lower(describeAction(node.action))}`)
   }
-  if (node.type !== 'button' && node.type !== 'chart' && node.action && out.length && !out[out.length - 1]!.startsWith('Tappable')) {
+  // a custom tappable component with its own line above: what tapping it does
+  if (use === 'tap' && node.type !== 'button' && node.action && out.length && !out[out.length - 1]!.startsWith('Tappable')) {
     out.push(`Tapping it: ${lower(describeAction(node.action))}`)
   }
+  // only buttons (and custom components) run an action: say a leftover one never runs
+  if (use === 'none' && node.action) out.push('Its action never runs (it is not tappable)')
   return out
 }
 
@@ -120,14 +135,25 @@ const visitActions = (root: SduiNode, visit: (node: SduiNode, action: ActionSpec
 }
 
 /// Every action warning of the Template Builder: requests / data sources of the wrong kind
-/// (`requestWarnings`), a link not in the app's list, and fields the engine never reads
-/// (`params` of openURL / dismiss / refresh / toast, a follow-up step that never runs).
-/// Warnings only: nothing is blocked, and nothing is removed.
-export function actionWarnings(root: SduiNode, lists: ActionLists): string[] {
+/// (`requestWarnings`), a link not in the app's list, fields the engine never reads
+/// (`params` of openURL / dismiss / refresh / toast, a follow-up step that never runs), and
+/// an action on a component that never runs it (a text, a card …) or a chart action that is
+/// not an api data source. Warnings only: nothing is blocked, and nothing is removed.
+export function actionWarnings(root: SduiNode, lists: ActionLists, factory?: ComponentFactory): string[] {
   const out = requestWarnings(root, lists)
   const links = lists.links ?? []
-  visitActions(root, (node, action) => {
+  visitActions(root, (node, action, own) => {
     const at = `${node.type} #${node.id ?? '?'}`
+    if (own) {
+      const use = actionUseOf(node.type, factory)
+      if (use === 'none') { out.push(`${at}: a ${node.type} never runs its action (only buttons do) — remove it`); return }
+      if (use === 'source' && action.type !== 'api') { out.push(`${at}: a ${node.type} only reads an api data source; its ${action.type} action is ignored`); return }
+      // a data source has no follow-up steps or params rules of its own
+      if (use === 'source') {
+        if (action.onSuccess || action.onError) out.push(`${at}: a data source has no onSuccess / onError steps; they never run`)
+        return
+      }
+    }
     const uses = usesOf(action.type)
     if (action.type === 'openURL' && action.link && links.length > 0 && !links.includes(action.link)) {
       out.push(`${at} opens "${action.link}", which is not a known link`)

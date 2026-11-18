@@ -1,5 +1,5 @@
 // Review diff (HLD Target F5): what a draft changes against a baseline (the active
-// release), for maker-checker review. Pure — no DOM; the Studio renders the result.
+// release), shown before publishing. Pure — no DOM; the Studio renders the result.
 
 export type ChangeKind = 'added' | 'removed' | 'changed' | 'moved'
 

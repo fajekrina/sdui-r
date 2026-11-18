@@ -163,7 +163,8 @@ export function specScreenProvider(options: SpecDeliveryOptions): ScreenFactory 
 /// **sdui-r delivery** — the screen factory for template + value screens. For each key:
 /// 1. the value set: `GET {basePath}/screens/{merchantId}/{key}/{version}` (manifest version,
 ///    immutable) or `GET {basePath}/screens/{merchantId}/{key}` (latest, `If-None-Match`);
-/// 2. the template release it names: `GET {basePath}/templates/{templateKey}/v{templateVersion}`
+/// 2. the template release it names — one of the merchant's own templates (each merchant
+///    owns its templates): `GET {basePath}/templates/{merchantId}/{templateKey}/v{templateVersion}`
 ///    (immutable; kept in memory, so a value-only change never downloads the template again);
 /// 3. both handed to the engine as one `{ template, values }` bundle — each part verified there.
 ///
@@ -178,7 +179,7 @@ export function templateScreenProvider(options: SpecDeliveryOptions & { template
     const id = `${key}/v${version}`
     const hit = templates.get(id)
     if (hit !== undefined) { templates.delete(id); templates.set(id, hit); return hit }   // LRU touch
-    const response = await get(`/templates/${id}`, signal)
+    const response = await get(`/templates/${encodeURIComponent(options.merchantId)}/${id}`, signal)
     if (response.status === 404) throw SduiError.unknownScreen(`template ${id}`)
     const text = utf8String(response.bytes)
     templates.set(id, text)
