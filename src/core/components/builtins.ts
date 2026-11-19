@@ -165,7 +165,17 @@ export class ImageComponent implements Component {
 
 // MARK: - stacks
 
-const H_ALIGN: Record<string, string> = { leading: 'flex-start', center: 'center', trailing: 'flex-end' }
+/// spec 2.2 — `fill`: children take the full width
+const H_ALIGN: Record<string, string> = { leading: 'flex-start', center: 'center', trailing: 'flex-end', fill: 'stretch' }
+
+/// spec 2.2 — a negative vstack `spacing` overlaps: each child is pulled up over the one
+/// before it by that much (and drawn above it).
+function overlapped(children: RenderNode[], gap: number): RenderNode[] {
+  return children.map((c, i) => ({
+    ...c,
+    style: { position: 'relative', ...c.style, ...(i > 0 ? { marginTop: px(gap) } : {}) }
+  }))
+}
 const V_ALIGN: Record<string, string> = { top: 'flex-start', center: 'center', bottom: 'flex-end' }
 
 export class VStackComponent implements Component {
@@ -174,11 +184,12 @@ export class VStackComponent implements Component {
   static readonly acceptsChildren = true
   static readonly defaultProps = { spacing: 8 }
   makeView(node: SduiNode, ctx: RenderContext): RenderNode {
+    const gap = spacing(node)
     return container(node, ctx, {
       display: 'flex', flexDirection: 'column',
-      alignItems: H_ALIGN[node.string('alignment')] ?? 'center', gap: px(spacing(node)),
+      alignItems: H_ALIGN[node.string('alignment')] ?? 'center', gap: px(Math.max(0, gap)),
       ...bounds(node)
-    }, ctx.children(node))
+    }, gap < 0 ? overlapped(ctx.children(node), gap) : ctx.children(node))
   }
 }
 
@@ -255,12 +266,46 @@ export class ButtonComponent implements Component {
   makeView(node: SduiNode, ctx: RenderContext): RenderNode {
     const variant = BUTTON_VARIANTS[node.string('variant')] ?? BUTTON_VARIANTS.plain!
     const busy = ctx.busy(node)
-    return renderNode(ctx.keyFor(node), 'button', {
+    const key = ctx.keyFor(node)
+    // spec 2.2 — a choice: `group` + `value`; the selected button wears its `selected*` colors
+    const group = node.string('group')
+    const select = group ? { group, value: node.string('value') || key } : undefined
+    const selected = select !== undefined && ctx.selected(select.group) === select.value
+    const pick = (name: string) => (selected && color(node.string(`selected${name[0]!.toUpperCase()}${name.slice(1)}`))) || color(node.string(name))
+    const style: Record<string, string> = { font: 'inherit', fontSize: '16px', cursor: busy ? 'progress' : 'pointer', opacity: busy ? '0.6' : '1', textAlign: 'center', ...variant, ...sharedStyle(node) }
+    const size = numberProp(node, 'size')
+    if (size !== undefined && size > 0) style.fontSize = px(size)
+    const weight = fontWeight(node.string('weight'))
+    if (weight) style.fontWeight = String(weight)
+    if (selected) {
+      const bg = color(node.string('selectedBackground'))
+      const fg = color(node.string('selectedForeground'))
+      if (bg) style.background = bg
+      if (fg) style.color = fg
+    }
+    const title = ctx.resolve(node.string('title'))
+    // spec 2.2 — an icon (`systemName`) before the title, or above it (`iconPosition: top`);
+    // `iconBackground` puts it in a circle: `iconSize` (default 20) + `iconPadding` (default 0.6 × size) around it
+    const symbol = node.string('systemName')
+    let children: RenderNode[] | undefined
+    if (symbol) {
+      const iconSize = numberProp(node, 'iconSize') ?? 20
+      const iconStyle: Record<string, string> = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: px(iconSize), lineHeight: '1' }
+      const iconBg = pick('iconBackground')
+      if (iconBg) Object.assign(iconStyle, { background: iconBg, borderRadius: '50%', padding: px(numberProp(node, 'iconPadding') ?? Math.round(iconSize * 0.6)) })
+      const iconFg = pick('iconForeground')
+      if (iconFg) iconStyle.color = iconFg
+      const top = node.string('iconPosition') === 'top'
+      Object.assign(style, { display: 'inline-flex', flexDirection: top ? 'column' : 'row', alignItems: 'center', justifyContent: 'center', gap: px(top ? 8 : 6) })
+      children = [renderNode(`${key}:icon`, 'span', { style: iconStyle, attrs: { 'aria-hidden': 'true' }, children: [Symbols.node(`${key}:symbol`, symbol, 1)] })]
+      if (title) children.push(renderNode(`${key}:title`, 'span', { text: title }))
+    }
+    return renderNode(key, 'button', {
       type: node.type,
-      attrs: cleanAttrs({ type: 'button', disabled: busy, 'aria-busy': busy ? 'true' : undefined, ...a11y(node, ctx) }),
-      style: { font: 'inherit', fontSize: '16px', cursor: busy ? 'progress' : 'pointer', opacity: busy ? '0.6' : '1', textAlign: 'center', ...variant, ...sharedStyle(node) },
-      text: ctx.resolve(node.string('title')),
-      on: ctx.onClick(node, node.action)
+      attrs: cleanAttrs({ type: 'button', disabled: busy, 'aria-busy': busy ? 'true' : undefined, 'aria-pressed': select ? String(selected) : undefined, ...a11y(node, ctx) }),
+      style,
+      ...(children ? { children } : { text: title }),
+      on: ctx.onClick(node, node.action, select)
     })
   }
 }
@@ -278,7 +323,9 @@ export class CardComponent implements Component {
       type: node.type,
       attrs: a11y(node, ctx),
       style: {
-        display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: px(DEFAULT_SPACING),
+        // spec 2.2 — `alignment` (leading default · center · trailing · fill) and `spacing`
+        display: 'flex', flexDirection: 'column', alignItems: H_ALIGN[node.string('alignment')] ?? 'flex-start',
+        gap: px(Math.max(0, numberProp(node, 'spacing') ?? DEFAULT_SPACING)),
         ...bounds(node),
         ...sharedStyle(node, { padding: 16, background: 'surface', cornerRadius: 12 })
       },

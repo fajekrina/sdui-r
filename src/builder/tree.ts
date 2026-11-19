@@ -176,7 +176,7 @@ export function ancestorsOf(root: SduiNode, id: string): string[] {
 export function outlineLabel(node: SduiNode): string {
   switch (node.type) {
     case 'text': return `text: ${node.string('value')}`
-    case 'button': return `button: ${node.string('title')}`
+    case 'button': return `button: ${node.string('title') || (node.string('systemName') ? `(${node.string('systemName')})` : '')}`
     case 'textField':
     case 'textArea':
     case 'picker': return `${node.type}: ${node.string('name')}`

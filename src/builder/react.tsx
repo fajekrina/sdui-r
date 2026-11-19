@@ -34,6 +34,7 @@ function StudioHost({ className, style, mount, ...options }: SduiBuilderProps & 
       onPublish: optionsRef.current.onPublish && ((p) => optionsRef.current.onPublish?.(p)),
       onDeprecate: optionsRef.current.onDeprecate && ((info) => optionsRef.current.onDeprecate?.(info)),
       onRestore: optionsRef.current.onRestore && (() => optionsRef.current.onRestore?.()),
+      uploadAsset: optionsRef.current.uploadAsset && ((source) => optionsRef.current.uploadAsset!(source)),
       onChange: (p) => optionsRef.current.onChange?.(p)
     })
     return () => { studio.current?.destroy(); studio.current = undefined }
@@ -44,7 +45,7 @@ function StudioHost({ className, style, mount, ...options }: SduiBuilderProps & 
   useEffect(() => {
     studio.current?.update({ title, screens, requests, sources, links, commands, catalog, baseline, sampleData, assetURL, deprecation })
   }, [title, screens, requests, sources, links, commands, catalog, baseline, sampleData, assetURL, deprecation])
-  return <div ref={host} className={className} style={{ height: '100%', ...style }} />
+  return <div ref={host} className={className} style={{ height: '100%', minHeight: 0, ...style }} />
 }
 
 export interface SduiScreenBuilderProps extends ScreenBuilderOptions {
@@ -54,6 +55,7 @@ export interface SduiScreenBuilderProps extends ScreenBuilderOptions {
 
 /// sdui-r — the content editor: fill in a template's components → a value set (with
 /// `showTemplates={false}` the page's template is fixed).
+/// @deprecated Edit content in the Template Builder instead: the Studio shows design and content in one tree and `splitContent` stores them apart (template + value set).
 export function SduiScreenBuilder({ className, style, ...options }: SduiScreenBuilderProps) {
   const host = useRef<HTMLDivElement>(null)
   const builder = useRef<MountedScreenBuilder>()
@@ -75,7 +77,7 @@ export function SduiScreenBuilder({ className, style, ...options }: SduiScreenBu
   useEffect(() => {
     builder.current?.update({ templates, title, catalog, baseline, sampleData, assetURL })
   }, [templates, title, catalog, baseline, sampleData, assetURL])
-  return <div ref={host} className={className} style={{ height: '100%', ...style }} />
+  return <div ref={host} className={className} style={{ height: '100%', minHeight: 0, ...style }} />
 }
 
 export default SduiBuilder

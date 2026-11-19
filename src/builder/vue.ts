@@ -13,6 +13,8 @@ const studioProps = {
   factory: { type: Object as PropType<ComponentFactory>, default: undefined },
   sampleData: { type: Object as PropType<Record<string, SduiValue>>, default: undefined },
   assetURL: { type: Function as PropType<(name: string) => string>, default: undefined },
+  /// spec 2.2 — upload an image's default picture (template mode); answers the asset name
+  uploadAsset: { type: Function as PropType<(source: AssetSource) => Promise<string>>, default: undefined },
   /// names offered by the action editor (the app's allow-lists; never URLs)
   screens: { type: Array as PropType<readonly string[]>, default: undefined },
   requests: { type: Array as PropType<readonly string[]>, default: undefined },
@@ -49,6 +51,7 @@ const studioComponent = (name: string, mount: typeof mountStudio, template: bool
         factory: props.factory,
         sampleData: props.sampleData,
         assetURL: props.assetURL,
+        uploadAsset: props.uploadAsset && ((source) => props.uploadAsset!(source)),
         screens: props.screens,
         requests: props.requests,
         sources: props.sources,
@@ -75,7 +78,7 @@ const studioComponent = (name: string, mount: typeof mountStudio, template: bool
       })
     })
     onBeforeUnmount(() => studio?.destroy())
-    return () => h('div', { ref: host, style: { height: '100%' } })
+    return () => h('div', { ref: host, style: { height: '100%', minHeight: 0 } })
   }
 })
 
@@ -86,6 +89,7 @@ export const SduiTemplateBuilder = studioComponent('SduiTemplateBuilder', mountT
 
 /// sdui-r — the content editor: fill in a template's components → a value set (with
 /// `:show-templates="false"` the page's template is fixed).
+/// @deprecated Edit content in the Template Builder instead: the Studio shows design and content in one tree and `splitContent` stores them apart (template + value set).
 export const SduiScreenBuilder = defineComponent({
   name: 'SduiScreenBuilder',
   props: {
@@ -141,7 +145,7 @@ export const SduiScreenBuilder = defineComponent({
       })
     })
     onBeforeUnmount(() => builder?.destroy())
-    return () => h('div', { ref: host, style: { height: '100%' } })
+    return () => h('div', { ref: host, style: { height: '100%', minHeight: 0 } })
   }
 })
 

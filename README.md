@@ -247,7 +247,10 @@ screen back into code.
   from the app's allow-lists — URLs never enter a payload.
 - Save/Publish report `Saved ✔` / `Save failed: …` in the toolbar.
 
-- The inspector groups the props (Content · Field · Data · Layout · Style · Accessibility).
+- The inspector groups the props (Content · Field · Data · Choice · Layout · Style · Accessibility).
+  Spec 2.2 props (fill, overlap, outline, per-side padding, shadow, pin, button icons and choices)
+  have fields; `systemName` suggests the built-in symbols; with `uploadAsset` an image's `name`
+  gets an upload button (the template's default picture).
   A text's value is a multi-line box with **B** / *I* buttons (spec 2.1 `markup`); picker
   options are a table; colors are theme tokens or hex.
 - The action section follows what the component does with an action (`ComponentInfo.action`):

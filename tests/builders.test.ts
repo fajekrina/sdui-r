@@ -2,7 +2,7 @@
 // Screen Builder (maker: templates → value set).
 import { describe, expect, it, vi } from 'vitest'
 import { EditorDocument, ValuesEditor, clippedContainers, mountScreenBuilder, mountTemplateBuilder } from '../src/builder'
-import { SduiNode, TemplateDocument } from '../src/core'
+import { SduiNode, SPEC_VERSION, TemplateDocument } from '../src/core'
 import { fixtureJSON, flush } from './helpers'
 
 const TEMPLATE = fixtureJSON('valid/template_promo.json') as Record<string, unknown>
@@ -113,7 +113,7 @@ describe('Template Builder model (EditorDocument, template mode)', () => {
     expect(JSON.parse(panel.value).template.root.children[0]).toMatchObject({ id: 'text1', order: 1, type: 'text' })
     ;[...host.querySelectorAll('button')].find((b) => b.textContent === 'Save draft')!.click()
     await flush()
-    expect(onSave.mock.calls[0]![0]).toMatchObject({ schemaVersion: '2.1', template: { key: 'template', version: 1 } })
+    expect(onSave.mock.calls[0]![0]).toMatchObject({ schemaVersion: SPEC_VERSION, template: { key: 'template', version: 1 } })
     expect(() => mountTemplateBuilder(host, { document: new EditorDocument() })).toThrow(TypeError)
     studio.destroy()
     host.remove()
@@ -136,7 +136,7 @@ describe('Screen Builder model (ValuesEditor)', () => {
     expect(editor.isOverridden('headline', 'value')).toBe(true)
     expect(editor.composed()!.root.children[0]!.props.value).toBe('Halo')
     expect(JSON.parse(editor.exportJSON())).toEqual({
-      schemaVersion: '2.1',
+      schemaVersion: SPEC_VERSION,
       values: { screen: 'home', template: { key: 'promoCard', version: 1 }, components: { cta: { props: { title: 'Ambil' } }, headline: { props: { value: 'Halo' } } } }
     })
     editor.setValue('headline', 'value', '')

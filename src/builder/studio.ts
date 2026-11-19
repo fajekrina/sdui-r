@@ -2,7 +2,7 @@
 // and Vue (builder/react, builder/vue), so both builders behave identically.
 // The canvas uses the client's own components (`renderPreview`): preview == client.
 
-import { ActionSpec, ActionType, BUILDER_NOTE_PROP, ComponentFactory, FIELD_PATTERNS, SduiNode, SPEC_VERSION, TemplateSpec, compose, type ActionUse, type SduiProps, type SduiValue } from '../core'
+import { ActionSpec, ActionType, BUILDER_NOTE_PROP, ComponentFactory, FIELD_PATTERNS, SduiNode, SPEC_VERSION, Symbols, TemplateSpec, compose, type ActionUse, type SduiProps, type SduiValue } from '../core'
 import { renderNodeDOM } from '../vanilla'
 import { EditorDocument } from './document'
 import { ancestorsOf, find, flatten, flattenVisible, isGeneratedId, ordersOf, outlineLabel } from './tree'
@@ -21,6 +21,9 @@ export interface StudioOptions {
   /// sample data for `{{tokens}}` in the preview
   sampleData?: Record<string, SduiValue>
   assetURL?: (name: string) => string
+  /// spec 2.2 — upload a picture (a picked file) and answer its name: the template's default
+  /// picture of an image (`name`; a maker can still replace it). Absent: names are typed.
+  uploadAsset?: (source: AssetSource) => Promise<string>
   /// Names offered by the action editor — the app's allow-lists (screen keys,
   /// named requests, named links, host commands). Names only, never URLs; any
   /// other name can still be typed.
@@ -63,7 +66,13 @@ export interface TemplateDeprecation {
 }
 
 /// Options that may change after mounting (async lists, a new title, …).
-export type StudioUpdate = Pick<StudioOptions, 'title' | 'screens' | 'requests' | 'sources' | 'links' | 'commands' | 'catalog' | 'baseline' | 'sampleData' | 'assetURL' | 'deprecation'>
+export type StudioUpdate = Pick<StudioOptions, 'title' | 'screens' | 'requests' | 'sources' | 'links' | 'commands' | 'catalog' | 'baseline' | 'sampleData' | 'assetURL' | 'uploadAsset' | 'deprecation'>
+
+/// A picture to upload: a picked / dropped file, or an https link the backend copies once.
+export type AssetSource = { file: Blob & { name?: string } } | { url: string }
+
+/// Picture types a maker may upload (no SVG: it can carry script).
+export const IMAGE_TYPES: readonly string[] = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
 
 export interface StudioCatalog {
   screens?: readonly string[]
@@ -104,18 +113,25 @@ type Zone = 'inside' | 'before' | 'after'
 type RawAction = Record<string, unknown>
 
 export const COLORS = ['', 'primary', 'onPrimary', 'secondary', 'surface', 'onSurface', 'background', 'muted', 'border', 'success', 'warning', 'danger']
-export const SHARED: Array<[string, FieldKind]> = [['padding', 'number'], ['background', 'color'], ['cornerRadius', 'number'], ['foreground', 'color'], ['a11yLabel', 'text'], ['a11yId', 'text']]
+// spec 2.2: paddingHorizontal / paddingVertical, borderColor / borderWidth, shadow, pin
+export const SHARED: Array<[string, FieldKind]> = [['padding', 'number'], ['paddingHorizontal', 'number'], ['paddingVertical', 'number'],
+  ['background', 'color'], ['cornerRadius', 'number'], ['foreground', 'color'], ['borderColor', 'color'], ['borderWidth', 'number'],
+  ['shadow', ['', 'small', 'medium', 'top']], ['pin', ['', 'top', 'bottom']], ['a11yLabel', 'text'], ['a11yId', 'text']]
 export const FIELDS: Record<string, Array<[string, FieldKind]>> = {
   // spec 2.1: align, markup (**bold** / *italic* in the value); a text always shows in full
   text: [['value', 'textarea'], ['markup', 'bool'], ['style', ['', 'title', 'headline', 'body', 'caption']], ['weight', ['', 'regular', 'medium', 'semibold', 'bold', 'heavy']],
     ['size', 'number'], ['color', 'color'], ['align', ['', 'leading', 'center', 'trailing']]],
   image: [['systemName', 'text'], ['name', 'text'], ['contentMode', ['', 'fit', 'fill']], ['width', 'number'], ['height', 'number']],
   // height / maxHeight: the container decides the size; a `scroll` inside fills it and scrolls
-  vstack: [['spacing', 'number'], ['alignment', ['', 'leading', 'center', 'trailing']], ['height', 'number'], ['maxHeight', 'number']],
-  card: [['height', 'number'], ['maxHeight', 'number']],
+  // spec 2.2: alignment `fill` (children take the full width); a negative spacing overlaps
+  vstack: [['spacing', 'number'], ['alignment', ['', 'leading', 'center', 'trailing', 'fill']], ['height', 'number'], ['maxHeight', 'number']],
+  card: [['spacing', 'number'], ['alignment', ['', 'leading', 'center', 'trailing', 'fill']], ['height', 'number'], ['maxHeight', 'number']],
   hstack: [['spacing', 'number'], ['alignment', ['', 'top', 'center', 'bottom']]],
   zstack: [['width', 'number'], ['height', 'number']],
-  button: [['title', 'text'], ['variant', ['', 'primary', 'secondary', 'plain']]],
+  // spec 2.2: an icon, the title's size / weight, and a choice (group + value; selected colors)
+  button: [['title', 'text'], ['variant', ['', 'primary', 'secondary', 'plain']], ['size', 'number'], ['weight', ['', 'regular', 'medium', 'semibold', 'bold', 'heavy']],
+    ['systemName', 'text'], ['iconPosition', ['', 'leading', 'top']], ['iconSize', 'number'], ['iconPadding', 'number'], ['iconBackground', 'color'], ['iconForeground', 'color'],
+    ['group', 'text'], ['value', 'text'], ['selectedBackground', 'color'], ['selectedForeground', 'color'], ['selectedIconBackground', 'color'], ['selectedIconForeground', 'color']],
   spacer: [['height', 'number'], ['width', 'number']],
   grid: [['columns', 'number'], ['spacing', 'number'], ['rowHeight', 'number'], ['height', 'number'], ['maxHeight', 'number']],
   scroll: [['axis', ['', 'vertical', 'horizontal']], ['spacing', 'number']],
@@ -133,14 +149,15 @@ export const FIELDS: Record<string, Array<[string, FieldKind]>> = {
 }
 
 /// The inspector groups, in order (the action has its own section).
-export const GROUPS = ['Content', 'Field', 'Data', 'Layout', 'Style', 'Accessibility'] as const
+export const GROUPS = ['Content', 'Field', 'Data', 'Choice', 'Layout', 'Style', 'Accessibility'] as const
 export type FieldGroup = typeof GROUPS[number]
 const GROUP: Record<string, FieldGroup> = {
   value: 'Content', markup: 'Content', title: 'Content', systemName: 'Content', name: 'Content', label: 'Content', placeholder: 'Content', options: 'Content',
   items: 'Data', as: 'Data', data: 'Data', labels: 'Data', keyKey: 'Data', labelKey: 'Data', valueKey: 'Data', min: 'Data', max: 'Data',
   keyboard: 'Field', required: 'Field', minLength: 'Field', maxLength: 'Field', pattern: 'Field', secure: 'Field', rows: 'Field',
   spacing: 'Layout', alignment: 'Layout', width: 'Layout', height: 'Layout', maxHeight: 'Layout', columns: 'Layout', rowHeight: 'Layout', axis: 'Layout',
-  padding: 'Layout', contentMode: 'Layout',
+  padding: 'Layout', paddingHorizontal: 'Layout', paddingVertical: 'Layout', pin: 'Layout', contentMode: 'Layout', iconPosition: 'Layout', iconPadding: 'Layout',
+  group: 'Choice', selectedBackground: 'Choice', selectedForeground: 'Choice', selectedIconBackground: 'Choice', selectedIconForeground: 'Choice',
   a11yLabel: 'Accessibility', a11yId: 'Accessibility'
 }
 const FORM_FIELDS = new Set(['textField', 'textArea', 'picker'])
@@ -148,6 +165,9 @@ const FORM_FIELDS = new Set(['textField', 'textArea', 'picker'])
 export function groupOf(type: string, key: string): FieldGroup {
   // a form field's `name` is the key its value is sent under, not content
   if (key === 'name' && FORM_FIELDS.has(type)) return 'Field'
+  if (type === 'button' && key === 'value') return 'Choice'
+  // a button's icon is design (the template's), not content
+  if (type === 'button' && key === 'systemName') return 'Style'
   return GROUP[key] ?? 'Style'
 }
 
@@ -241,9 +261,10 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
   // datalists for the action editor's named targets (one set per Studio)
   const uid = Math.random().toString(36).slice(2, 8)
   const listId = (name: string) => `sdui-${uid}-${name}`
-  const LISTS = ['screens', 'requests', 'sources', 'links', 'commands', 'assets'] as const
+  const LISTS = ['screens', 'requests', 'sources', 'links', 'commands', 'assets', 'symbols'] as const
   const datalists = new Map(LISTS.map((name) => [name, el('datalist', { id: listId(name) })] as const))
   const namesOf = (name: typeof LISTS[number]): readonly string[] => {
+    if (name === 'symbols') return Symbols.names
     const own = (name === 'assets' ? undefined : opts[name]) ?? opts.catalog?.[name]
     // not split by the app: charts pick from the one request list, as before
     return own ?? (name === 'sources' ? namesOf('requests') : [])
@@ -588,6 +609,21 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
     return box
   }
 
+  /// spec 2.2 — upload a picture as an image's default `name`
+  const uploadPicture = async (id: string, file: File) => {
+    try {
+      if (!IMAGE_TYPES.includes(file.type)) throw new Error(`${file.type || 'this file'} is not a picture (PNG, JPEG, WebP or GIF)`)
+      showStatus('Uploading…', true)
+      paint()
+      const name = await opts.uploadAsset!({ file })
+      doc.setProp(id, 'name', name)
+      showStatus('Picture saved ✔', true)
+    } catch (error) {
+      showStatus(`Picture: ${error instanceof Error ? error.message : String(error)}`, false)
+    }
+    paint()
+  }
+
   /// inspector groups the author folded (survive repaints and selection changes)
   const foldedGroups = new Set<string>()
   const inspectorFor = (node: SduiNode) => {
@@ -640,7 +676,8 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
         area.addEventListener('change', () => { try { doc.setProp(id, key, area.value ? JSON.parse(area.value) : undefined) } catch { /* keep editing */ } })
         return el('label', {}, key, area)
       }
-      const input = el('input', { type: kind === 'number' ? 'number' : 'text', ...(node.type === 'image' && key === 'name' ? { list: listId('assets') } : {}) }) as HTMLInputElement
+      const list = node.type === 'image' && key === 'name' ? 'assets' : key === 'systemName' ? 'symbols' : undefined
+      const input = el('input', { type: kind === 'number' ? 'number' : 'text', ...(list ? { list: listId(list) } : {}) }) as HTMLInputElement
       input.value = current === undefined || current === null ? '' : String(current)
       // live: the canvas follows every keystroke; a half-typed number waits
       input.addEventListener('input', () => {
@@ -648,6 +685,12 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
         doc.setProp(id, key, input.value === '' ? undefined : kind === 'number' ? Number(input.value) : input.value, { typing: true })
       })
       input.addEventListener('change', () => doc.endTyping())
+      // spec 2.2 — an image's default picture: upload a file (the maker can still replace it)
+      if (node.type === 'image' && key === 'name' && opts.uploadAsset) {
+        const picker = el('input', { type: 'file', accept: IMAGE_TYPES.join(','), 'aria-label': 'Upload a picture' }) as HTMLInputElement
+        picker.addEventListener('change', () => { const file = picker.files?.[0]; if (file) void uploadPicture(id, file) })
+        return el('label', {}, key, input, picker)
+      }
       return el('label', {}, key, input)
     }
     // one foldable section per group, in a fixed order

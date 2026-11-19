@@ -5,6 +5,42 @@ versi mengikuti Semantic Versioning (0.x: breaking change boleh di minor dengan 
 
 ## [Unreleased]
 
+### Ditambah: desain dan konten di satu editor, tetap disimpan terpisah
+
+- `mergeContent(template, values)` (builder): menulis konten value set ke komponen template, jadi satu pohon
+  yang diedit Studio (desain + isi). Konten untuk id yang sudah tidak ada, atau prop yang bukan konten, dibuang
+  dan dilaporkan di `dropped`.
+- `splitContent(document, screen?)` (builder): pohon Studio → **template tanpa konten** + **value set** berisi
+  prop konten (`isContentProp`) tiap komponen, untuk versi template yang sedang didraf. Template dan value set
+  tetap disimpan, diterbitkan, dan ditandatangani terpisah; client tetap menyusunnya dengan `compose`.
+- Deprecated: `mountScreenBuilder`, `ValuesEditor`, dan `<SduiScreenBuilder />` (React/Vue) — konten kini
+  diisi langsung di Template Builder.
+
+### Ditambah: spec 2.2 — layout penuh, tumpang-tindih, outline, ikon & pilihan di button
+
+- `SPEC_VERSION` naik ke **2.2** (aditif: prop dan simbol baru, tanpa komponen baru). Dokumen 2.0/2.1 tetap valid.
+- Layout: `vstack.alignment: fill` dan `card.alignment` (`leading` default · `center` · `trailing` · `fill`) —
+  anak selebar kontainer; `card.spacing`; **`vstack.spacing` negatif** = anak berikutnya ditarik ke atas dan
+  menimpa anak sebelumnya (mis. kartu yang setengahnya di atas latar berwarna).
+- Prop bersama: `paddingHorizontal` / `paddingVertical` (menimpa `padding` di sisinya), `borderColor` +
+  `borderWidth` (outline; lebar default 1), `shadow` (`small` · `medium` · `top`), `pin` (`bottom` · `top`:
+  tetap terlihat di tepi layar saat halaman digulir — footer tombol).
+- `button`: ikon `systemName` di depan judul atau di atasnya (`iconPosition: top`), `iconSize`, `iconPadding`,
+  `iconBackground` (lingkaran), `iconForeground`; `size` dan `weight` judul.
+- **Pilihan** (`button.group` + `value`): tap memilih nilai itu di grupnya (`$selected.<group>` di data layar,
+  satu nilai per grup) — action boleh tidak ada; bila ada, jalan setelah memilih dan bisa membaca
+  `{{$selected.<group>}}`. Tombol terpilih memakai `selectedBackground` / `selectedForeground` /
+  `selectedIconBackground` / `selectedIconForeground` dan `aria-pressed="true"`. Event `choice_selected`.
+- Simbol: `arrow.left`, `hand.thumbsup`, `hand.thumbsdown` (outline). `Symbols.register(name, path,
+  { stroke: true })` mendaftarkan glyph garis (lebar 2, sudut bulat).
+- Studio: semua prop di atas ada di inspector (grup baru **Choice**), `systemName` menyarankan simbol bawaan, dan
+  opsi `uploadAsset` membuat field `name` gambar di Template Builder punya tombol unggah: gambar menjadi gambar
+  default template (pembuat konten tetap bisa menggantinya). `AssetSource` / `IMAGE_TYPES` kini dari `./studio`
+  (tetap diekspor ulang dari screen-builder).
+- Fixture `spec/fixtures/valid/template_insight.json`: halaman "Insight buat kamu" yang memakai semuanya.
+- Budget core **24 → 26 KB** (keputusan, sesuai catatan di `scripts/size.mjs`): spec 2.2 menambah ±1,1 KB gzip
+  (prop bersama, ikon/pilihan button, glyph garis); core sekarang ±25,0 KB.
+
 ### Ditambah: spec 2.1 — `text.align`, `text.markup`
 
 - `SPEC_VERSION` naik ke **2.1** (aditif: hanya prop baru, tanpa komponen baru). Dokumen 2.0 tetap valid

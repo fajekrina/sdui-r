@@ -10,8 +10,9 @@ const BUDGETS_KB = {
   // forms, SWR, idempotency. Raised 18 → 20 KB in 0.6.0 by decision (review 0.5.0 #4)
   // after moving rarely used locales to ./i18n. Raising it again needs a CHANGELOG note.
   // sdui-r 0.1.0: 20 → 22 KB for template composition + value-set validation;
-  // then 22 → 24 KB for the built-in `chart` (CHANGELOG).
-  'src/core/index.ts': 24,
+  // then 22 → 24 KB for the built-in `chart`; 24 → 26 KB for spec 2.2 (shared layout props,
+  // button icons and choices, stroke glyphs) (CHANGELOG).
+  'src/core/index.ts': 26,
   'src/react/index.ts': 3,      // <SduiScreen>; the engine comes from the app
   'src/vue/index.ts': 3,
   'src/vanilla/index.ts': 3,

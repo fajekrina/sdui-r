@@ -3,7 +3,7 @@
 // gracefully); a different MAJOR is rejected.
 
 /// The spec version this engine writes and fully understands.
-export const SPEC_VERSION = '2.1'
+export const SPEC_VERSION = '2.2'
 
 /// The only accepted MAJOR.
 export const SUPPORTED_MAJOR = 2
@@ -13,6 +13,11 @@ export const V1_COMPONENTS = ['text', 'image', 'vstack', 'hstack', 'zstack', 'bu
 export const V11_COMPONENTS = ['spacer', 'divider', 'grid', 'scroll', 'list', 'form', 'textField', 'textArea', 'picker'] as const
 /// sdui-r 2.0 additions.
 export const V20_COMPONENTS = ['chart'] as const
+/// sdui-r 2.2 additions (props + symbols, no new components): vstack/card `alignment: fill`,
+/// negative vstack `spacing` (overlap), card `spacing`, shared `paddingHorizontal` /
+/// `paddingVertical` / `borderColor` / `borderWidth` / `shadow` / `pin`, button icon
+/// (`systemName`, `iconPosition`, `iconSize`, `iconBackground`, `iconForeground`), `size`, `weight`
+/// and choices (`group`, `value`, `selected*`).
 /// sdui-r 2.1 additions (props, no new components): `text.align` and `text.markup`
 /// (`**bold**` / `*italic*` in `value`).
 export type BuiltinComponentType = typeof V1_COMPONENTS[number] | typeof V11_COMPONENTS[number] | typeof V20_COMPONENTS[number]

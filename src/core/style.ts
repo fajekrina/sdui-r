@@ -97,7 +97,11 @@ const num = (node: SduiNode, key: string): number | undefined => {
 export function sharedStyle(node: SduiNode, defaults: { padding?: number; background?: string; cornerRadius?: number } = {}): Record<string, string> {
   const style: Record<string, string> = {}
   const padding = num(node, 'padding') ?? defaults.padding
-  if (padding !== undefined) style.padding = `${padding}px`
+  // spec 2.2 — paddingHorizontal / paddingVertical override `padding` on their sides
+  const ph = num(node, 'paddingHorizontal')
+  const pv = num(node, 'paddingVertical')
+  if (ph !== undefined || pv !== undefined) style.padding = `${pv ?? padding ?? 0}px ${ph ?? padding ?? 0}px`
+  else if (padding !== undefined) style.padding = `${padding}px`
   const background = color(node.string('background')) ?? (defaults.background !== undefined ? color(defaults.background) : undefined)
   if (background) style.background = background
   const radius = num(node, 'cornerRadius') ?? defaults.cornerRadius
@@ -107,7 +111,30 @@ export function sharedStyle(node: SduiNode, defaults: { padding?: number; backgr
   }
   const foreground = color(node.string('foreground'))
   if (foreground) style.color = foreground
+  // spec 2.2 — an outline: borderColor (+ borderWidth, default 1; a width alone uses `border`)
+  const borderColor = color(node.string('borderColor'))
+  const borderWidth = num(node, 'borderWidth')
+  if (borderColor || (borderWidth !== undefined && borderWidth > 0)) {
+    style.border = `${borderWidth !== undefined && borderWidth >= 0 ? borderWidth : 1}px solid ${borderColor ?? color('border')}`
+  }
+  const shadow = SHADOWS[node.string('shadow')]
+  if (shadow) style.boxShadow = shadow
+  // spec 2.2 — pin: stays on screen at the bottom (or top) of the page while it scrolls
+  const pin = node.string('pin')
+  if (pin === 'bottom' || pin === 'top') {
+    style.position = 'sticky'
+    style[pin] = '0'
+    style.zIndex = '1'
+    if (pin === 'bottom') style.marginTop = 'auto'
+  }
   return style
+}
+
+/// spec 2.2 — `shadow`: small · medium (below the component) · top (above it: a pinned footer)
+const SHADOWS: Readonly<Record<string, string>> = {
+  small: '0 1px 3px rgba(0, 0, 0, 0.12)',
+  medium: '0 4px 16px rgba(0, 0, 0, 0.12)',
+  top: '0 -4px 12px rgba(0, 0, 0, 0.06)'
 }
 
 export { num as numberProp }

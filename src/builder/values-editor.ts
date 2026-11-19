@@ -23,6 +23,7 @@ export interface TemplateChoice {
 type Components = Record<string, ComponentValue>
 type Snapshot = { template?: TemplateDocument; components: Components }
 
+/// @deprecated Edit content in the Template Builder instead: the Studio shows design and content in one tree and `splitContent` stores them apart (template + value set).
 export class ValuesEditor {
   private _screen: string
   private _template?: TemplateDocument

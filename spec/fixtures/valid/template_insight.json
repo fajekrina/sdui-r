@@ -1,0 +1,293 @@
+{
+  "schemaVersion": "2.2",
+  "template": {
+    "key": "insightV1",
+    "version": 1,
+    "title": "Insight buat kamu",
+    "root": {
+      "type": "vstack",
+      "id": "root",
+      "order": 0,
+      "props": {
+        "alignment": "fill",
+        "spacing": 0,
+        "background": "#FFFFFF"
+      },
+      "children": [
+        {
+          "type": "vstack",
+          "id": "top",
+          "order": 0,
+          "props": {
+            "alignment": "fill",
+            "spacing": -128
+          },
+          "children": [
+            {
+              "type": "vstack",
+              "id": "hero",
+              "order": 0,
+              "props": {
+                "alignment": "fill",
+                "spacing": 16,
+                "background": "#C2F0ED"
+              },
+              "children": [
+                {
+                  "type": "hstack",
+                  "id": "header",
+                  "order": 0,
+                  "props": {
+                    "spacing": 10,
+                    "paddingHorizontal": 24,
+                    "paddingVertical": 16,
+                    "alignment": "center"
+                  },
+                  "children": [
+                    {
+                      "type": "button",
+                      "id": "back",
+                      "order": 0,
+                      "props": {
+                        "title": "",
+                        "systemName": "arrow.left",
+                        "iconSize": 24,
+                        "foreground": "#1A1A1A",
+                        "a11yLabel": "Kembali"
+                      },
+                      "action": {
+                        "type": "dismiss"
+                      }
+                    },
+                    {
+                      "type": "text",
+                      "id": "pageTitle",
+                      "order": 1,
+                      "props": {
+                        "value": "Insight buat kamu",
+                        "size": 20,
+                        "weight": "bold",
+                        "color": "#1A1A1A",
+                        "a11yTraits": [
+                          "header"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "vstack",
+                  "id": "illustrationBox",
+                  "order": 1,
+                  "props": {
+                    "alignment": "fill",
+                    "spacing": 0,
+                    "paddingHorizontal": 55
+                  },
+                  "children": [
+                    {
+                      "type": "image",
+                      "id": "illustration",
+                      "order": 0,
+                      "props": {
+                        "name": "insight_emas",
+                        "contentMode": "fill",
+                        "a11yLabel": "Ilustrasi membeli emas"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "spacer",
+                  "id": "heroTail",
+                  "order": 2,
+                  "props": {
+                    "height": 112
+                  }
+                }
+              ]
+            },
+            {
+              "type": "vstack",
+              "id": "cardBox",
+              "order": 1,
+              "props": {
+                "alignment": "fill",
+                "spacing": 0,
+                "paddingHorizontal": 24
+              },
+              "children": [
+                {
+                  "type": "card",
+                  "id": "insightCard",
+                  "order": 0,
+                  "props": {
+                    "alignment": "leading",
+                    "spacing": 12,
+                    "background": "#FFFFFF",
+                    "borderColor": "#E3E3E3",
+                    "cornerRadius": 20,
+                    "paddingHorizontal": 16,
+                    "paddingVertical": 24
+                  },
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "insightTitle",
+                      "order": 0,
+                      "props": {
+                        "value": "Punya target beli emas? Wujudkan sekarang!",
+                        "size": 18,
+                        "weight": "bold",
+                        "color": "#1A1A1A"
+                      }
+                    },
+                    {
+                      "type": "text",
+                      "id": "insightBody",
+                      "order": 1,
+                      "props": {
+                        "value": "Kamu sudah mulai menabung untuk beli emas lewat Life Goals. Sekarang, kamu bisa langsung beli emas impianmu lewat wondr.",
+                        "size": 15,
+                        "color": "#222222"
+                      }
+                    },
+                    {
+                      "type": "text",
+                      "id": "insightNote",
+                      "order": 2,
+                      "props": {
+                        "value": "Bangun aset emasmu di wondr, mulai dari Rp10.000.",
+                        "size": 15,
+                        "color": "#222222"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "vstack",
+          "id": "feedback",
+          "order": 1,
+          "props": {
+            "alignment": "center",
+            "spacing": 16,
+            "paddingVertical": 26
+          },
+          "children": [
+            {
+              "type": "text",
+              "id": "feedbackQuestion",
+              "order": 0,
+              "props": {
+                "value": "Suka dengan insight ini?",
+                "size": 13,
+                "color": "#333333"
+              }
+            },
+            {
+              "type": "hstack",
+              "id": "feedbackChoices",
+              "order": 1,
+              "props": {
+                "spacing": 40,
+                "alignment": "top"
+              },
+              "children": [
+                {
+                  "type": "button",
+                  "id": "dislike",
+                  "order": 0,
+                  "props": {
+                    "title": "Kurang Suka",
+                    "systemName": "hand.thumbsdown",
+                    "iconPosition": "top",
+                    "iconSize": 30,
+                    "iconPadding": 13,
+                    "iconBackground": "#F7F7F7",
+                    "iconForeground": "#1A1A1A",
+                    "size": 14,
+                    "weight": "semibold",
+                    "foreground": "#1A1A1A",
+                    "group": "feedback",
+                    "value": "dislike",
+                    "selectedIconBackground": "#22C55E",
+                    "selectedIconForeground": "#FFFFFF"
+                  }
+                },
+                {
+                  "type": "button",
+                  "id": "like",
+                  "order": 1,
+                  "props": {
+                    "title": "Suka!",
+                    "systemName": "hand.thumbsup",
+                    "iconPosition": "top",
+                    "iconSize": 30,
+                    "iconPadding": 13,
+                    "iconBackground": "#F7F7F7",
+                    "iconForeground": "#1A1A1A",
+                    "size": 14,
+                    "weight": "semibold",
+                    "foreground": "#1A1A1A",
+                    "group": "feedback",
+                    "value": "like",
+                    "selectedIconBackground": "#22C55E",
+                    "selectedIconForeground": "#FFFFFF"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "spacer",
+          "id": "bottomGap",
+          "order": 2,
+          "props": {
+            "height": 72
+          }
+        },
+        {
+          "type": "vstack",
+          "id": "footer",
+          "order": 3,
+          "props": {
+            "alignment": "fill",
+            "spacing": 0,
+            "paddingHorizontal": 24,
+            "paddingVertical": 16,
+            "background": "#FFFFFF",
+            "shadow": "top",
+            "pin": "bottom"
+          },
+          "children": [
+            {
+              "type": "button",
+              "id": "buyGold",
+              "order": 0,
+              "props": {
+                "title": "Beli Emas",
+                "variant": "primary",
+                "background": "#71DAD3",
+                "foreground": "#1A1A1A",
+                "cornerRadius": 24,
+                "paddingVertical": 15,
+                "size": 15,
+                "weight": "semibold"
+              },
+              "action": {
+                "type": "toast",
+                "message": "Beli emas segera hadir",
+                "level": "info"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

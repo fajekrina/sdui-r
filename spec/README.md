@@ -1,4 +1,4 @@
-# SDUI-R spec (v2.1)
+# SDUI-R spec (v2.2)
 
 The contract between the backend and `@fajekrina/sdui-r`. The machine-readable source
 of truth is [`sdui.schema.json`](./sdui.schema.json) (JSON Schema Draft 2020-12);
@@ -8,7 +8,9 @@ v1 is the [murti](https://github.com/iQbalADR/murti) v1 contract, copied and own
 here (Apache-2.0, see [`../NOTICE`](../NOTICE)); v1.1 is `@fajekrina/sdui`. **v2.0 (sdui-r)**
 splits a screen into a template and a value set — a new major, so 1.x payloads are rejected.
 **v2.1** adds props only (a 2.0 document is a valid 2.1 document): `text.align` and
-`text.markup` — see [Text (v2.1)](#text-v21).
+`text.markup` — see [Text (v2.1)](#text-v21). **v2.2** adds props and symbols only — full-width
+children, overlap, outlines, per-side padding, shadow, pin, button icons and choices — see
+[Layout and choices (v2.2)](#layout-and-choices-v22).
 
 ## v2.0 — template + value set
 
@@ -101,10 +103,10 @@ v1 (murti):
 | --- | --- |
 | `text` | `value` (tokens; a newline is a line break), `style` `title`·`headline`·`body`·`caption`, `color`, `weight`, `size`; v2.1: `align`, `markup`. A text always shows in full (never cut, no ellipsis) |
 | `image` | `systemName` (symbol) · `name` (app-resolved asset), `contentMode` `fit`·`fill`, `width`, `height` |
-| `vstack` / `hstack` | `spacing`, `alignment` (`leading`·`center`·`trailing` / `top`·`center`·`bottom`) |
+| `vstack` / `hstack` | `spacing`, `alignment` (`leading`·`center`·`trailing` / `top`·`center`·`bottom`); v2.2: vstack `fill`, negative `spacing` |
 | `zstack` | `width`, `height`; children carry `x`, `y`, `width`, `height` |
 | `card` | `padding` (16), `background`, `cornerRadius` (12), `foreground` |
-| `button` | `title` (tokens) + `action`; `variant` `primary`·`secondary`·`plain` (v1.1) |
+| `button` | `title` (tokens) + `action`; `variant` `primary`·`secondary`·`plain` (v1.1); v2.2: icon, `size`, `weight`, choices |
 
 v1.1:
 
@@ -120,7 +122,8 @@ v1.1:
 | `textArea` | `name`, `label`, `placeholder`, `rows`, `required`, `minLength`, `maxLength` |
 | `picker` | `name`, `label`, `options` `[{ value, label }]` or strings, `required` |
 
-Shared on every component: `padding`, `background`, `cornerRadius`, `foreground`,
+Shared on every component: `padding`, `background`, `cornerRadius`, `foreground` (v2.2: `paddingHorizontal`,
+`paddingVertical`, `borderColor`, `borderWidth`, `shadow`, `pin`),
 and the accessibility props `a11yLabel` (tokens), `a11yId`, `a11yTraits`
 (`button`·`header`·`image`·`link`).
 
@@ -164,6 +167,28 @@ Only a `button` runs its action when tapped. A `chart` reads its `api` action's 
 its data source (loaded with the screen, never run on a tap; other action types and
 `onSuccess` / `onError` are ignored). Every other built-in ignores an action; the builder
 warns about one. A third-party component may run its own (`ComponentInfo.action`).
+
+### Layout and choices (v2.2)
+
+| Where | Prop | Effect |
+| --- | --- | --- |
+| `vstack` | `alignment: fill` | children take the full width |
+| `vstack` | `spacing` < 0 | overlap: each child is pulled up over the previous one by that much and drawn above it |
+| `card` | `alignment` (`leading` default · `center` · `trailing` · `fill`), `spacing` | as on a vstack |
+| every component | `paddingHorizontal`, `paddingVertical` | override `padding` on those sides |
+| every component | `borderColor`, `borderWidth` (default 1) | an outline (a width alone uses the `border` token) |
+| every component | `shadow` | `small` · `medium` (below) · `top` (above: a pinned footer) |
+| every component | `pin` | `bottom` · `top`: stays at that edge of the screen while the page scrolls |
+| `button` | `systemName`, `iconPosition` (`leading` · `top`), `iconSize` (20), `iconPadding`, `iconBackground`, `iconForeground` | an icon before or above the title; `iconBackground` draws a circle behind it |
+| `button` | `size`, `weight` | the title's size and weight |
+| `button` | `group`, `value` | a **choice**: a tap selects `value` (default: the button id) in `group` |
+| `button` | `selectedBackground`, `selectedForeground`, `selectedIconBackground`, `selectedIconForeground` | colors of the selected button |
+
+A choice lives in the screen data as `$selected.<group>` (one value per group; a tap on another
+button of the group moves it). It needs no action; when the button has one, it runs after the
+choice and can send it (`"params": { "vote": "{{$selected.feedback}}" }`). The selected button
+renders `aria-pressed="true"`. Symbols added: `arrow.left`, `hand.thumbsup`,
+`hand.thumbsdown`. Every 2.2 prop is template (design), not content.
 
 ## Actions
 

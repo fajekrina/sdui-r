@@ -10,6 +10,7 @@ export type SduiEvent =
   | { type: 'action_dispatched'; action: ActionType; ok: boolean; target?: string }
   | { type: 'load_request'; request: string; ok: boolean; ms: number }
   | { type: 'form_invalid'; formId: string; fields: string[] }
+  | { type: 'choice_selected'; group: string; value: string }
   | { type: 'rollback_rejected'; sequence: number }
   | { type: 'screen_revalidated'; key: string; changed: boolean; error?: string }
   | { type: 'screen_update_deferred'; key: string }

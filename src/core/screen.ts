@@ -19,6 +19,7 @@ const NAVIGATION_HOLD_MS = 1000
 import type { ActionSpec } from './actions/spec'
 import type { SduiEngine, LoadState, ScreenSource } from './engine'
 import type { SduiNode } from './node'
+import type { Selection } from './render-context'
 
 export interface RenderOptions {
   /// false = static preview (builder): no handlers, fields disabled
@@ -28,9 +29,10 @@ export interface RenderOptions {
 }
 
 interface Handler {
-  action: ActionSpec
+  action?: ActionSpec
   data: DataContext
   formId?: string
+  select?: Selection
 }
 
 /// One screen's lifecycle: load (verify + validate + cache) → `screen.load`
@@ -196,8 +198,8 @@ export class ScreenController {
       slots: new Set(options.slots ?? []),
       busy: (key, formId) => this.inFlight.has(key) || (formId !== undefined && this.inFlight.has(`form:${formId}`)),
       sink: {
-        bindAction: (key, action, data, formId) => {
-          this.handlers.set(key, { action, data, formId })
+        bindAction: (key, action, data, formId, select) => {
+          this.handlers.set(key, { action, data, formId, select })
           return key
         },
         registerField: (formId, rule) => {
@@ -235,9 +237,20 @@ export class ScreenController {
   async handle(key: string): Promise<void> {
     const handler = this.handlers.get(key)
     if (!handler) return
+    // spec 2.2 — a choice: select first (the screen shows it at once), then run the action
+    // with `$selected` already holding the choice
+    if (handler.select) this.select(handler.select)
+    const action = handler.action
+    if (!action) return
     const formLock = handler.formId ? `form:${handler.formId}` : undefined
     if (this.inFlight.has(key) || (formLock && this.inFlight.has(formLock))) return
     let data = handler.data
+    if (handler.select && data !== this.data) {
+      // a scoped context (list row): give it the new choice, and forward merges to the screen
+      data = new DataContext({ ...data.snapshot, $selected: this.data.get('$selected') ?? {} })
+      const original = data.merge.bind(data)
+      data.merge = (v) => { original(v); this.data.merge(v) }
+    }
     if (handler.formId) {
       const formId = handler.formId
       const values = this.ui.getState().forms[formId]?.values ?? {}
@@ -251,7 +264,7 @@ export class ScreenController {
         this.engine.emit({ type: 'form_invalid', formId, fields: Object.keys(errors) })
         return
       }
-      data = new DataContext({ ...handler.data.snapshot, form: values })
+      data = new DataContext({ ...data.snapshot, form: values })
       // results merged during the chain (api/native) must reach the screen data too
       const original = data.merge.bind(data)
       data.merge = (v) => { original(v); this.data.merge(v) }
@@ -276,7 +289,7 @@ export class ScreenController {
       if (this.inFlight.size === 0 && this.pendingUpdate && !this.formsDirty()) this.applyPendingUpdate()
     }
     try {
-      await this.dispatch(handler.action, data, idempotencyKey, outcome)
+      await this.dispatch(action, data, idempotencyKey, outcome)
     } finally {
       if (!outcome.apiFailed) {
         this.submissions.delete(submissionId)                           // done: the next tap is a new submission
@@ -291,6 +304,15 @@ export class ScreenController {
         release()
       }
     }
+  }
+
+  /// spec 2.2 — select `value` in the choice `group`: `$selected.<group>` in the screen data
+  /// (buttons of the group show it; actions read it as `{{$selected.<group>}}`).
+  select({ group, value }: Selection): void {
+    const current = SduiValue.objectValue(this.data.get('$selected')) ?? {}
+    if (current[group] === value) return
+    this.data.merge({ $selected: { ...current, [group]: value } })
+    this.engine.emit({ type: 'choice_selected', group, value })
   }
 
   /// Run an action against this screen's data (also used by hosts: e.g. the

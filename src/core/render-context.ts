@@ -8,10 +8,15 @@ import type { SduiValue } from './value'
 import type { UiState } from './ui-store'
 import type { FieldRule } from './patterns'
 
+/// spec 2.2 — a choice: tapping a button with `group` selects its `value` in that group.
+export interface Selection { group: string; value: string }
+
 /// What the render pass reports back to the screen controller.
 export interface RenderSink {
   /// register a handler; returns the key the RenderNode carries
-  bindAction(key: string, action: ActionSpec, data: DataContext, formId?: string): string
+  /// `select` (spec 2.2): a tap also selects `value` in the choice `group` (`$selected.<group>`);
+  /// the action is then optional
+  bindAction(key: string, action: ActionSpec | undefined, data: DataContext, formId?: string, select?: Selection): string
   registerField(formId: string, rule: FieldRule): void
   unknownComponent(type: string): void
 }
@@ -102,9 +107,15 @@ export class RenderContext {
   }
 
   /// Wire an action to a click; returns the `on` map (empty when not interactive).
-  onClick(node: SduiNode, action: ActionSpec | undefined): RenderNode['on'] {
-    if (!action || !this.interactive) return undefined
-    return { click: this.env.sink.bindAction(this.handlerKey(node), action, this.data, this.formId) }
+  onClick(node: SduiNode, action: ActionSpec | undefined, select?: Selection): RenderNode['on'] {
+    if ((!action && !select) || !this.interactive) return undefined
+    return { click: this.env.sink.bindAction(this.handlerKey(node), action, this.data, this.formId, select) }
+  }
+
+  /// spec 2.2 — the value selected in a choice group (`$selected.<group>`), if any
+  selected(group: string): string | undefined {
+    const v = this.data.value(`$selected.${group}`)
+    return typeof v === 'string' ? v : undefined
   }
 
   handlerKey(node: SduiNode): string {

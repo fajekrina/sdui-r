@@ -5,7 +5,7 @@
 // one merchant page. Same canvas, preview and CSP rules as the Studio; publishing is direct.
 import { ComponentFactory, TemplateDocument, type SduiNode, type SduiValue } from '../core'
 import { renderNodeDOM } from '../vanilla'
-import { COLORS, FIELDS, SHARED, attachStyles, deprecationText, focusOf, foldSection, outlineTwisty, restoreFocus, type FieldKind, type StudioCatalog } from './studio'
+import { COLORS, FIELDS, IMAGE_TYPES, SHARED, attachStyles, deprecationText, focusOf, foldSection, outlineTwisty, restoreFocus, type FieldKind, type StudioCatalog } from './studio'
 import { actionBadge, describeComponent } from './describe'
 import { multilineText, optionsTable } from './controls'
 import { STUDIO_CSS } from './studio-css'
@@ -47,10 +47,8 @@ export interface ScreenBuilderOptions {
 }
 
 /// What a maker hands an image component: a file, or an https link to copy.
-export type AssetSource = { file: Blob & { name?: string } } | { url: string }
-
-/// Picture types a maker may upload (no SVG: it can carry script).
-export const IMAGE_TYPES: readonly string[] = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
+export { IMAGE_TYPES, type AssetSource } from './studio'
+import type { AssetSource } from './studio'
 const DEFAULT_MAX_ASSET = 2 * 1024 * 1024
 
 export type ScreenBuilderUpdate = Pick<ScreenBuilderOptions, 'templates' | 'title' | 'catalog' | 'baseline' | 'sampleData' | 'assetURL' | 'uploadAsset'>
@@ -64,6 +62,7 @@ export interface MountedScreenBuilder {
 }
 
 
+/// @deprecated Edit content in the Template Builder instead: the Studio shows design and content in one tree and `splitContent` stores them apart (template + value set).
 export function mountScreenBuilder(target: HTMLElement, options: ScreenBuilderOptions = {}): MountedScreenBuilder {
   const editor = options.editor ?? new ValuesEditor({ screen: options.screen })
   const factory = options.factory ?? ComponentFactory.withBuiltins()
