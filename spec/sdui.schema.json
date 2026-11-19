@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/fajekrina/sdui-r/main/spec/sdui.schema.json",
-  "title": "SDUI-R Payload (v2.3)",
-  "description": "Authoritative STRUCTURAL schema for @fajekrina/sdui-r. sdui-r (v2.0) splits a screen into a TEMPLATE (structure + behavior; every node has an id and an order; reusable across screens and merchants) and a VALUE SET (content per template component, per merchant screen), signed and delivered separately and composed by the client. A resolved screen payload (what the client composes) is still accepted for previews and tests. Derived from @fajekrina/sdui v1.1 and murti.schema.json v1 (Apache-2.0, see NOTICE). Tree depth, total node count, action-chain depth, load-request count, id uniqueness, order uniqueness among siblings, value ids existing in the template, and semantic resolution are enforced by the client validator — see spec/README.md. v2.3 adds screen state (`state`) and the state-bound node props `visibleWhen`, `disabledWhen`, `maskedWhen`, `transition` and `toggle` (#/$defs/nodeProps): the schema (CI + backend) is strict about their shape; a client that meets one it cannot evaluate falls back per prop instead of rejecting the screen.",
+  "title": "SDUI-R Payload (v2.4)",
+  "description": "Authoritative STRUCTURAL schema for @fajekrina/sdui-r. sdui-r (v2.0) splits a screen into a TEMPLATE (structure + behavior; every node has an id and an order; reusable across screens and merchants) and a VALUE SET (content per template component, per merchant screen), signed and delivered separately and composed by the client. A resolved screen payload (what the client composes) is still accepted for previews and tests. Derived from @fajekrina/sdui v1.1 and murti.schema.json v1 (Apache-2.0, see NOTICE). Tree depth, total node count, action-chain depth, load-request count, id uniqueness, order uniqueness among siblings, value ids existing in the template, and semantic resolution are enforced by the client validator — see spec/README.md. v2.3 adds screen state (`state`) and the state-bound node props `visibleWhen`, `disabledWhen`, `maskedWhen`, `transition` and `toggle` (#/$defs/nodeProps): the schema (CI + backend) is strict about their shape; a client that meets one it cannot evaluate falls back per prop instead of rejecting the screen. v2.4 adds the interactive chart: `selectState`, `initialSelection`, `selectedColor` and `tip` on a bar chart.",
   "oneOf": [
     {
       "$ref": "#/$defs/envelope"
@@ -473,6 +473,25 @@
           "minimum": 0.8,
           "maximum": 3,
           "description": "v2.3 — text: line height as a multiple of the size (default 1.3)."
+        },
+        "selectState": {
+          "$ref": "#/$defs/identifier",
+          "description": "v2.4 — chart (bar): its bars can be picked (tap; web hover previews). The pick is state `$selected.<selectState>` = the item key (no key: its index)."
+        },
+        "initialSelection": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "v2.4 — chart: the bar picked until a tap sets the state: last · first · none (default) · an item key. Re-resolved against the data, like a state initial."
+        },
+        "selectedColor": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "v2.4 — chart: the picked bar's color (theme token or hex)."
+        },
+        "tip": {
+          "type": "string",
+          "maxLength": 4096,
+          "description": "v2.4 — chart: a tip above the picked bar. {{item.<field>}} reads the picked item; other {{tokens}} the screen data; **bold** / *italic* and line breaks apply."
         }
       }
     },

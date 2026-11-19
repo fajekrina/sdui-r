@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "2.4",
+  "screen": {
+    "key": "s",
+    "root": {
+      "type": "chart",
+      "props": {
+        "data": [
+          1,
+          2
+        ],
+        "selectState": "not a name"
+      }
+    }
+  }
+}

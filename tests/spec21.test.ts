@@ -67,8 +67,8 @@ describe('text (spec 2.1)', () => {
     expect(rich.querySelectorAll('span')[1]!.style.fontWeight).toBe('700')
   })
 
-  it('the builder writes spec 2.3 (2.1 documents stay valid)', () => {
-    expect(SPEC_VERSION).toBe('2.3')
+  it('the builder writes spec 2.4 (2.1 documents stay valid)', () => {
+    expect(SPEC_VERSION).toBe('2.4')
   })
 })
 

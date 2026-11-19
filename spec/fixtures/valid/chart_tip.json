@@ -1,0 +1,69 @@
+{
+  "schemaVersion": "2.4",
+  "screen": {
+    "key": "chartTip",
+    "root": {
+      "type": "vstack",
+      "id": "root",
+      "props": {
+        "alignment": "fill",
+        "padding": 24,
+        "spacing": 12
+      },
+      "children": [
+        {
+          "type": "text",
+          "id": "title",
+          "props": {
+            "value": "Pembelian kopi",
+            "weight": "bold"
+          }
+        },
+        {
+          "type": "chart",
+          "id": "spend",
+          "props": {
+            "kind": "bar",
+            "height": 120,
+            "min": 0,
+            "data": [
+              {
+                "key": "2025-02",
+                "label": "Feb 2025",
+                "value": 560000,
+                "amount": "Rp560.000",
+                "color": "#FDE8E8"
+              },
+              {
+                "key": "2025-03",
+                "label": "Mar 2025",
+                "value": 950000,
+                "amount": "Rp950.000",
+                "color": "#FDE8E8"
+              },
+              {
+                "key": "2025-04",
+                "label": "Apr 2025",
+                "value": 1140000,
+                "amount": "Rp1.140.000",
+                "color": "#FDE8E8"
+              }
+            ],
+            "selectState": "spendBar",
+            "initialSelection": "last",
+            "selectedColor": "#D95C5C",
+            "tip": "{{item.label}}\n**{{item.amount}}**"
+          }
+        },
+        {
+          "type": "text",
+          "id": "picked",
+          "props": {
+            "value": "Dipilih: {{$selected.spendBar}}",
+            "size": 12
+          }
+        }
+      ]
+    }
+  }
+}

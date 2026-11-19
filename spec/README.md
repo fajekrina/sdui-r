@@ -1,4 +1,4 @@
-# SDUI-R spec (v2.3)
+# SDUI-R spec (v2.4)
 
 The contract between the backend and `@fajekrina/sdui-r`. The machine-readable source
 of truth is [`sdui.schema.json`](./sdui.schema.json) (JSON Schema Draft 2020-12);
@@ -12,7 +12,8 @@ splits a screen into a template and a value set — a new major, so 1.x payloads
 children, overlap, outlines, per-side padding, shadow, pin, button icons and choices — see
 [Layout and choices (v2.2)](#layout-and-choices-v22). **v2.3** adds screen state, state-bound props
 and transitions — no new components and no new action types, so a 2.2 client still renders a 2.3
-screen (see the table in [State and transitions (v2.3)](#state-and-transitions-v23)).
+screen (see the table in [State and transitions (v2.3)](#state-and-transitions-v23)). **v2.4** makes
+the bar chart interactive — see [Interactive chart (v2.4)](#interactive-chart-v24).
 
 ## v2.0 — template + value set
 
@@ -280,6 +281,32 @@ the client does not know (a later minor's) is skipped — with the steps after i
 once as `action_unsupported`; the screen still renders. The schema still rejects it.
 
 Symbols added: `eye`, `eye.slash`.
+
+### Interactive chart (v2.4)
+
+A bar chart's bars can be picked; a tip above the picked bar shows that item's data.
+
+```json
+{ "type": "chart", "id": "spend",
+  "props": { "kind": "bar", "selectState": "spendBar", "initialSelection": "last",
+             "selectedColor": "#D95C5C", "tip": "{{item.label}}\n**{{item.amount}}**" },
+  "action": { "type": "api", "request": "coffeeSpending" } }
+```
+
+| Prop | Values | Effect |
+| --- | --- | --- |
+| `selectState` | identifier | bars can be picked: a tap writes state `$selected.<selectState>` = the item's `key` (no key: its index `"0"`, `"1"` …). Other components read it (`visibleWhen`, tokens). Tapping the picked bar keeps it |
+| `initialSelection` | `last` · `first` · `none` (default) · an item key | the bar picked until a tap sets the state; re-resolved against the data, so a data source that lands later still gets it |
+| `selectedColor` | color | the picked bar's color (others: the item's `color`, else `color`) |
+| `tip` | text | shown above the picked bar: `{{item.<field>}}` reads the picked item, other tokens the screen data; `**bold**`, `*italic*` and line breaks apply |
+
+The tip's place is computed from the data (the bar's center and top as percentages of the plot), never
+measured, so every engine puts it in the same spot; at the first and the last bar it aligns to that edge.
+It moves to a newly picked bar with a short slide (none on the first render, in a static preview, or
+under `prefers-reduced-motion`). Each bar has a transparent button over it (the tap target, focusable,
+`aria-label` = label and `amount` or value, `aria-pressed`); the tip is `aria-live="polite"`. On the
+web, hovering a bar with a mouse **previews** its tip without changing the state. Only `bar` in v2.4;
+other kinds ignore these props. A 2.3 client ignores all four: a static chart.
 
 ## Actions
 
