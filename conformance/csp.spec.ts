@@ -15,8 +15,9 @@ for (const name of names) {
       const page = await browser.newPage()
       await page.goto(`${baseURL}/conformance/csp.html?fixtures=${FIXTURES.join(',')}`)
       await page.waitForFunction(() => (window as unknown as { __csp?: { ready: boolean } }).__csp?.ready === true)
-      const result = await page.evaluate(() => (window as unknown as { __csp: { violations: string[]; studioStyled: boolean } }).__csp)
+      const result = await page.evaluate(() => (window as unknown as { __csp: { violations: string[]; studioStyled: boolean; animated: number } }).__csp)
       expect(result.violations).toEqual([])
+      expect(result.animated).toBe(2)   // spec 2.3: the fade and the collapse ran
       expect(result.studioStyled).toBe(true)
       expect(await page.locator('[data-sdui-screen]').count()).toBe(FIXTURES.length)
     } finally {

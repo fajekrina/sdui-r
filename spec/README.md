@@ -248,7 +248,9 @@ computes one field.
 | `transition` | every component | `{ "visible": "none" \| "fade" \| "collapse" }` — how `visibleWhen` changes animate; `collapse` shrinks along the parent's axis |
 
 The engine owns the durations (fade 200 ms, collapse 250 ms), drops them under
-`prefers-reduced-motion`, and never animates the first render. `maskedWhen` is cosmetic — it
+`prefers-reduced-motion`, and never animates the first render. A leaving component is `inert`
+and `aria-hidden` while it animates out, then removed; keyboard focus it held moves to its nearest
+shown ancestor. A static preview (the Studio canvas) never animates. `maskedWhen` is cosmetic — it
 hides a value from onlookers, not from the client.
 
 **Strict schema, lenient client.** The schema (CI and backend, on save and publish) rejects a

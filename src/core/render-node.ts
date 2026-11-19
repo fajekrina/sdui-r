@@ -1,3 +1,5 @@
+import type { Motion } from './motion'
+
 /// RenderNode — the contract between the core and every renderer.
 ///
 /// Every rendering decision (element, sanitized attributes, final style, text,
@@ -28,6 +30,8 @@ export interface RenderNode {
   preventDefault?: boolean
   /// a toolkit-specific component the adapter renders itself (React chart, map…)
   slot?: { type: string; props: Record<string, unknown>; data: Record<string, unknown> }
+  /// spec 2.3 — an appear / leave animation the adapter plays with `playMotion`
+  motion?: Motion
   children: RenderNode[]
 }
 

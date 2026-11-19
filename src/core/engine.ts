@@ -1,4 +1,5 @@
 import { ActionDispatcher } from './actions/dispatcher'
+import { prefersReducedMotion } from './motion'
 import { SduiError } from './errors'
 import { canonical } from './actions/spec'
 import { MESSAGES_EN, type FieldMessages } from './patterns'
@@ -89,6 +90,10 @@ export interface EngineInit {
   logger?: Logger
   /// debug build: unknown-type markers and error details (default false)
   debug?: boolean
+  /// spec 2.3 — drop `transition` animations (default: the OS `prefers-reduced-motion`)
+  reducedMotion?: () => boolean
+  /// spec 2.3 — the clock transitions are timed with (default `Date.now`; tests)
+  now?: () => number
 }
 
 /// Holds the component and screen factories, the validator, security, cache and
@@ -111,6 +116,8 @@ export class SduiEngine {
   readonly debug: boolean
   readonly messages: FieldMessages
   readonly newId: () => string
+  readonly reducedMotion: () => boolean
+  readonly now: () => number
   private readonly namedResolver?: (name: string) => Promise<BytesLike>
   private readonly manifestLoader?: () => Promise<BytesLike>
   private readonly onEvent?: (event: SduiEvent) => void
@@ -146,6 +153,8 @@ export class SduiEngine {
     this.assetURL = init.assetURL ?? relativeAssetURL
     this.messages = { ...MESSAGES_EN, ...(init.messages ?? {}) }
     this.newId = init.newId ?? randomId
+    this.reducedMotion = init.reducedMotion ?? prefersReducedMotion
+    this.now = init.now ?? Date.now
     this.viewport = init.viewport
     this.onEvent = init.onEvent
     this.maxEnvelopeBytes = init.maxEnvelopeBytes ?? 1_048_576

@@ -23,10 +23,23 @@ const doc = new EditorDocument()
 doc.importJSON(await (await fetch('/spec/fixtures/valid/dashboard.json')).json())
 mountStudio(document.getElementById('studio')!, { document: doc })
 
+// spec 2.3 — transitions (Web Animations) under the strict policy: the insight feedback fades,
+// the promo banner collapses
+let animated = 0
+for (const [tap, leaving] of [['like', 'dislike'], ['bannerClose', 'banner']]) {
+  const button = document.querySelector<HTMLElement>(`[data-sdui-key="${tap}"]`)
+  if (!button) continue
+  button.click()
+  await new Promise((r) => setTimeout(r, 0))
+  animated += document.querySelector(`[data-sdui-key="${leaving}"]`)?.getAnimations().length ?? 0
+}
+await new Promise((r) => setTimeout(r, 400))
+
 await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
-;(window as unknown as { __csp: { ready: boolean; violations: string[]; studioStyled: boolean } }).__csp = {
+;(window as unknown as { __csp: { ready: boolean; violations: string[]; studioStyled: boolean; animated: number } }).__csp = {
   ready: true,
   violations,
+  animated,
   // the constructable stylesheet really applied (not silently blocked)
   studioStyled: getComputedStyle(document.querySelector('.sdui-studio')!).display === 'flex'
 }

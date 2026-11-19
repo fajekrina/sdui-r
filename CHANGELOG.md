@@ -41,6 +41,30 @@ versi mengikuti Semantic Versioning (0.x: breaking change boleh di minor dengan 
 - Belum: animasi `transition` (fase 3) dan panel Studio (fase 4). Sampai fase 4, canvas Studio juga
   menyembunyikan komponen yang `visibleWhen`-nya tidak terpenuhi pada state kosong.
 
+### Ditambah: spec 2.3 (tahap 1, render) — animasi `transition`
+
+- `transition.visible`: `fade` (200 ms) dan `collapse` (250 ms, menyusut mengikuti sumbu induknya: lebar di
+  `hstack`, tinggi di tempat lain). Core yang mengatur waktunya (`ScreenController` mengingat apa yang terakhir
+  ditampilkan tiap key) dan menaruhnya di `RenderNode.motion`; ketiga renderer memutarnya dengan
+  `playMotion` (Web Animations API — tanpa stylesheet, tanpa atribut `style`, CSP ketat tetap aman). Delay
+  negatif = waktu yang sudah berjalan, jadi DOM yang dibangun ulang di tengah animasi (vanilla) tetap mulus.
+- Komponen yang sedang keluar: `inert` + `aria-hidden`, tanpa handler, lalu dihapus. Render pertama, preview
+  statis (canvas Studio) dan `prefers-reduced-motion` tidak pernah dianimasikan. Opsi engine baru:
+  `reducedMotion` dan `now`.
+- Fokus: `holdFocus` (dipakai vanilla, React, Vue) memindahkan fokus yang dipegang komponen tersembunyi (✕ yang
+  menutup banner-nya sendiri) ke leluhur terdekat yang masih tampil. React dan Vue kini juga menulis
+  `data-sdui-key` ke DOM, sama seperti vanilla.
+- `RenderContext.layout` (`column` · `row` · `block`): bagaimana induk menata anaknya.
+- Budget core 27,2 / 28 KB.
+
+### Diperbaiki
+
+- Gambar tanpa `width` di dalam flex column (`vstack`, `card`, `form`) kini `width: auto; max-width: 100%;
+  align-self: stretch` — kotaknya sama, tetapi WebKit tidak lagi menghitung tingginya dari border box kolom
+  (padding ikut terhitung). Conformance `template_insight.json` Chromium ≡ WebKit lolos lagi (selisih 27,5 px).
+- Conformance: tes animasi di Chromium dan WebKit (`conformance/motion.spec.ts`), dan halaman CSP ketat kini
+  ikut menjalankan fade dan collapse.
+
 ### Ditambah: desain dan konten di satu editor, tetap disimpan terpisah
 
 - `mergeContent(template, values)` (builder): menulis konten value set ke komponen template, jadi satu pohon

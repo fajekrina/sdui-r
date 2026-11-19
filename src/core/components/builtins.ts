@@ -154,7 +154,11 @@ export class ImageComponent implements Component {
       })
     }
     const label = node.string('a11yLabel')
-    const box = { display: 'block', width: width !== undefined ? px(width) : '100%', height: height !== undefined ? px(height) : 'auto' }
+    // full width by default. In a flex column, `width: 100%` makes WebKit size the picture's
+    // height from the column's border box (padding included); stretching gives the same box
+    const box: Record<string, string> = width === undefined && ctx.layout === 'column'
+      ? { display: 'block', width: 'auto', maxWidth: '100%', alignSelf: 'stretch', height: height !== undefined ? px(height) : 'auto' }
+      : { display: 'block', width: width !== undefined ? px(width) : '100%', height: height !== undefined ? px(height) : 'auto' }
     if (!src) {
       return renderNode(key, 'span', {
         type: node.type,

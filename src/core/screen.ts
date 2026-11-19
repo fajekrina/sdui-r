@@ -20,6 +20,7 @@ import type { ActionSpec } from './actions/spec'
 import type { SduiEngine, LoadState, ScreenSource } from './engine'
 import type { SduiNode } from './node'
 import type { Selection } from './render-context'
+import { MOTION_MS, type Motion, type MotionKind } from './motion'
 
 export interface RenderOptions {
   /// false = static preview (builder): no handlers, fields disabled
@@ -62,6 +63,9 @@ export class ScreenController {
   private readonly timers = new Set<ReturnType<typeof setTimeout>>()
   /// spec 2.3 — states set by a tap; the others follow their `initial`
   private readonly setStates = new Set<string>()
+  /// spec 2.3 — per node key with a `transition`: what it showed last, and its animation
+  private readonly shown = new Map<string, boolean>()
+  private readonly motions = new Map<string, { visible: boolean; start: number }>()
 
   constructor(readonly engine: SduiEngine, readonly source: ScreenSource, seed: Record<string, SduiValue> = {}) {
     this.data = new DataContext(seed)
@@ -229,6 +233,8 @@ export class ScreenController {
       assetURL: this.engine.assetURL,
       slots: new Set(options.slots ?? []),
       busy: (key, formId) => this.inFlight.has(key) || (formId !== undefined && this.inFlight.has(`form:${formId}`)),
+      // a static preview (Studio canvas) never animates
+      motion: interactive ? (key, visible, kind, axis) => this.motion(key, visible, kind, axis) : undefined,
       sink: {
         bindAction: (key, action, data, formId, select) => {
           this.handlers.set(key, { action, data, formId, select })
@@ -245,6 +251,31 @@ export class ScreenController {
     const root = this.pickRoot(this.state.screen)
     const view = new RenderContext(this.data, env).view(root)
     return { nodes: view ? [view] : [], overlays: ui.toasts.map(toastView) }
+  }
+
+  /// spec 2.3 — a node with a `transition` is (not) visible in this render: start an animation
+  /// when that differs from what it showed last (never on its first render, never under reduced
+  /// motion), and report the one in progress. A render is scheduled for its end, when a
+  /// leaving node is dropped and an appearing one stops animating.
+  private motion(key: string, visible: boolean, kind: MotionKind, axis: 'x' | 'y'): Motion | undefined {
+    const before = this.shown.get(key)
+    this.shown.set(key, visible)
+    const now = this.engine.now()
+    const duration = MOTION_MS[kind]
+    if (before !== undefined && before !== visible) {
+      if (this.engine.reducedMotion()) {
+        this.motions.delete(key)
+      } else {
+        this.motions.set(key, { visible, start: now })
+        const timer = setTimeout(() => { this.timers.delete(timer); this.changed() }, duration + 16)
+        this.timers.add(timer)
+      }
+    }
+    const m = this.motions.get(key)
+    if (!m || m.visible !== visible) return undefined
+    const elapsed = now - m.start
+    if (elapsed >= duration) { this.motions.delete(key); return undefined }
+    return { kind, axis, direction: visible ? 'in' : 'out', duration, elapsed }
   }
 
   /// The layout for the current width: a variant when one fits, else `root`.

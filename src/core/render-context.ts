@@ -8,10 +8,14 @@ import type { SduiValue } from './value'
 import type { UiState } from './ui-store'
 import type { FieldRule } from './patterns'
 import { evaluate } from './condition'
+import { motionKind, type Motion, type MotionKind } from './motion'
 
 /// spec 2.2 — a choice: tapping a button with `group` selects its `value` in that group.
 /// spec 2.3 — `toggle`: the tap flips state `group` between "on" and "" instead.
 export interface Selection { group: string; value: string; toggle?: boolean }
+
+/// spec 2.3 — how a container lays out its children (`RenderContext.layout`)
+const LAYOUTS: Record<string, 'column' | 'row'> = { vstack: 'column', card: 'column', form: 'column', hstack: 'row' }
 
 /// What the render pass reports back to the screen controller.
 export interface RenderSink {
@@ -35,6 +39,9 @@ export interface RenderEnvironment {
   slots: ReadonlySet<string>
   /// is the action behind this handler key (or its form) running? (double-tap guard)
   busy?(key: string, formId?: string): boolean
+  /// spec 2.3 — a node with a `transition` is rendered (`visible`) or not: the animation in
+  /// progress for it, if any (the screen remembers what each key showed last)
+  motion?(key: string, visible: boolean, kind: MotionKind, axis: 'x' | 'y'): Motion | undefined
   sink: RenderSink
 }
 
@@ -47,7 +54,10 @@ export class RenderContext {
     /// position path → stable keys for nodes without an id
     readonly path: string = '0',
     /// the enclosing form, if any
-    readonly formId?: string
+    readonly formId?: string,
+    /// how the parent lays this node out: a flex `column` (vstack, card, form), a flex `row`
+    /// (hstack), or anything else (`block`)
+    readonly layout: 'column' | 'row' | 'block' = 'block'
   ) {}
 
   get interactive(): boolean { return this.env.interactive }
@@ -70,17 +80,30 @@ export class RenderContext {
 
   /// The context for a child at `index`, optionally with extra scoped data
   /// (a list row, a form) that never leaks into the parent.
-  child(index: number | string, extra?: Record<string, SduiValue>, formId?: string): RenderContext {
+  child(index: number | string, extra?: Record<string, SduiValue>, formId?: string, layout?: 'column' | 'row' | 'block'): RenderContext {
     const data = extra ? new DataContext({ ...this.data.snapshot, ...extra }) : this.data
-    return new RenderContext(data, this.env, `${this.path}.${index}`, formId ?? this.formId)
+    return new RenderContext(data, this.env, `${this.path}.${index}`, formId ?? this.formId, layout)
   }
 
   /// Render a node: Composite recursion with the Null-Object fallback.
   /// A type the adapter claims as a slot wins over a built-in of that name (an app may
   /// draw `chart` with its own toolkit instead of the built-in SVG chart).
   view(node: SduiNode): RenderNode | null {
-    // spec 2.3 — hidden while `visibleWhen` does not hold (unreadable → shown)
-    if (this.when(node, 'visibleWhen') === false) return null
+    // spec 2.3 — hidden while `visibleWhen` does not hold (unreadable → shown); with a
+    // `transition` it stays while it animates out (inert, out of the accessibility tree)
+    const visible = this.when(node, 'visibleWhen') !== false
+    const kind = node.props.visibleWhen === undefined ? undefined : motionKind(node.props.transition)
+    const motion = kind ? this.env.motion?.(this.keyFor(node), visible, kind, this.layout === 'row' ? 'x' : 'y') : undefined
+    if (!visible && !motion) return null
+    const view = this.render(node)
+    if (view && motion) {
+      view.motion = motion
+      if (motion.direction === 'out') { view.attrs = { ...view.attrs, inert: true, 'aria-hidden': 'true' }; delete view.on }
+    }
+    return view
+  }
+
+  private render(node: SduiNode): RenderNode | null {
     const component = this.env.slots.has(node.type) ? undefined : this.env.factory.component(node.type)
     if (component) return component.makeView(node, this)
     if (this.env.slots.has(node.type)) {
@@ -103,8 +126,9 @@ export class RenderContext {
   /// Render children in order, keyed by `id ?? position`.
   children(node: SduiNode, extra?: Record<string, SduiValue>, formId?: string): RenderNode[] {
     const out: RenderNode[] = []
+    const layout = LAYOUTS[node.type] ?? 'block'
     node.children.forEach((child, i) => {
-      const view = this.child(i, extra, formId).view(child)
+      const view = this.child(i, extra, formId, layout).view(child)
       if (view) out.push(view)
     })
     return out

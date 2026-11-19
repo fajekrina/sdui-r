@@ -1,12 +1,13 @@
 /// React adapter: <SduiScreen source={{ key: 'home' }} engine={engine} />.
 /// All decisions live in the core ScreenController; this only subscribes and
 /// renders RenderNodes.
-import React, { useEffect, useMemo, useSyncExternalStore } from 'react'
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 import { ScreenSource, type LoadState, type SduiEngine } from '../core/engine'
 import type { ScreenController } from '../core/screen'
 import type { SduiValue } from '../core/value'
 import type { BytesLike } from '../core/bytes'
 import { RenderNodeView, type ReactSlots } from './RenderNodeView'
+import { holdFocus } from '../core/motion'
 
 /// `{ key }` (ScreenFactory), `{ named }` (host-resolved), `{ payload }` (inline JSON), or a ScreenSource.
 export type ScreenSourceInput = ScreenSource | { key: string } | { named: string } | { payload: BytesLike | object }
@@ -52,8 +53,12 @@ export function SduiScreen({ engine, source, seed, interactive = true, slots, on
   const state = screen.loadState
   useEffect(() => { onState?.(state) }, [state, onState])
   const result = screen.render({ interactive, slots: slots ? Object.keys(slots) : undefined })
+  // spec 2.3 — focus that a hidden component held moves to its nearest shown ancestor
+  const root = useRef<HTMLDivElement>(null)
+  const rescue = holdFocus(root.current)
+  useLayoutEffect(rescue)
   return (
-    <div className={className} style={style} data-sdui-screen={ScreenSource.identity(screen.source)}>
+    <div ref={root} className={className} style={style} data-sdui-screen={ScreenSource.identity(screen.source)}>
       {result.nodes.map((n) => <RenderNodeView key={n.key} node={n} screen={screen} slots={slots} />)}
       {result.overlays.map((n) => <RenderNodeView key={n.key} node={n} screen={screen} slots={slots} />)}
     </div>

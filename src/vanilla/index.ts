@@ -4,6 +4,7 @@ import type { ScreenController } from '../core/screen'
 import type { RenderNode } from '../core/render-node'
 import type { SduiValue } from '../core/value'
 import type { BytesLike } from '../core/bytes'
+import { holdFocus, playMotion } from '../core/motion'
 
 export type ScreenSourceInput = ScreenSource | { key: string } | { named: string } | { payload: BytesLike | object }
 /// Toolkit-specific components: `{ chart: (slot, node) => element }`.
@@ -52,6 +53,8 @@ export function renderNodeDOM(node: RenderNode, screen?: ScreenController, slots
   }
   if (node.element === 'form') el.addEventListener('submit', (e) => e.preventDefault())
   for (const child of node.children) el.appendChild(renderNodeDOM(child, screen, slots, doc))
+  // spec 2.3 — once the new DOM is in the page (a collapse measures it)
+  if (node.motion) { const motion = node.motion; queueMicrotask(() => playMotion(el, motion)) }
   return el
 }
 
@@ -82,6 +85,7 @@ export function mount(target: HTMLElement, options: MountOptions): MountedScreen
     const active = doc.activeElement as HTMLInputElement | null
     const activeKey = active?.getAttribute?.('data-sdui-key')
     const caret = active && 'selectionStart' in active ? [active.selectionStart, active.selectionEnd] : undefined
+    const rescue = holdFocus(root)
     const result = screen.render({ interactive: options.interactive ?? true, slots: options.slots ? Object.keys(options.slots) : undefined })
     root.setAttribute('data-sdui-screen', ScreenSource.identity(screen.source))
     root.replaceChildren(...result.nodes.map((n) => renderNodeDOM(n, screen, options.slots, doc)), ...result.overlays.map((n) => renderNodeDOM(n, screen, options.slots, doc)))
@@ -92,6 +96,7 @@ export function mount(target: HTMLElement, options: MountOptions): MountedScreen
         if (caret && caret[0] != null) try { again.setSelectionRange(caret[0], caret[1] ?? caret[0]) } catch { /* not a text field */ }
       }
     }
+    rescue()
   }
 
   const start = (source: ScreenSourceInput, seed?: Record<string, SduiValue>) => {

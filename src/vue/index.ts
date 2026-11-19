@@ -1,10 +1,11 @@
 // @fajekrina/sdui-r/vue — the Vue renderer (thin, generic).
-import { defineComponent, h, onBeforeUnmount, shallowRef, watch, type PropType, type VNode } from 'vue'
+import { defineComponent, h, onBeforeUnmount, onUpdated, shallowRef, watch, type PropType, type VNode } from 'vue'
 import { ScreenSource, type LoadState, type SduiEngine } from '../core/engine'
 import type { ScreenController } from '../core/screen'
 import type { RenderNode } from '../core/render-node'
 import type { SduiValue } from '../core/value'
 import type { BytesLike } from '../core/bytes'
+import { holdFocus, playMotion } from '../core/motion'
 
 export type ScreenSourceInput = ScreenSource | { key: string } | { named: string } | { payload: BytesLike | object }
 /// Toolkit-specific components: `{ chart: (slot) => h(Chart, …) }`.
@@ -24,7 +25,8 @@ export function renderNodeVNode(node: RenderNode, screen?: ScreenController, slo
   if (node.slot && slots?.[node.slot.type]) {
     return h('div', { key: node.key, style: node.style, 'data-sdui-slot': node.slot.type }, [slots[node.slot.type]!(node.slot, node)].flat())
   }
-  const props: Record<string, unknown> = { key: node.key, style: node.style }
+  // the key in the DOM as in vanilla: focus is kept / rescued by it (`holdFocus`)
+  const props: Record<string, unknown> = { key: node.key, style: node.style, 'data-sdui-key': node.key }
   for (const [k, v] of Object.entries(node.attrs)) {
     if (k === 'value' && node.element !== 'option') continue
     if (k === 'style' || /^on/i.test(k)) continue   // styles via CSSOM only; no handlers from attrs
@@ -42,6 +44,11 @@ export function renderNodeVNode(node: RenderNode, screen?: ScreenController, slo
     props.onClick = (e: Event) => { e.preventDefault(); void screen.handle(key) }
   }
   if (node.element === 'form') props.onSubmit = (e: Event) => e.preventDefault()
+  // spec 2.3 — after the element is in the page
+  if (node.motion) {
+    const motion = node.motion
+    props.onVnodeMounted = props.onVnodeUpdated = (v: VNode) => playMotion(v.el as Element, motion)
+  }
   if (node.element === 'input' || node.element === 'img' || node.element === 'hr' || node.element === 'textarea') {
     return h(node.element, props)
   }
@@ -84,13 +91,18 @@ export const SduiScreen = defineComponent({
       { immediate: true }
     )
     onBeforeUnmount(() => { unsubscribe?.(); screen.value?.destroy() })
+    // spec 2.3 — focus that a hidden component held moves to its nearest shown ancestor
+    const root = shallowRef<Element>()
+    let rescue = () => {}
+    onUpdated(() => rescue())
 
     return () => {
       void version.value
       const s = screen.value
       if (!s) return h('div')
+      rescue = holdFocus(root.value)
       const result = s.render({ interactive: props.interactive, slots: props.slots ? Object.keys(props.slots) : undefined })
-      return h('div', { 'data-sdui-screen': ScreenSource.identity(s.source) }, [
+      return h('div', { ref: root, 'data-sdui-screen': ScreenSource.identity(s.source) }, [
         ...result.nodes.map((n) => renderNodeVNode(n, s, props.slots)),
         ...result.overlays.map((n) => renderNodeVNode(n, s, props.slots))
       ])

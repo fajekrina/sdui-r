@@ -3,6 +3,7 @@
 import React from 'react'
 import type { RenderNode } from '../core/render-node'
 import type { ScreenController } from '../core/screen'
+import { playMotion } from '../core/motion'
 
 const ATTR_ALIASES: Record<string, string> = {
   novalidate: 'noValidate', class: 'className', for: 'htmlFor', minlength: 'minLength', maxlength: 'maxLength',
@@ -17,7 +18,8 @@ export function RenderNodeView({ node, screen, slots }: { node: RenderNode; scre
   if (node.slot && slots?.[node.slot.type]) {
     return <div style={node.style as React.CSSProperties} data-sdui-slot={node.slot.type}>{slots[node.slot.type]!(node.slot, node)}</div>
   }
-  const props: Record<string, unknown> = { style: node.style as React.CSSProperties }
+  // the key in the DOM as in vanilla: focus is kept / rescued by it (`holdFocus`)
+  const props: Record<string, unknown> = { style: node.style as React.CSSProperties, 'data-sdui-key': node.key }
   for (const [k, v] of Object.entries(node.attrs)) {
     if (k === 'value' && node.element !== 'option') continue
     if (k === 'style' || /^on/i.test(k)) continue   // styles via CSSOM only; no handlers from attrs
@@ -38,6 +40,8 @@ export function RenderNodeView({ node, screen, slots }: { node: RenderNode; scre
     }
   }
   if (node.element === 'form') props.onSubmit = (e: React.FormEvent) => e.preventDefault()
+  // spec 2.3 — called after commit, on every render while it animates (the delay keeps it in place)
+  if (node.motion) { const motion = node.motion; props.ref = (el: Element | null) => { if (el) playMotion(el, motion) } }
 
   const children = node.children.map((c) => <RenderNodeView key={c.key} node={c} screen={screen} slots={slots} />)
   if (node.element === 'input' || node.element === 'img' || node.element === 'hr' || node.element === 'textarea') {
