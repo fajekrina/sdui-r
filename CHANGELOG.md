@@ -5,6 +5,26 @@ versi mengikuti Semantic Versioning (0.x: breaking change boleh di minor dengan 
 
 ## [Unreleased]
 
+### Ditambah: spec 2.4 — chart interaktif (bar)
+
+- `SPEC_VERSION` 2.4 (hanya properti; client 2.3 menampilkan grafik statis). Chart `bar`: `selectState` (batang yang
+  diketuk menulis `$selected.<state>` = key item, atau indeksnya), `initialSelection` (`last` · `first` · `none` · key;
+  dihitung ulang terhadap data seperti `initial`), `selectedColor`, `tip` (`{{item.<field>}}` dari item terpilih,
+  markup tebal/miring, baris baru).
+- Posisi tip **dihitung** dari data (pusat / tepi batang dan puncaknya dalam persen), tidak diukur — sama di semua
+  engine; ruang di atas batang tertinggi disediakan. Tip bergeser ke batang baru (`Motion.from`, `MOVE_MS` 200 ms;
+  tidak saat render pertama, preview statis, atau reduced motion).
+- Tombol transparan per batang (target sentuh, bisa difokus, `aria-label` = label + `amount` / nilai, `aria-pressed`);
+  chart menjadi `role="group"`; tip `aria-live="polite"`. Mengetuk batang terpilih tetap memilihnya.
+- Hover mouse di web **mempratinjau** tip tanpa mengubah state: `RenderNode.on.hover` / `hoverEnd`,
+  `ScreenController.hover`; vanilla, React, dan Vue mengikat `pointerenter` / `pointerleave` (mouse saja). Vanilla
+  mengabaikan `pointerleave` dari node yang sudah dilepas (WebKit mengirimnya setelah repaint → loop render).
+- Studio: grup Choice pada chart — `tip` (daftar field item dari data / contoh data; mengisi `selectState` otomatis),
+  `selectState`, `initialSelection` (termasuk key item), `selectedColor`; state chart muncul di panel State;
+  peringatan untuk properti pilih di chart non-bar dan tip yang tidak pernah tampil.
+- Conformance: `chart_tip.json` Chromium ≡ WebKit, tip mengikuti batang di kedua engine, CSP ketat dengan animasi geser.
+- Core 28,9 KB / 30 KB.
+
 ### Diubah: budget ukuran core 28 → 30 KB
 
 - Keputusan 2026-11-19, untuk spec 2.4 (chart interaktif: pilih batang, tip bawaan, hover). Core saat ini 27,6 KB.

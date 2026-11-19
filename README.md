@@ -253,6 +253,10 @@ screen back into code.
   gets an upload button (the template's default picture).
   A text's value is a multi-line box with **B** / *I* buttons (spec 2.1 `markup`); picker
   options are a table; colors are theme tokens or hex.
+- Interactive bar chart (spec 2.4): in Choice, `tip` lists the picked item's fields
+  (`{{item.amount}}` …, from the static data or the source's sample) and turns on `selectState`;
+  `initialSelection` offers last / first / none and the item keys; `selectedColor`. Preview: tap a
+  bar (or hover with a mouse) to see the tip move.
 - Text typography (spec 2.3): `font` is picked from rounded · serif · mono plus the app's
   `catalog.fonts` (a name the app maps with `--sdui-font-<name>`, never CSS); `transform`,
   `letterSpacing`, `lineHeight` sit in Style.

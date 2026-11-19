@@ -275,6 +275,11 @@ halaman duplikat memberi lompatan, bukan animasi.
   Komponen yang keluar `inert` + `aria-hidden`; `holdFocus` memindahkan fokus ke leluhur yang masih tampil;
   `prefers-reduced-motion` dan preview statis tanpa animasi.
 
+**Spec 2.4 — chart interaktif.** Slot `action` chart adalah sumber datanya, jadi "ketuk batang" adalah properti
+(`selectState`, `initialSelection`, `selectedColor`, `tip`), bukan action, dan pilihan memakai state 2.3 (komponen
+lain bisa membacanya). Posisi tip dihitung core dari data dalam persen plot — tidak ada pengukuran DOM, sehingga
+Chromium, WebKit, dan native sepakat. Hover web hanyalah pratinjau (`on.hover` / `hoverEnd`), tidak menulis state.
+
 ### 4.4 Pipeline render
 
 ```mermaid

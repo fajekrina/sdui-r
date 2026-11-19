@@ -1,6 +1,6 @@
 # Rencana spec 2.4 — chart interaktif (tahap 1: bar)
 
-Status: **rencana, belum ada kode** · branch `feat/single-admin` · 2026-11-19 · budget core sudah 30 KB
+Status: **tahap 1 selesai** (fase 0–6) · branch `feat/single-admin` · 2026-11-19 · K1–K6 disetujui · core 28,9 / 30 KB
 
 Tujuan: di `insightV2`, mengetuk (atau di web: mengarahkan kursor ke) sebuah batang memunculkan tip **di atas
 batang itu**, berisi data batang itu (bulan + nominal), dengan animasi geser. Saat ini tip adalah komponen
