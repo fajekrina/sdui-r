@@ -27,6 +27,8 @@ import { parseMarkup } from '../markup'
 //   showKeys    bool — each item's key
 //   showValues  bool — each item's value (above the bar/point, or in the legend)
 //   showLegend  bool — pie/donut legend (default true)
+//   legendPosition  pie/donut: bottom (default) · top · right · left
+//   alignment   pie/donut: center (default) · leading · trailing — where the disc (and its legend) sit
 //   a11yLabel   the chart's accessible name (default: a generated summary)
 //   v2.4 (bar), v2.5 (every kind): selectState (a tapped bar / point / slice writes $selected.<state> = its
 //   item key), initialSelection (last · first · none · a key), selectedColor, tip ({{item.x}} of the picked
@@ -259,8 +261,15 @@ export class ChartComponent implements Component {
     const show = ChartComponent.shows(node)
     const pickable = !!pick?.state && ctx.interactive
     if (pick) svg = disc(key, node, ctx, slices, pick, svg, size, mids)
+    // where the legend goes (below by default) and how the whole sits in the chart's width (centered)
+    const position = (['bottom', 'top', 'right', 'left'] as const).find((p) => p === node.string('legendPosition')) ?? 'bottom'
+    const across = position === 'bottom' || position === 'top'
+    const place = ({ leading: 'flex-start', trailing: 'flex-end' } as Record<string, string>)[node.string('alignment')] ?? 'center'
     const legend = !show.legend ? [] : [renderNode(`${key}:legend`, 'ul', {
-      style: { margin: '0', padding: '0', display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '0' },
+      // above / below: entries side by side, wrapping; beside: one per line
+      style: { margin: '0', padding: '0', display: 'flex', minWidth: '0', ...(across
+        ? { flexDirection: 'row', flexWrap: 'wrap', justifyContent: place, columnGap: '12px', rowGap: '4px' }
+        : { flexDirection: 'column', gap: '4px' }) },
       children: slices.map((p, i) => legendItem(key, ctx, pick, p, i, pickable, [
           renderNode(`${key}:swatch${i}`, 'span', { style: { width: '10px', height: '10px', borderRadius: '2px', flex: '0 0 auto', background: (i === pick?.shown && pick.color) || ((p.color ? color(p.color) : undefined) ?? color(PALETTE[i % PALETTE.length]!)!) } }),
           ...(show.labels || !p.key ? [renderNode(`${key}:name${i}`, 'span', { text: p.label || '•', style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } })] : []),
@@ -273,7 +282,10 @@ export class ChartComponent implements Component {
       style: { position: 'absolute', width: '1px', height: '1px', overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' },
       children: slices.map((p, i) => pickButton(key, ctx, pick, p, i, {}, []))
     })] : []
-    return [renderNode(`${key}:row`, 'div', { style: { display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap', ...(hidden.length ? { position: 'relative' } : {}) }, children: [svg, ...legend, ...hidden] })]
+    const layout: Record<string, string> = across
+      ? { flexDirection: position === 'top' ? 'column-reverse' : 'column', alignItems: place, gap: '12px' }
+      : { flexDirection: position === 'left' ? 'row-reverse' : 'row', alignItems: 'center', justifyContent: place, gap: '16px', flexWrap: 'wrap' }
+    return [renderNode(`${key}:row`, 'div', { style: { display: 'flex', ...layout, ...(hidden.length ? { position: 'relative' } : {}) }, children: [svg, ...legend, ...hidden] })]
   }
 }
 
@@ -416,14 +428,13 @@ function disc(key: string, node: SduiNode, ctx: RenderContext, slices: Point[], 
   const shown = slices[pick.shown]
   const room = tipRoom(node, ctx, slices, Math.max(12, Math.floor(size / 7)))
   if (shown && node.string('tip')) {
-    // never beside the disc (it would leave a narrow card): above it for a slice in the upper half,
-    // below it otherwise, slid across toward the slice
+    // always above the disc (never beside it: it would leave a narrow card; never below: that room would
+    // sit between the disc and a legend below it), slid across toward the slice
     const a = mids[pick.shown]!
-    const at: Record<string, string> = Math.cos(a) >= 0 ? { bottom: `calc(100% - ${room}px + 4px)` } : { top: `calc(100% - ${room}px + 4px)` }
-    children.push(tipNode(key, node, ctx, shown, { ...across(50 + 50 * Math.sin(a)), ...at }))
+    children.push(tipNode(key, node, ctx, shown, { ...across(50 + 50 * Math.sin(a)), bottom: `calc(100% - ${room}px + 4px)` }))
   }
   return renderNode(`${key}:disc`, 'div', {
-    style: { position: 'relative', flex: '0 0 auto', width: `${size}px`, ...(room ? { padding: `${room}px 0` } : {}) },
+    style: { position: 'relative', flex: '0 0 auto', width: `${size}px`, ...(room ? { paddingTop: `${room}px` } : {}) },
     on: pick.state && ctx.interactive && ctx.env.sink.bindHover ? { hoverEnd: ctx.env.sink.bindHover(`h:${key}:end`, key, undefined) } : undefined,
     children
   })

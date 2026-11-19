@@ -492,6 +492,15 @@
           "type": "string",
           "maxLength": 4096,
           "description": "v2.4 / v2.5 — chart: a tip at the picked item (above a bar or point, outside a slice). {{item.<field>}} reads the picked item; other {{tokens}} the screen data; **bold** / *italic* and line breaks apply."
+        },
+        "legendPosition": {
+          "enum": [
+            "bottom",
+            "top",
+            "right",
+            "left"
+          ],
+          "description": "v2.5 — chart (pie / donut): where the legend goes; default bottom. `alignment` (center default · leading · trailing) places the disc and its legend in the chart's width."
         }
       }
     },

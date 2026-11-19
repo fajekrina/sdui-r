@@ -30,10 +30,11 @@ describe('a long tip', () => {
     expect(byKey(long, 'c:tip')!.style).toMatchObject({ maxWidth: '100%', zIndex: '10', overflowWrap: 'anywhere' })
   })
 
-  it('pie / donut: above or below the disc, never beside it', async () => {
+  it('pie / donut: above the disc, never beside or below it', async () => {
     const r = await root({ kind: 'donut', tip: '{{item.label}}', height: 120 })
     const tip = byKey(r, 'c:tip')!
-    expect(tip.style.top ?? tip.style.bottom).toMatch(/^calc\(100% - \d+px \+ 4px\)$/)
+    expect(tip.style.bottom).toMatch(/^calc\(100% - \d+px \+ 4px\)$/)
+    expect(tip.style.top).toBeUndefined()
     expect(tip.style.transform).toMatch(/^translateX\(-[\d.]+%\)$/)
   })
 })

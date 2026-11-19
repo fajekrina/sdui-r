@@ -21,6 +21,15 @@ versi mengikuti Semantic Versioning (0.x: breaking change boleh di minor dengan 
 - Conformance: `chart_tip_line.json` dan `chart_tip_pie.json` Chromium ≡ WebKit, ketukan di kedua engine; parity tiga
   renderer. Core 29,5 KB / 32 KB.
 
+### Diubah: tata letak pie / donut
+
+- Default baru: lingkaran **di tengah** dan legenda **di bawah** (entri berjajar, turun baris bila perlu). Sebelumnya:
+  rata kiri dengan legenda di kanan.
+- `legendPosition` (`bottom` · `top` · `right` · `left`) dan `alignment` (`center` · `leading` · `trailing`) untuk pie /
+  donut (spec 2.5); keduanya di inspector, hanya untuk pie / donut. Schema memeriksa `legendPosition`.
+- Tip pie / donut selalu di atas lingkaran (digeser ke arah irisannya): tidak ada ruang kosong antara lingkaran dan
+  legenda di bawahnya.
+
 ### Diperbaiki: tip chart terpotong, pie membingungkan, panel State untuk chart
 
 - Tip tidak pernah keluar dari kotak chart: `left: X%` + `translateX(-X%)` (titik X% milik tip berada di X% item),

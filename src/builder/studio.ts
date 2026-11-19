@@ -162,7 +162,9 @@ export const FIELDS: Record<string, Array<[string, FieldKind]>> = {
     ['color', 'color'], ['height', 'number'], ['min', 'number'], ['max', 'number'],
     ['showLabels', 'bool'], ['showKeys', 'bool'], ['showValues', 'bool'], ['showLegend', 'bool'],
     // spec 2.4 (bar): a tapped bar is picked; the tip above it reads {{item.x}}
-    ['tip', 'tip'], ['selectState', 'state'], ['initialSelection', 'pick'], ['selectedColor', 'color']]
+    ['tip', 'tip'], ['selectState', 'state'], ['initialSelection', 'pick'], ['selectedColor', 'color'],
+    // spec 2.5 (pie / donut): where the disc sits, where its legend goes
+    ['alignment', ['', 'center', 'leading', 'trailing']], ['legendPosition', ['', 'bottom', 'top', 'right', 'left']]]
 }
 
 /// The chart props a `kind` reads (others are kept but unused: the inspector hides them, and lists them
@@ -171,7 +173,10 @@ export const CHART_KINDS: Readonly<Record<string, readonly string[]>> = {
   color: ['bar', 'line', 'area'],
   min: ['bar', 'line', 'area'],
   max: ['bar', 'line', 'area'],
-  showLegend: ['pie', 'donut']
+  showLegend: ['pie', 'donut'],
+  legendPosition: ['pie', 'donut'],
+  // a bar / line / area always takes the full width
+  alignment: ['pie', 'donut']
   // spec 2.5: tip / selectState / initialSelection / selectedColor work on every kind
 }
 /// Does a chart of `kind` read prop `key`?

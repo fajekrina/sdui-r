@@ -53,8 +53,8 @@ describe('pie / donut', () => {
     expect(last.attrs.transform).toMatch(/^translate\(-[\d.]+ -[\d.]+\)$/)   // D ends at 12 o'clock: up-left
     expect(last.style.fill).toBe('rgba(217, 92, 92, 1)')
     expect(byKey(r, 'c:slice0')!.attrs.transform).toBeUndefined()
-    // room above and below the disc for the tip (never beside it: it would leave a narrow card)
-    expect(byKey(r, 'c:disc')!.style).toMatchObject({ position: 'relative', width: '160px', padding: '35px 0' })
+    // room above the disc for the tip (never beside it: a narrow card; never below: a gap above the legend)
+    expect(byKey(r, 'c:disc')!.style).toMatchObject({ position: 'relative', width: '160px', paddingTop: '35px' })
     const tip = byKey(r, 'c:tip')!
     expect(text(tip)).toBe('D Rp40')
     // D's middle is at 288° (upper half, far left): above the disc, slid to the left

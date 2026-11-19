@@ -316,6 +316,10 @@ all four: a static chart.
 | `line` · `area` | its column (button): the nearest point along x | a round 10 px marker (`selectedColor`, else the line color) — HTML, as the stretched SVG would squash a circle | above the point |
 | `pie` · `donut` | the slice, or its legend entry (a button; with `showLegend: false` the buttons stay, visually hidden) | the slice pulled out 4 along its middle (an SVG `transform` attribute), `selectedColor` when set | outside the slice along its middle, pushed away from the circle by its quadrant; the disc gets room around it |
 
+A pie / donut sits **centered** with its legend **below** by default: `alignment` (`center` · `leading` ·
+`trailing`) places it in the chart's width, `legendPosition` (`bottom` · `top` · `right` · `left`) moves the
+legend (above / below: entries side by side, wrapping; beside: one per line).
+
 The tip (and a point's marker) slides to a new pick; a pulled-out slice changes at once. A 2.4 client
 picks bars only (line / area / pie / donut are static).
 
