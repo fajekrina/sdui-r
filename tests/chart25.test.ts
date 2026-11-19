@@ -29,14 +29,14 @@ describe('line / area', () => {
     expect(marker.style).toMatchObject({ position: 'absolute', left: '87.5%', bottom: '96%', width: '10px', borderRadius: '50%', background: 'rgba(217, 92, 92, 1)' })
     const tip = byKey(r, 'c:tip')!
     expect(text(tip)).toBe('D Rp40')
-    // the last point: the tip ends at the point
-    expect(tip.style).toMatchObject({ left: '87.5%', transform: 'translateX(-100%)', bottom: 'calc(96% + 10px)' })
+    // its own 87.5% point over the point: it never leaves the chart
+    expect(tip.style).toMatchObject({ left: '87.5%', transform: 'translateX(-87.5%)', bottom: 'calc(96% + 10px)' })
     expect(byKey(r, 'c:hits')!.children).toHaveLength(4)
     await s.handle(byKey(r, 'c:hit1')!.on!.click!)
     r = root()
     expect(s.data.value('$selected.pick')).toBe('b')
     expect(byKey(r, 'c:marker')!.style.left).toBe('37.5%')
-    expect(byKey(r, 'c:tip')!.style).toMatchObject({ left: '37.5%', transform: 'translateX(-50%)' })
+    expect(byKey(r, 'c:tip')!.style).toMatchObject({ left: '37.5%', transform: 'translateX(-37.5%)' })
   })
 
   it('without selectedColor the marker takes the line color', async () => {
@@ -53,17 +53,18 @@ describe('pie / donut', () => {
     expect(last.attrs.transform).toMatch(/^translate\(-[\d.]+ -[\d.]+\)$/)   // D ends at 12 o'clock: up-left
     expect(last.style.fill).toBe('rgba(217, 92, 92, 1)')
     expect(byKey(r, 'c:slice0')!.attrs.transform).toBeUndefined()
-    // the disc has room around it for the tip
-    expect(byKey(r, 'c:disc')!.style).toMatchObject({ position: 'relative', width: '160px', height: '160px', margin: '35px' })
+    // room above and below the disc for the tip (never beside it: it would leave a narrow card)
+    expect(byKey(r, 'c:disc')!.style).toMatchObject({ position: 'relative', width: '160px', padding: '35px 0' })
     const tip = byKey(r, 'c:tip')!
     expect(text(tip)).toBe('D Rp40')
-    expect(tip.style.transform).toBe('translate(-100%, -100%)')              // D's middle is at 288°: upper left
+    // D's middle is at 288° (upper half, far left): above the disc, slid to the left
+    expect(tip.style).toMatchObject({ left: '2.45%', transform: 'translateX(-2.45%)', bottom: 'calc(100% - 35px + 4px)' })
     // tap a slice
     await s.handle(byKey(r, 'c:slice0')!.on!.click!)
     r = root()
     expect(s.data.value('$selected.pick')).toBe('a')
     expect(byKey(r, 'c:slice0')!.attrs.transform).toMatch(/^translate\([\d.]+ -[\d.]+\)$/)   // A: up-right
-    expect(byKey(r, 'c:tip')!.style.transform).toBe('translate(0%, -100%)') // top-right quadrant
+    expect(byKey(r, 'c:tip')!.style).toMatchObject({ left: '65.45%', bottom: 'calc(100% - 35px + 4px)' })   // A at 18°: above, right of center
   })
 
   it('legend entries are pick buttons (aria-pressed); a hover on a slice previews', async () => {

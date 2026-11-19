@@ -78,6 +78,9 @@ export type AssetSource = { file: Blob & { name?: string } } | { url: string }
 /// Picture types a maker may upload (no SVG: it can carry script).
 export const IMAGE_TYPES: readonly string[] = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
 
+/// the State panel's "(no pick)" for a chart: a value no item key has
+const NO_PICK = '∅'
+
 export interface StudioCatalog {
   screens?: readonly string[]
   /// what an `api` action sends (buttons and other components)
@@ -918,10 +921,15 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
   const paintState = () => {
     const names = stateNames(doc.root, doc.state)
     const current = canvasData().$selected as Record<string, string>
+    const charts = flatten(doc.root).map(([n]) => n).filter((n) => n.type === 'chart')
     const rows: Node[] = names.map((name) => {
       const declared = doc.state[name]
-      const values = [...new Set([...stateValues(doc.root, name), current[name] ?? ''])]
-      const value = selectOf(values, current[name] ?? '', (v) => v === '' ? '(empty)' : v)
+      // a chart's pick: its items' keys (static data or the source's sample), the initial pick, or none
+      const picker = charts.find((c) => c.string('selectState') === name)
+      const values = picker
+        ? ['', NO_PICK, ...new Set([...chartKeys(picker), ...stateValues(doc.root, name).filter(Boolean)])]
+        : [...new Set([...stateValues(doc.root, name), current[name] ?? ''])]
+      const value = selectOf(values, current[name] ?? '', (v) => v === '' ? (picker ? '(initial pick)' : '(empty)') : v === NO_PICK ? '(no pick)' : v)
       value.setAttribute('aria-label', `try ${name}`)
       value.addEventListener('change', () => { sim[name] = value.value; paint() })
       const initial = el('input', { class: 'ini', 'aria-label': `${name} initial`, placeholder: 'initial, e.g. {{insight.feedback}}', title: 'Initial value (tokens allowed): until a tap sets it' }) as HTMLInputElement
@@ -932,7 +940,9 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
       })
       const remove = declared ? [button('✕', () => { const next = { ...doc.state }; delete next[name]; delete sim[name]; doc.setScreenState(next) })] : []
       remove.forEach((b) => b.setAttribute('aria-label', `Remove state ${name}`))
-      return el('div', { class: 'srow' }, el('strong', {}, name), ...remove, el('label', {}, 'try', value), initial)
+      // a chart's pick starts from its initialSelection: no initial value here
+      const extra = picker && !declared ? [el('div', { class: 'tip' }, `picked by chart #${picker.id}`)] : [initial]
+      return el('div', { class: 'srow' }, el('strong', {}, name), ...remove, el('label', {}, 'try', value), ...extra)
     })
     const requests = requestNames(doc.root).map((name) => {
       const select = selectOf(REQUEST_VALUES, requestSim[name] ?? '', (v) => v === '' ? '(not sent)' : v)

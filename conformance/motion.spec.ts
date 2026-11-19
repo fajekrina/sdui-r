@@ -43,11 +43,14 @@ for (const name of [...new Set(PAIR)]) {
       const tip = page.locator('[data-sdui-key="spend:tip"]')
       await expect(tip).toHaveText(/Apr 2025\s*Rp1\.140\.000/)
       const bar = async (i: number) => (await page.locator(`[data-sdui-key="spend:bar${i}"]`).boundingBox())!
-      const right = async () => { const b = (await tip.boundingBox())!; return b.x + b.width }
-      // at the last bar the tip's right edge lines up with that bar's right edge
+      // at the last bar the tip stays inside the chart, over that bar, above it (polled: a repaint may
+      // replace the node while it is measured)
       const last = await bar(2)
-      expect(Math.abs((await right()) - (last.x + last.width))).toBeLessThanOrEqual(2)
-      expect((await tip.boundingBox())!.y + (await tip.boundingBox())!.height).toBeLessThanOrEqual(last.y)
+      const plot = (await page.locator('[data-sdui-key="spend:plot"]').boundingBox())!
+      await expect.poll(async () => {
+        const t = await tip.boundingBox()
+        return !!t && t.x + t.width <= plot.x + plot.width + 1 && t.x + t.width > last.x + last.width / 2 && t.y + t.height <= last.y
+      }, { timeout: 2000 }).toBe(true)
       await page.locator('[data-sdui-key="spend:hit1"]').click()
       await expect(tip).toHaveText(/Mar 2025\s*Rp950\.000/)
       expect(await tip.evaluate((el) => el.getAnimations().filter((a) => a.id === 'sdui-motion').length)).toBe(1)

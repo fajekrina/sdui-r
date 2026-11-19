@@ -41,10 +41,12 @@ export function stateValues(root: SduiNode, name: string): string[] {
   return [...out]
 }
 
-/// Requests the page's `api` actions send (the sources of `request` conditions).
+/// Requests the page's `api` actions send (the sources of `request` conditions). A chart's `api` action
+/// is its data source, loaded with the page — never sent by a tap, so it has no `$request` status.
 export function requestNames(root: SduiNode): string[] {
   const out = new Set<string>()
   walk(root, (n) => {
+    if (n.type === 'chart') return
     for (let a = n.action; a; a = a.onSuccess) if (a.type === 'api' && a.request) out.add(a.request)
     for (let a = n.action?.onError; a; a = a.onSuccess) if (a.type === 'api' && a.request) out.add(a.request)
   })
@@ -153,6 +155,11 @@ export function stateWarnings(root: SduiNode, declared: ScreenState = {}): strin
       if (missing.length && !initial?.includes('{{') && !sourced.has(p.name)) out.push(`${at}: no button sets ${p.name} to ${missing.map(shown).join(' or ')}`)
     }
     if (n.props.transition !== undefined && n.props.visibleWhen === undefined) out.push(`${at}: a transition animates visibleWhen changes; this component has none`)
+    // a pie / donut whose slices share one color: they cannot be told apart
+    if (n.type === 'chart' && ['pie', 'donut'].includes(n.string('kind')) && Array.isArray(n.props.data)) {
+      const colors = (n.props.data as unknown[]).map((d) => d && typeof d === 'object' ? (d as Record<string, unknown>).color : undefined)
+      if (colors.length > 1 && colors.every((c) => typeof c === 'string' && c === colors[0])) out.push(`${at}: every slice has the color ${colors[0]} — give them different colors (or none: the theme palette)`)
+    }
     // spec 2.4 / 2.5 — a tip needs an item to sit on (every kind can pick since 2.5)
     if (n.type === 'chart' && n.string('tip') && !n.string('selectState') && (!n.string('initialSelection') || n.string('initialSelection') === 'none')) {
       out.push(`${at}: the tip never shows — set selectState (a tap picks an item) or initialSelection`)

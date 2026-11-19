@@ -244,14 +244,16 @@ export class ChartComponent implements Component {
       const picked = i === pick?.shown && slices.length > 1
       const out: Record<string, string> = picked ? { transform: `translate(${num(4 * Math.sin(mids[i]!))} ${num(-4 * Math.cos(mids[i]!))})` } : {}
       return renderNode(`${key}:slice${i}`, 'path', {
-        attrs: { d, 'fill-rule': 'evenodd', 'data-index': i, ...out },
-        style: { fill: (i === pick?.shown && pick.color) || fill, ...(pick?.state && ctx.interactive ? { cursor: 'pointer' } : {}) },
+        attrs: { d, 'fill-rule': 'evenodd', 'data-index': i, 'vector-effect': 'non-scaling-stroke', ...out },
+        // a thin line in the background color between slices: same-colored slices stay apart
+        style: { fill: (i === pick?.shown && pick.color) || fill, stroke: 'var(--sdui-color-background, #FFFFFF)', strokeWidth: '1.5', ...(pick?.state && ctx.interactive ? { cursor: 'pointer' } : {}) },
         on: pick?.state && ctx.interactive ? pickOn(key, ctx, pick, p, i) : undefined
       })
     })
     let svg = renderNode(`${key}:svg`, 'svg', {
       attrs: { viewBox: '0 0 100 100', width: String(size), height: String(size), 'aria-hidden': 'true' },
-      style: { display: 'block', flex: '0 0 auto' },
+      // a picked slice is pulled out past the view box: let it show
+      style: { display: 'block', flex: '0 0 auto', overflow: 'visible' },
       children: shapes
     })
     const show = ChartComponent.shows(node)
@@ -260,7 +262,7 @@ export class ChartComponent implements Component {
     const legend = !show.legend ? [] : [renderNode(`${key}:legend`, 'ul', {
       style: { margin: '0', padding: '0', display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '0' },
       children: slices.map((p, i) => legendItem(key, ctx, pick, p, i, pickable, [
-          renderNode(`${key}:swatch${i}`, 'span', { style: { width: '10px', height: '10px', borderRadius: '2px', flex: '0 0 auto', background: (p.color ? color(p.color) : undefined) ?? color(PALETTE[i % PALETTE.length]!)! } }),
+          renderNode(`${key}:swatch${i}`, 'span', { style: { width: '10px', height: '10px', borderRadius: '2px', flex: '0 0 auto', background: (i === pick?.shown && pick.color) || ((p.color ? color(p.color) : undefined) ?? color(PALETTE[i % PALETTE.length]!)!) } }),
           ...(show.labels || !p.key ? [renderNode(`${key}:name${i}`, 'span', { text: p.label || '•', style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } })] : []),
           ...(show.keys && p.key ? [renderNode(`${key}:key${i}`, 'span', { text: p.key, style: { fontFamily: 'ui-monospace, monospace', fontSize: '11px', color: 'var(--sdui-color-muted, #6B7280)' } })] : []),
           ...(show.values ? [renderNode(`${key}:pct${i}`, 'span', { text: `${format(p.value)} · ${Math.round((p.value / total) * 100)}%`, style: { color: 'var(--sdui-color-muted, #6B7280)' } })] : [])
@@ -335,7 +337,7 @@ function tipNode(key: string, node: SduiNode, ctx: RenderContext, p: Point, plac
   const tip = renderNode(`${key}:tip`, 'div', {
     attrs: { 'aria-live': 'polite' },
     style: {
-      position: 'absolute', ...place, zIndex: '1', pointerEvents: 'none', width: 'max-content', maxWidth: '180px',
+      position: 'absolute', ...place, zIndex: '10', pointerEvents: 'none', width: 'max-content', maxWidth: '100%', boxSizing: 'border-box', overflowWrap: 'anywhere',
       padding: '6px 10px', borderRadius: '8px', background: 'var(--sdui-color-background, #FFFFFF)', color: 'var(--sdui-color-onSurface, #111827)',
       boxShadow: '0 2px 8px rgba(0,0,0,0.12)', fontSize: '12px', lineHeight: '1.4', whiteSpace: 'pre-wrap', textAlign: 'left'
     },
@@ -349,8 +351,23 @@ function tipNode(key: string, node: SduiNode, ctx: RenderContext, p: Point, plac
   return tip
 }
 
-/// The room a tip needs above (or around) what it points at.
-const tipRoom = (node: SduiNode) => { const t = node.string('tip'); return t ? t.split('\n').length * 17 + 18 : 0 }
+/// The room a tip needs: its tallest text over every item (so it does not jump when the pick changes),
+/// lines wrapped at `perLine` characters — an estimate (nothing is measured), on the generous side.
+function tipRoom(node: SduiNode, ctx: RenderContext, items: Point[], perLine: number): number {
+  const template = node.string('tip')
+  if (!template) return 0
+  const plain = template.replace(/\*+/g, '')
+  let lines = 1
+  for (const p of items) {
+    const text = ctx.child('tip', { item: p.item }).resolve(plain)
+    lines = Math.max(lines, text.split('\n').reduce((n, l) => n + Math.max(1, Math.ceil(l.length / perLine)), 0))
+  }
+  return lines * 17 + 18
+}
+
+/// `left: X%` + `translateX(-X%)`: the tip's own X% point sits at the item's X%, so it never leaves the
+/// box (as long as it is no wider than the box, which `maxWidth: 100%` ensures) and stays over its item.
+const across = (x: number) => ({ left: `${num(x)}%`, transform: `translateX(${num(-x)}%)` })
 
 /// bar / line / area: the plot — the drawing, a transparent full-height button per item (a bar, or the
 /// column of a point: the nearest one along x), a round marker on a picked point (line / area: HTML,
@@ -368,7 +385,6 @@ function plot(key: string, node: SduiNode, ctx: RenderContext, data: Point[], pi
   const shown = data[pick.shown]
   if (shown) {
     const i = pick.shown
-    const n = data.length
     const bar = kind === 'bar'
     const center = i * slot + slot / 2
     const pct = (v: number) => num(((VIEW - v) / VIEW) * 100)
@@ -386,15 +402,10 @@ function plot(key: string, node: SduiNode, ctx: RenderContext, data: Point[], pi
       if (moving) marker.motion = moving
       children.push(marker)
     }
-    if (node.string('tip')) {
-      // at the first / last item the tip lines up with that bar's outer edge, or starts / ends at the point
-      const left = n > 1 && i === 0 ? (bar ? i * slot + slot * 0.15 : center) : n > 1 && i === n - 1 ? (bar ? i * slot + slot * 0.85 : center) : center
-      const shift = n > 1 && i === 0 ? 0 : n > 1 && i === n - 1 ? -100 : -50
-      children.push(tipNode(key, node, ctx, shown, { left: `${num(left)}%`, bottom: `calc(${pct(top)}% + ${bar ? 6 : 10}px)`, transform: `translateX(${shift}%)` }))
-    }
+    if (node.string('tip')) children.push(tipNode(key, node, ctx, shown, { ...across(center), bottom: `calc(${pct(top)}% + ${bar ? 6 : 10}px)` }))
   }
   // room above the tallest item for the tip (it never covers what is above the chart)
-  const room = tipRoom(node)
+  const room = tipRoom(node, ctx, data, 30)
   return renderNode(`${key}:plot`, 'div', { style: { position: 'relative', ...(room ? { marginTop: `${room}px` } : {}) }, children })
 }
 
@@ -403,19 +414,16 @@ function plot(key: string, node: SduiNode, ctx: RenderContext, data: Point[], pi
 function disc(key: string, node: SduiNode, ctx: RenderContext, slices: Point[], pick: Pick, svg: RenderNode, size: number, mids: number[]): RenderNode {
   const children: RenderNode[] = [svg]
   const shown = slices[pick.shown]
-  const room = tipRoom(node)
+  const room = tipRoom(node, ctx, slices, Math.max(12, Math.floor(size / 7)))
   if (shown && node.string('tip')) {
+    // never beside the disc (it would leave a narrow card): above it for a slice in the upper half,
+    // below it otherwise, slid across toward the slice
     const a = mids[pick.shown]!
-    const sin = Math.sin(a)
-    const cos = Math.cos(a)
-    const x = num(50 + 52 * sin)
-    const yy = num(50 - 52 * cos)
-    const tx = sin > 0.3 ? 0 : sin < -0.3 ? -100 : -50
-    const ty = cos > 0.3 ? -100 : cos < -0.3 ? 0 : -50
-    children.push(tipNode(key, node, ctx, shown, { left: `${x}%`, top: `${yy}%`, transform: `translate(${tx}%, ${ty}%)` }))
+    const at: Record<string, string> = Math.cos(a) >= 0 ? { bottom: `calc(100% - ${room}px + 4px)` } : { top: `calc(100% - ${room}px + 4px)` }
+    children.push(tipNode(key, node, ctx, shown, { ...across(50 + 50 * Math.sin(a)), ...at }))
   }
   return renderNode(`${key}:disc`, 'div', {
-    style: { position: 'relative', flex: '0 0 auto', width: `${size}px`, height: `${size}px`, ...(room ? { margin: `${room}px` } : {}) },
+    style: { position: 'relative', flex: '0 0 auto', width: `${size}px`, ...(room ? { padding: `${room}px 0` } : {}) },
     on: pick.state && ctx.interactive && ctx.env.sink.bindHover ? { hoverEnd: ctx.env.sink.bindHover(`h:${key}:end`, key, undefined) } : undefined,
     children
   })

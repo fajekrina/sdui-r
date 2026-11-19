@@ -21,6 +21,20 @@ versi mengikuti Semantic Versioning (0.x: breaking change boleh di minor dengan 
 - Conformance: `chart_tip_line.json` dan `chart_tip_pie.json` Chromium ≡ WebKit, ketukan di kedua engine; parity tiga
   renderer. Core 29,5 KB / 32 KB.
 
+### Diperbaiki: tip chart terpotong, pie membingungkan, panel State untuk chart
+
+- Tip tidak pernah keluar dari kotak chart: `left: X%` + `translateX(-X%)` (titik X% milik tip berada di X% item),
+  `maxWidth: 100%`, teks panjang terbungkus. Container ber-`cornerRadius` memotong isinya (`overflow: hidden`), jadi
+  `z-index` saja tidak cukup; `z-index` tip tetap dinaikkan ke 10.
+- Ruang tip dihitung dari teks yang sudah terisi (termasuk baris terbungkus) untuk **semua** item — tidak meloncat saat
+  pilihan berganti.
+- pie / donut: tip di atas atau di bawah lingkaran (sisi terdekat irisannya), tidak di samping; garis pemisah tipis
+  berwarna latar antar-irisan; kotak warna legenda mengikuti `selectedColor`; irisan yang ditarik keluar tidak lagi
+  terpotong (`overflow: visible`). Studio memperingatkan pie / donut yang semua irisannya satu warna.
+- Panel State: state milik chart menawarkan key item (dari data statis atau contoh data sumbernya), "(initial pick)" dan
+  "(no pick)"; tanpa kolom `initial` ("picked by chart #id"). Sumber data chart tidak lagi didaftar sebagai request
+  (tidak pernah dikirim oleh tap). Baris panel dirapikan.
+
 ### Diubah: budget ukuran core 30 → 32 KB
 
 - Keputusan 2026-11-19, untuk spec 2.5 (pilih dan tip untuk line, area, pie, donut). Core saat ini 28,9 KB.

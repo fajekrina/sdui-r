@@ -35,8 +35,8 @@ describe('the pick and its tip', () => {
     expect(text(tip)).toBe('Apr 2025\nRp1.140.000')
     expect(tip.children[1]!.style.fontWeight).toBe('700')           // **bold** applies
     expect(tip.attrs['aria-live']).toBe('polite')
-    // the last bar: lined up with its outer edge (85% of its slot), shifted left by its own width
-    expect(tip.style).toMatchObject({ position: 'absolute', left: '95%', transform: 'translateX(-100%)' })
+    // over the last bar's center (83.33%), its own 83.33% point there: it never leaves the chart
+    expect(tip.style).toMatchObject({ position: 'absolute', left: '83.33%', transform: 'translateX(-83.33%)', maxWidth: '100%' })
     expect(tip.style.bottom).toMatch(/^calc\(9\d(\.\d+)?% \+ 6px\)$/)
     expect(byKey(root, 'spend')!.attrs.role).toBe('group')
     expect(byKey(root, 'spend:plot')!.style.marginTop).toBe('52px')   // 2 lines of room above the tallest bar
@@ -51,7 +51,7 @@ describe('the pick and its tip', () => {
     expect(s.data.value('$selected.spendBar')).toBe('feb')
     expect(text(byKey(root, 'picked'))).toBe('picked feb')
     expect(text(byKey(root, 'spend:tip'))).toBe('Feb 2025\nRp560.000')
-    expect(byKey(root, 'spend:tip')!.style).toMatchObject({ left: '5%', transform: 'translateX(0%)' })
+    expect(byKey(root, 'spend:tip')!.style).toMatchObject({ left: '16.67%', transform: 'translateX(-16.67%)' })
     expect(fills(root)[0]).toBe('rgba(217, 92, 92, 1)')
     expect(byKey(root, 'spend:hit0')!.attrs['aria-pressed']).toBe('true')
     expect(byKey(root, 'spend:hit2')!.attrs['aria-pressed']).toBe('false')
@@ -121,7 +121,7 @@ describe('the tip slides', () => {
     expect(byKey(root, 'spend:tip')!.motion).toBeUndefined()
     s.select({ group: 'spendBar', value: 'feb' })
     root = s.render().nodes[0]!
-    expect(byKey(root, 'spend:tip')!.motion).toMatchObject({ duration: MOVE_MS, elapsed: 0, from: { left: '95%', transform: 'translateX(-100%)' } })
+    expect(byKey(root, 'spend:tip')!.motion).toMatchObject({ duration: MOVE_MS, elapsed: 0, from: { left: '83.33%', transform: 'translateX(-83.33%)' } })
     clock += MOVE_MS + 1
     expect(byKey(s.render().nodes[0], 'spend:tip')!.motion).toBeUndefined()
     const calm = await screenOf(chart(), { now: () => clock, reducedMotion: () => true })
