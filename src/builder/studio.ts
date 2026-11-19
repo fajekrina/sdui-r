@@ -168,9 +168,8 @@ export const CHART_KINDS: Readonly<Record<string, readonly string[]>> = {
   color: ['bar', 'line', 'area'],
   min: ['bar', 'line', 'area'],
   max: ['bar', 'line', 'area'],
-  showLegend: ['pie', 'donut'],
-  // spec 2.4: picking a bar (other kinds: spec 2.5)
-  tip: ['bar'], selectState: ['bar'], initialSelection: ['bar'], selectedColor: ['bar']
+  showLegend: ['pie', 'donut']
+  // spec 2.5: tip / selectState / initialSelection / selectedColor work on every kind
 }
 /// Does a chart of `kind` read prop `key`?
 export function chartReads(kind: string, key: string): boolean {
@@ -717,7 +716,7 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
         const input = el('input', { list: listId('states'), 'aria-label': key, placeholder: 'state name' }) as HTMLInputElement
         input.value = typeof current === 'string' ? current : ''
         input.addEventListener('change', () => doc.setProp(id, key, input.value.trim() || undefined))
-        return el('label', {}, node.type === 'chart' ? `${key} (a tapped bar writes its key here)` : `${key} (a tap switches this state on / off)`, input)
+        return el('label', {}, node.type === 'chart' ? `${key} (a tapped item writes its key here)` : `${key} (a tap switches this state on / off)`, input)
       }
       // spec 2.4 — the chart's tip: {{item.x}} of the picked bar; picking one turns on selectState
       if (kind === 'tip') {

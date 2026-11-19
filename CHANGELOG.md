@@ -5,6 +5,26 @@ versi mengikuti Semantic Versioning (0.x: breaking change boleh di minor dengan 
 
 ## [Unreleased]
 
+### Ditambah: spec 2.5 — pilih dan tip untuk semua jenis chart
+
+- `SPEC_VERSION` 2.5. Properti 2.4 (`selectState`, `initialSelection`, `selectedColor`, `tip`) kini berlaku untuk
+  **line, area, pie, donut**, sehingga mengganti `kind` tidak perlu mengatur ulang. Client 2.4: hanya bar yang interaktif.
+- line / area: kolom per titik sebagai target sentuh (titik terdekat menurut x), **penanda bulat 10 px** (HTML, karena
+  SVG yang direntang akan memipihkan lingkaran) dengan `selectedColor` atau warna garis, tip di atas titik.
+- pie / donut: irisan bisa diketuk / di-hover; irisan terpilih **menonjol 4** searah sudut tengahnya (atribut
+  `transform`, CSP ketat aman) dan memakai `selectedColor` bila diisi; tip **di luar irisan**, digeser menurut kuadran,
+  dengan ruang di sekeliling lingkaran; entri legenda menjadi tombol (`aria-pressed`, tebal saat terpilih); tanpa
+  legenda tombolnya tetap ada tetapi tersembunyi secara visual.
+- Semua posisi dihitung dari data (persen), tidak diukur. Tip dan penanda bergeser; irisan berpindah seketika.
+- Studio: properti pilih tampil untuk semua jenis (`CHART_KINDS`); peringatan "only work on a bar chart" dihapus;
+  deskripsi menyebut batang / titik / irisan.
+- Conformance: `chart_tip_line.json` dan `chart_tip_pie.json` Chromium ≡ WebKit, ketukan di kedua engine; parity tiga
+  renderer. Core 29,5 KB / 32 KB.
+
+### Diubah: budget ukuran core 30 → 32 KB
+
+- Keputusan 2026-11-19, untuk spec 2.5 (pilih dan tip untuk line, area, pie, donut). Core saat ini 28,9 KB.
+
 ### Diubah: inspector chart mengikuti `kind`
 
 - Studio hanya menampilkan properti yang dibaca jenis chart itu (`CHART_KINDS`, `chartReads`): `color` / `min` / `max`

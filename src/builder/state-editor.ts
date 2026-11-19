@@ -100,7 +100,7 @@ export function describeStateProps(node: SduiNode): string[] {
   const kind = t && typeof t === 'object' && !Array.isArray(t) ? (t as { visible?: unknown }).visible : undefined
   if (node.props.visibleWhen !== undefined && (kind === 'fade' || kind === 'collapse')) out.push(`Appears / disappears with a ${kind}`)
   if (node.type === 'button' && node.string('toggle')) out.push(`A tap switches state ${node.string('toggle')} on / off`)
-  if (node.type === 'chart' && node.string('selectState')) out.push(`A tapped bar is picked (state ${node.string('selectState')})${node.string('tip') ? '; a tip above it shows its data' : ''}`)
+  if (node.type === 'chart' && node.string('selectState')) out.push(`A tapped ${({ pie: 'slice', donut: 'slice', line: 'point', area: 'point' } as Record<string, string>)[node.string('kind')] ?? 'bar'} is picked (state ${node.string('selectState')})${node.string('tip') ? '; a tip shows its data' : ''}`)
   return out
 }
 
@@ -153,12 +153,9 @@ export function stateWarnings(root: SduiNode, declared: ScreenState = {}): strin
       if (missing.length && !initial?.includes('{{') && !sourced.has(p.name)) out.push(`${at}: no button sets ${p.name} to ${missing.map(shown).join(' or ')}`)
     }
     if (n.props.transition !== undefined && n.props.visibleWhen === undefined) out.push(`${at}: a transition animates visibleWhen changes; this component has none`)
-    // spec 2.4 — the picking props work on a bar chart; a tip needs a bar to sit on
-    if (n.type === 'chart') {
-      const picks = ['tip', 'selectState', 'initialSelection', 'selectedColor'].filter((k) => n.props[k] !== undefined)
-      const kind = n.string('kind') || 'bar'
-      if (picks.length && kind !== 'bar') out.push(`${at}: ${picks.join(', ')} only work on a bar chart (this one is ${kind})`)
-      else if (n.string('tip') && !n.string('selectState') && (!n.string('initialSelection') || n.string('initialSelection') === 'none')) out.push(`${at}: the tip never shows — set selectState (a tap picks a bar) or initialSelection`)
+    // spec 2.4 / 2.5 — a tip needs an item to sit on (every kind can pick since 2.5)
+    if (n.type === 'chart' && n.string('tip') && !n.string('selectState') && (!n.string('initialSelection') || n.string('initialSelection') === 'none')) {
+      out.push(`${at}: the tip never shows — set selectState (a tap picks an item) or initialSelection`)
     }
   })
   for (const name of Object.keys(declared)) {

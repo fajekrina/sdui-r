@@ -25,14 +25,15 @@ describe('state-editor knows the chart', () => {
     ]))).toEqual([])
   })
 
-  it('warns: picking props on a non-bar chart; a tip that never shows', () => {
-    expect(stateWarnings(tree([{ type: 'chart', id: 'p', props: { kind: 'pie', data, tip: 'x' } }])).join()).toContain('only work on a bar chart (this one is pie)')
+  it('warns: a tip that never shows (spec 2.5: every kind may pick)', () => {
+    expect(stateWarnings(tree([{ type: 'chart', id: 'p', props: { kind: 'pie', data, tip: 'x', selectState: 's' } }]))).toEqual([])
     expect(stateWarnings(tree([{ type: 'chart', id: 'c', props: { data, tip: 'x' } }])).join()).toContain('the tip never shows')
     expect(stateWarnings(tree([{ type: 'chart', id: 'c', props: { data, tip: 'x', initialSelection: 'last' } }]))).toEqual([])
   })
 
   it('describeComponent', () => {
-    expect(describeComponent(SduiNode.decode({ type: 'chart', props: { selectState: 'bar', tip: 'x' } }))).toContain('A tapped bar is picked (state bar); a tip above it shows its data')
+    expect(describeComponent(SduiNode.decode({ type: 'chart', props: { selectState: 'bar', tip: 'x' } }))).toContain('A tapped bar is picked (state bar); a tip shows its data')
+    expect(describeComponent(SduiNode.decode({ type: 'chart', props: { kind: 'donut', selectState: 's' } }))).toContain('A tapped slice is picked (state s)')
   })
 })
 

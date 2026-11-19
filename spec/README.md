@@ -1,4 +1,4 @@
-# SDUI-R spec (v2.4)
+# SDUI-R spec (v2.5)
 
 The contract between the backend and `@fajekrina/sdui-r`. The machine-readable source
 of truth is [`sdui.schema.json`](./sdui.schema.json) (JSON Schema Draft 2020-12);
@@ -13,7 +13,8 @@ children, overlap, outlines, per-side padding, shadow, pin, button icons and cho
 [Layout and choices (v2.2)](#layout-and-choices-v22). **v2.3** adds screen state, state-bound props
 and transitions — no new components and no new action types, so a 2.2 client still renders a 2.3
 screen (see the table in [State and transitions (v2.3)](#state-and-transitions-v23)). **v2.4** makes
-the bar chart interactive — see [Interactive chart (v2.4)](#interactive-chart-v24).
+the bar chart interactive and **v2.5** every other chart kind — see
+[Interactive chart (v2.4, v2.5)](#interactive-chart-v24-v25).
 
 ## v2.0 — template + value set
 
@@ -282,9 +283,10 @@ once as `action_unsupported`; the screen still renders. The schema still rejects
 
 Symbols added: `eye`, `eye.slash`.
 
-### Interactive chart (v2.4)
+### Interactive chart (v2.4, v2.5)
 
-A bar chart's bars can be picked; a tip above the picked bar shows that item's data.
+A chart's items can be picked; a tip at the picked item shows its data. v2.4: `bar`; v2.5: every kind,
+with the same props (switching `kind` needs no new setup).
 
 ```json
 { "type": "chart", "id": "spend",
@@ -305,8 +307,17 @@ measured, so every engine puts it in the same spot; at the first and the last ba
 It moves to a newly picked bar with a short slide (none on the first render, in a static preview, or
 under `prefers-reduced-motion`). Each bar has a transparent button over it (the tap target, focusable,
 `aria-label` = label and `amount` or value, `aria-pressed`); the tip is `aria-live="polite"`. On the
-web, hovering a bar with a mouse **previews** its tip without changing the state. Only `bar` in v2.4;
-other kinds ignore these props. A 2.3 client ignores all four: a static chart.
+web, hovering a bar with a mouse **previews** its tip without changing the state. A 2.3 client ignores
+all four: a static chart.
+
+| Kind (v2.5) | Picked by | Marked by | Tip |
+| --- | --- | --- | --- |
+| `bar` | its column (button) | `selectedColor` | above the bar |
+| `line` · `area` | its column (button): the nearest point along x | a round 10 px marker (`selectedColor`, else the line color) — HTML, as the stretched SVG would squash a circle | above the point |
+| `pie` · `donut` | the slice, or its legend entry (a button; with `showLegend: false` the buttons stay, visually hidden) | the slice pulled out 4 along its middle (an SVG `transform` attribute), `selectedColor` when set | outside the slice along its middle, pushed away from the circle by its quadrant; the disc gets room around it |
+
+The tip (and a point's marker) slides to a new pick; a pulled-out slice changes at once. A 2.4 client
+picks bars only (line / area / pie / donut are static).
 
 ## Actions
 

@@ -1,0 +1,57 @@
+{
+  "schemaVersion": "2.5",
+  "screen": {
+    "key": "chartTipPie",
+    "root": {
+      "type": "vstack",
+      "id": "root",
+      "props": {
+        "alignment": "fill",
+        "padding": 24,
+        "spacing": 12
+      },
+      "children": [
+        {
+          "type": "chart",
+          "id": "spend",
+          "props": {
+            "kind": "donut",
+            "height": 140,
+            "data": [
+              {
+                "key": "feb",
+                "label": "Feb",
+                "value": 560000,
+                "amount": "Rp560.000"
+              },
+              {
+                "key": "mar",
+                "label": "Mar",
+                "value": 950000,
+                "amount": "Rp950.000"
+              },
+              {
+                "key": "apr",
+                "label": "Apr",
+                "value": 1140000,
+                "amount": "Rp1.140.000"
+              }
+            ],
+            "selectState": "spendPick",
+            "initialSelection": "last",
+            "selectedColor": "#D95C5C",
+            "tip": "{{item.label}}\n**{{item.amount}}**"
+          }
+        },
+        {
+          "type": "text",
+          "id": "picked",
+          "props": {
+            "value": "Dipilih: {{$selected.spendPick}}",
+            "size": 12
+          }
+        }
+      ]
+    }
+  }
+}

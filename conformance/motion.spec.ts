@@ -61,3 +61,27 @@ for (const name of [...new Set(PAIR)]) {
     }
   })
 }
+
+// spec 2.5 — the same pick on a line (marker) and a donut (slice pulled out, tip outside it)
+for (const name of [...new Set(PAIR)]) {
+  for (const [fixture, target, mark] of [['chart_tip_line.json', 'spend:hit0', 'spend:marker'], ['chart_tip_pie.json', 'spend:slice0', 'spend:slice0']] as const) {
+    test(`${fixture}: a tap picks in ${name}`, async ({ baseURL }) => {
+      const browser = await ENGINES[name]!.launch()
+      try {
+        const page = await browser.newPage({ viewport: { width: 375, height: 812 } })
+        await page.goto(`${baseURL}/conformance/index.html?fixture=${fixture}`)
+        await page.waitForFunction(() => (window as unknown as { __sduiReady?: boolean }).__sduiReady === true)
+        const tip = page.locator('[data-sdui-key="spend:tip"]')
+        await expect(tip).toHaveText(/Apr\s*Rp1\.140\.000/)
+        await page.locator(`[data-sdui-key="${target}"]`).click()
+        await expect(tip).toHaveText(/Feb\s*Rp560\.000/)
+        await expect(page.locator('[data-sdui-key="picked"]')).toHaveText('Dipilih: feb')
+        await expect(page.locator(`[data-sdui-key="${mark}"]`)).toHaveCount(1)
+        // the tip stays inside the page (polled: vanilla repaints once more when the slide ends)
+        await expect.poll(async () => { const b = await tip.boundingBox(); return b ? b.x >= 0 && b.x + b.width <= 375 : false }, { timeout: 2000 }).toBe(true)
+      } finally {
+        await browser.close()
+      }
+    })
+  }
+}

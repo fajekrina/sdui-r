@@ -28,8 +28,9 @@ import { parseMarkup } from '../markup'
 //   showValues  bool — each item's value (above the bar/point, or in the legend)
 //   showLegend  bool — pie/donut legend (default true)
 //   a11yLabel   the chart's accessible name (default: a generated summary)
-//   v2.4 (bar): selectState (a tapped bar writes $selected.<state> = its item key), initialSelection
-//   (last · first · none · a key), selectedColor, tip ({{item.x}} of the picked item, markup)
+//   v2.4 (bar), v2.5 (every kind): selectState (a tapped bar / point / slice writes $selected.<state> = its
+//   item key), initialSelection (last · first · none · a key), selectedColor, tip ({{item.x}} of the picked
+//   item, markup). line / area mark the point; pie / donut pull the slice out.
 
 type Kind = 'bar' | 'line' | 'area' | 'pie' | 'donut'
 interface Point { key: string; label: string; value: number; color?: string; item: Record<string, SduiValue> }
@@ -131,13 +132,13 @@ export class ChartComponent implements Component {
       })
     }
     // v2.4 — pickable bars are buttons inside: the chart is then a labelled group, not an image
-    const pickable = kind === 'bar' && IDENT.test(node.string('selectState')) && ctx.interactive
+    const pickable = IDENT.test(node.string('selectState')) && ctx.interactive
     const attrs = { role: pickable ? 'group' : 'img', 'aria-label': summary }
     return renderNode(key, 'div', {
       type: node.type,
       attrs,
       style: base,
-      children: kind === 'pie' || kind === 'donut' ? this.round(key, node, data, kind, height) : this.axes(key, node, data, kind, height, ctx)
+      children: kind === 'pie' || kind === 'donut' ? this.round(key, node, data, kind, height, ctx) : this.axes(key, node, data, kind, height, ctx)
     })
   }
 
@@ -150,7 +151,7 @@ export class ChartComponent implements Component {
     const y = (v: number) => VIEW - ((Math.max(lo, Math.min(hi, v)) - lo) / (hi - lo)) * (VIEW - 4)
     const slot = VIEW / data.length
     const fill = color(node.string('color')) ?? color('primary')!
-    const pick = kind === 'bar' ? picking(node, ctx, key, data) : undefined
+    const pick = picking(node, ctx, key, data)
     const shapes: RenderNode[] = []
     if (kind === 'bar') {
       data.forEach((p, i) => {
@@ -197,7 +198,7 @@ export class ChartComponent implements Component {
       style: { display: 'block', overflow: 'visible' },
       children: shapes
     })
-    out.push(pick ? plot(key, node, ctx, data, pick, svg, slot, y) : svg)
+    out.push(pick ? plot(key, node, ctx, data, pick, svg, slot, y, kind, fill) : svg)
     if (show.labels && data.some((p) => p.label)) {
       out.push(renderNode(`${key}:labels`, 'div', { style: { display: 'flex' }, children: data.map((p, i) => label(`${key}:l${i}`, p.label)) }))
     }
@@ -208,8 +209,10 @@ export class ChartComponent implements Component {
   }
 
   /// pie / donut: slices clockwise from 12 o'clock, a legend beside them.
-  private round(key: string, node: SduiNode, data: Point[], kind: Kind, size: number): RenderNode[] {
+  private round(key: string, node: SduiNode, data: Point[], kind: Kind, size: number, ctx: RenderContext): RenderNode[] {
     const slices = data.filter((p) => p.value > 0)
+    const pick = picking(node, ctx, key, slices)
+    const mids: number[] = []
     const total = slices.reduce((s, p) => s + p.value, 0)
     const r = 48
     const inner = kind === 'donut' ? 28 : 0
@@ -235,28 +238,40 @@ export class ChartComponent implements Component {
           d = `M50 50L${num(x1)} ${num(y1)}A${r} ${r} 0 ${large} 1 ${num(x2)} ${num(y2)}Z`
         }
       }
+      mids.push(angle + sweep / 2)
       angle += sweep
-      return renderNode(`${key}:slice${i}`, 'path', { attrs: { d, 'fill-rule': 'evenodd', 'data-index': i }, style: { fill } })
+      // v2.5 — the picked slice is pulled out 4 along its middle (an attribute: no CSS, strict CSP holds)
+      const picked = i === pick?.shown && slices.length > 1
+      const out: Record<string, string> = picked ? { transform: `translate(${num(4 * Math.sin(mids[i]!))} ${num(-4 * Math.cos(mids[i]!))})` } : {}
+      return renderNode(`${key}:slice${i}`, 'path', {
+        attrs: { d, 'fill-rule': 'evenodd', 'data-index': i, ...out },
+        style: { fill: (i === pick?.shown && pick.color) || fill, ...(pick?.state && ctx.interactive ? { cursor: 'pointer' } : {}) },
+        on: pick?.state && ctx.interactive ? pickOn(key, ctx, pick, p, i) : undefined
+      })
     })
-    const svg = renderNode(`${key}:svg`, 'svg', {
+    let svg = renderNode(`${key}:svg`, 'svg', {
       attrs: { viewBox: '0 0 100 100', width: String(size), height: String(size), 'aria-hidden': 'true' },
       style: { display: 'block', flex: '0 0 auto' },
       children: shapes
     })
     const show = ChartComponent.shows(node)
+    const pickable = !!pick?.state && ctx.interactive
+    if (pick) svg = disc(key, node, ctx, slices, pick, svg, size, mids)
     const legend = !show.legend ? [] : [renderNode(`${key}:legend`, 'ul', {
       style: { margin: '0', padding: '0', display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '0' },
-      children: slices.map((p, i) => renderNode(`${key}:item${i}`, 'li', {
-        style: { listStyle: 'none', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--sdui-color-onSurface, #111827)' },
-        children: [
+      children: slices.map((p, i) => legendItem(key, ctx, pick, p, i, pickable, [
           renderNode(`${key}:swatch${i}`, 'span', { style: { width: '10px', height: '10px', borderRadius: '2px', flex: '0 0 auto', background: (p.color ? color(p.color) : undefined) ?? color(PALETTE[i % PALETTE.length]!)! } }),
           ...(show.labels || !p.key ? [renderNode(`${key}:name${i}`, 'span', { text: p.label || '•', style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } })] : []),
           ...(show.keys && p.key ? [renderNode(`${key}:key${i}`, 'span', { text: p.key, style: { fontFamily: 'ui-monospace, monospace', fontSize: '11px', color: 'var(--sdui-color-muted, #6B7280)' } })] : []),
           ...(show.values ? [renderNode(`${key}:pct${i}`, 'span', { text: `${format(p.value)} · ${Math.round((p.value / total) * 100)}%`, style: { color: 'var(--sdui-color-muted, #6B7280)' } })] : [])
-        ]
-      }))
+        ]))
     })]
-    return [renderNode(`${key}:row`, 'div', { style: { display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }, children: [svg, ...legend] })]
+    // no legend: the slices still have keyboard / screen-reader buttons, visually hidden
+    const hidden = pickable && !show.legend && pick ? [renderNode(`${key}:picks`, 'div', {
+      style: { position: 'absolute', width: '1px', height: '1px', overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' },
+      children: slices.map((p, i) => pickButton(key, ctx, pick, p, i, {}, []))
+    })] : []
+    return [renderNode(`${key}:row`, 'div', { style: { display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap', ...(hidden.length ? { position: 'relative' } : {}) }, children: [svg, ...legend, ...hidden] })]
   }
 }
 
@@ -291,60 +306,127 @@ function picking(node: SduiNode, ctx: RenderContext, key: string, data: Point[])
   return { state, picked, shown: hovered >= 0 ? hovered : picked, color: color(node.string('selectedColor')) }
 }
 
-/// The plot: the bars, a transparent button over each (tap target; web hover previews), and the
-/// tip above the shown bar. The tip's place is computed from the data — the bar's center (or edge,
-/// at either end) and top as percentages of the plot — never measured: every engine agrees.
-function plot(key: string, node: SduiNode, ctx: RenderContext, data: Point[], pick: Pick, svg: RenderNode, slot: number, y: (v: number) => number): RenderNode {
-  const children: RenderNode[] = [svg]
+/// v2.5 — what a pick target does: a tap picks the item (state), a web mouse hover previews it.
+function pickOn(key: string, ctx: RenderContext, pick: Pick, p: Point, i: number): RenderNode['on'] {
   const sink = ctx.env.sink
+  return {
+    click: sink.bindAction(`a:${key}:pick${i}`, undefined, ctx.data, ctx.formId, { group: pick.state!, value: keyOf(p, i) }),
+    ...(sink.bindHover ? { hover: sink.bindHover(`h:${key}:${i}`, key, keyOf(p, i)) } : {})
+  }
+}
+
+/// A focusable pick target for item `i` (a bar / point column, a legend entry, a hidden slice button).
+function pickButton(key: string, ctx: RenderContext, pick: Pick, p: Point, i: number, style: Record<string, string>, children: RenderNode[]): RenderNode {
+  const amount = SduiValue.stringValue(p.item.amount)
+  return renderNode(`${key}:hit${i}`, 'button', {
+    attrs: { type: 'button', 'aria-label': `${p.label || keyOf(p, i)}, ${amount ?? format(p.value)}`, 'aria-pressed': String(i === pick.picked) },
+    // no UA button look (engines differ)
+    style: { margin: '0', padding: '0', border: '0', background: 'transparent', font: 'inherit', color: 'inherit', cursor: 'pointer', ...style },
+    on: pickOn(key, ctx, pick, p, i),
+    children
+  })
+}
+
+/// The tip of the shown item at `place` (computed from the data, never measured), sliding there.
+function tipNode(key: string, node: SduiNode, ctx: RenderContext, p: Point, place: Record<string, string>): RenderNode {
+  const template = node.string('tip')
+  const tipCtx = ctx.child('tip', { item: p.item })
+  const runs = template.includes('*') ? parseMarkup(template) : [{ text: template, bold: false, italic: false }]
+  const tip = renderNode(`${key}:tip`, 'div', {
+    attrs: { 'aria-live': 'polite' },
+    style: {
+      position: 'absolute', ...place, zIndex: '1', pointerEvents: 'none', width: 'max-content', maxWidth: '180px',
+      padding: '6px 10px', borderRadius: '8px', background: 'var(--sdui-color-background, #FFFFFF)', color: 'var(--sdui-color-onSurface, #111827)',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.12)', fontSize: '12px', lineHeight: '1.4', whiteSpace: 'pre-wrap', textAlign: 'left'
+    },
+    children: runs.map((r, j) => renderNode(`${key}:tip${j}`, 'span', {
+      style: { ...(r.bold ? { fontWeight: '700' } : {}), ...(r.italic ? { fontStyle: 'italic' } : {}) },
+      text: tipCtx.resolve(r.text)
+    }))
+  })
+  const motion = ctx.env.place?.(`${key}:tip`, place)
+  if (motion) tip.motion = motion
+  return tip
+}
+
+/// The room a tip needs above (or around) what it points at.
+const tipRoom = (node: SduiNode) => { const t = node.string('tip'); return t ? t.split('\n').length * 17 + 18 : 0 }
+
+/// bar / line / area: the plot — the drawing, a transparent full-height button per item (a bar, or the
+/// column of a point: the nearest one along x), a round marker on a picked point (line / area: HTML,
+/// as the stretched SVG would squash a circle), and the tip above the shown item. Every place is a
+/// percentage of the plot computed from the data — never measured, so every engine agrees.
+function plot(key: string, node: SduiNode, ctx: RenderContext, data: Point[], pick: Pick, svg: RenderNode, slot: number, y: (v: number) => number, kind: Kind, fill: string): RenderNode {
+  const children: RenderNode[] = [svg]
   if (pick.state && ctx.interactive) {
-    const state = pick.state
     children.push(renderNode(`${key}:hits`, 'div', {
       style: { position: 'absolute', inset: '0', display: 'flex' },
-      on: sink.bindHover ? { hoverEnd: sink.bindHover(`h:${key}:end`, key, undefined) } : undefined,
-      children: data.map((p, i) => {
-        const amount = SduiValue.stringValue(p.item.amount)
-        return renderNode(`${key}:hit${i}`, 'button', {
-          attrs: { type: 'button', 'aria-label': `${p.label || keyOf(p, i)}, ${amount ?? format(p.value)}`, 'aria-pressed': String(i === pick.picked) },
-          // no UA button look (engines differ): an invisible, full-height tap target
-          style: { flex: '1 1 0', minWidth: '0', height: '100%', margin: '0', padding: '0', border: '0', background: 'transparent', font: 'inherit', color: 'inherit', cursor: 'pointer' },
-          on: {
-            click: sink.bindAction(`a:${key}:bar${i}`, undefined, ctx.data, ctx.formId, { group: state, value: keyOf(p, i) }),
-            ...(sink.bindHover ? { hover: sink.bindHover(`h:${key}:${i}`, key, keyOf(p, i)) } : {})
-          }
-        })
-      })
+      on: ctx.env.sink.bindHover ? { hoverEnd: ctx.env.sink.bindHover(`h:${key}:end`, key, undefined) } : undefined,
+      children: data.map((p, i) => pickButton(key, ctx, pick, p, i, { flex: '1 1 0', minWidth: '0', height: '100%' }, []))
     }))
   }
-  const template = node.string('tip')
-  const lines = template ? template.split('\n').length : 0
   const shown = data[pick.shown]
-  if (template && shown) {
+  if (shown) {
     const i = pick.shown
     const n = data.length
-    // at the first / last bar the tip lines up with that bar's outer edge (never cut off)
-    const left = n > 1 && i === 0 ? i * slot + slot * 0.15 : n > 1 && i === n - 1 ? i * slot + slot * 0.85 : i * slot + slot / 2
-    const shift = n > 1 && i === 0 ? 0 : n > 1 && i === n - 1 ? -100 : -50
-    const top = Math.min(y(shown.value), y(0))
-    const place = { left: `${num(left)}%`, bottom: `calc(${num(((VIEW - top) / VIEW) * 100)}% + 6px)`, transform: `translateX(${shift}%)` }
-    const tipCtx = ctx.child('tip', { item: shown.item })
-    const runs = template.includes('*') ? parseMarkup(template) : [{ text: template, bold: false, italic: false }]
-    const tip = renderNode(`${key}:tip`, 'div', {
-      attrs: { 'aria-live': 'polite' },
-      style: {
-        position: 'absolute', ...place, zIndex: '1', pointerEvents: 'none', width: 'max-content', maxWidth: '60%',
-        padding: '6px 10px', borderRadius: '8px', background: 'var(--sdui-color-background, #FFFFFF)', color: 'var(--sdui-color-onSurface, #111827)',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.12)', fontSize: '12px', lineHeight: '1.4', whiteSpace: 'pre-wrap', textAlign: 'left'
-      },
-      children: runs.map((r, j) => renderNode(`${key}:tip${j}`, 'span', {
-        style: { ...(r.bold ? { fontWeight: '700' } : {}), ...(r.italic ? { fontStyle: 'italic' } : {}) },
-        text: tipCtx.resolve(r.text)
-      }))
-    })
-    const motion = ctx.env.place?.(`${key}:tip`, place)
-    if (motion) tip.motion = motion
-    children.push(tip)
+    const bar = kind === 'bar'
+    const center = i * slot + slot / 2
+    const pct = (v: number) => num(((VIEW - v) / VIEW) * 100)
+    // the point (line / area) or the bar's top (a negative bar: the zero line)
+    const top = bar ? Math.min(y(shown.value), y(0)) : y(shown.value)
+    if (!bar) {
+      const at = { left: `${num(center)}%`, bottom: `${pct(y(shown.value))}%` }
+      const marker = renderNode(`${key}:marker`, 'div', {
+        style: {
+          position: 'absolute', ...at, width: '10px', height: '10px', transform: 'translate(-50%, 50%)', borderRadius: '50%', boxSizing: 'border-box',
+          background: pick.color ?? fill, border: '2px solid var(--sdui-color-background, #FFFFFF)', boxShadow: '0 0 0 1px rgba(0,0,0,0.08)', pointerEvents: 'none', zIndex: '1'
+        }
+      })
+      const moving = ctx.env.place?.(`${key}:marker`, at)
+      if (moving) marker.motion = moving
+      children.push(marker)
+    }
+    if (node.string('tip')) {
+      // at the first / last item the tip lines up with that bar's outer edge, or starts / ends at the point
+      const left = n > 1 && i === 0 ? (bar ? i * slot + slot * 0.15 : center) : n > 1 && i === n - 1 ? (bar ? i * slot + slot * 0.85 : center) : center
+      const shift = n > 1 && i === 0 ? 0 : n > 1 && i === n - 1 ? -100 : -50
+      children.push(tipNode(key, node, ctx, shown, { left: `${num(left)}%`, bottom: `calc(${pct(top)}% + ${bar ? 6 : 10}px)`, transform: `translateX(${shift}%)` }))
+    }
   }
-  // room above the tallest bar for the tip (it never covers what is above the chart)
-  return renderNode(`${key}:plot`, 'div', { style: { position: 'relative', ...(lines ? { marginTop: `${lines * 17 + 18}px` } : {}) }, children })
+  // room above the tallest item for the tip (it never covers what is above the chart)
+  const room = tipRoom(node)
+  return renderNode(`${key}:plot`, 'div', { style: { position: 'relative', ...(room ? { marginTop: `${room}px` } : {}) }, children })
+}
+
+/// pie / donut: the disc with room around it for the tip, which sits outside the shown slice along its
+/// middle — pushed away from the circle by its quadrant (right of it on the right, above it at the top…).
+function disc(key: string, node: SduiNode, ctx: RenderContext, slices: Point[], pick: Pick, svg: RenderNode, size: number, mids: number[]): RenderNode {
+  const children: RenderNode[] = [svg]
+  const shown = slices[pick.shown]
+  const room = tipRoom(node)
+  if (shown && node.string('tip')) {
+    const a = mids[pick.shown]!
+    const sin = Math.sin(a)
+    const cos = Math.cos(a)
+    const x = num(50 + 52 * sin)
+    const yy = num(50 - 52 * cos)
+    const tx = sin > 0.3 ? 0 : sin < -0.3 ? -100 : -50
+    const ty = cos > 0.3 ? -100 : cos < -0.3 ? 0 : -50
+    children.push(tipNode(key, node, ctx, shown, { left: `${x}%`, top: `${yy}%`, transform: `translate(${tx}%, ${ty}%)` }))
+  }
+  return renderNode(`${key}:disc`, 'div', {
+    style: { position: 'relative', flex: '0 0 auto', width: `${size}px`, height: `${size}px`, ...(room ? { margin: `${room}px` } : {}) },
+    on: pick.state && ctx.interactive && ctx.env.sink.bindHover ? { hoverEnd: ctx.env.sink.bindHover(`h:${key}:end`, key, undefined) } : undefined,
+    children
+  })
+}
+
+/// A legend entry; a button when the slices can be picked.
+function legendItem(key: string, ctx: RenderContext, pick: Pick | undefined, p: Point, i: number, pickable: boolean, children: RenderNode[]): RenderNode {
+  const row = { display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--sdui-color-onSurface, #111827)' }
+  if (!pickable || !pick) return renderNode(`${key}:item${i}`, 'li', { style: { listStyle: 'none', ...row }, children })
+  return renderNode(`${key}:item${i}`, 'li', {
+    style: { listStyle: 'none' },
+    children: [pickButton(key, ctx, pick, p, i, { ...row, textAlign: 'left', ...(i === pick.picked ? { fontWeight: '600' } : {}) }, children)]
+  })
 }

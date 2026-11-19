@@ -9,7 +9,7 @@ const labels = (host: Element) => [...host.querySelectorAll('.insp label')].map(
 describe('chartReads', () => {
   it('per kind', () => {
     expect(chartReads('bar', 'tip')).toBe(true)
-    expect(chartReads('pie', 'tip')).toBe(false)
+    expect(chartReads('pie', 'tip')).toBe(true)             // spec 2.5: every kind picks
     expect(chartReads('line', 'min')).toBe(true)
     expect(chartReads('donut', 'min')).toBe(false)
     expect(chartReads('pie', 'showLegend')).toBe(true)
@@ -36,18 +36,19 @@ describe('the chart inspector', () => {
     expect(labels(host)).toContain('showLegend')
     expect(labels(host)).toContain('height (diameter)')
     const note = host.querySelector('.insp .unused')!
-    expect(note.textContent).toContain('Not used by a pie chart: color, min, tip, selectState')
-    expect(studio.document.selected!.props).toMatchObject({ min: 0, tip: '{{item.value}}' })   // kept
+    expect(note.textContent).toContain('Not used by a pie chart: color, min')
+    expect(labels(host).some((l) => l.startsWith('selectState'))).toBe(true)   // 2.5: a pie picks too
+    expect(studio.document.selected!.props).toMatchObject({ min: 0, color: 'danger' })   // kept
 
     studio.document.setProp(id, 'kind', 'bar')                    // switching back: they work again
     expect(host.querySelector('.insp .unused')).toBeNull()
     studio.document.setProp(id, 'kind', 'donut')
     ;(host.querySelector('.insp .unused button') as HTMLButtonElement).click()
-    expect(studio.document.selected!.props).not.toHaveProperty('tip')
+    expect(studio.document.selected!.props).not.toHaveProperty('color')
     expect(studio.document.selected!.props).not.toHaveProperty('min')
-    expect(studio.document.selected!.props).toMatchObject({ kind: 'donut', data: [1, 2] })
+    expect(studio.document.selected!.props).toMatchObject({ kind: 'donut', data: [1, 2], tip: '{{item.value}}' })
     studio.document.undo()                                          // one undo step brings them back
-    expect(studio.document.selected!.props).toMatchObject({ tip: '{{item.value}}', min: 0 })
+    expect(studio.document.selected!.props).toMatchObject({ color: 'danger', min: 0 })
     studio.destroy()
     host.remove()
   })

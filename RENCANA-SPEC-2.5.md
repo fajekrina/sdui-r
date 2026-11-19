@@ -1,6 +1,6 @@
 # Rencana spec 2.5 — pilih & tip untuk semua jenis chart
 
-Status: **rencana, belum ada kode** · branch `feat/single-admin` · 2026-11-19 · lanjutan
+Status: **selesai** (fase 0–5) · branch `feat/single-admin` · 2026-11-19 · K1–K6 disetujui · core 29,5 / 32 KB · lanjutan
 [RENCANA-SPEC-2.4](./RENCANA-SPEC-2.4.md)
 
 Spec 2.4 membuat **bar** bisa dipilih dan punya tip yang mengikuti batang. Di 2.5, **line, area, pie, dan donut**
