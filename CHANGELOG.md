@@ -57,6 +57,25 @@ versi mengikuti Semantic Versioning (0.x: breaking change boleh di minor dengan 
 - `RenderContext.layout` (`column` · `row` · `block`): bagaimana induk menata anaknya.
 - Budget core 27,2 / 28 KB.
 
+### Ditambah: spec 2.3 (tahap 1, Studio) — state, kondisi, simulasi, Preview hidup
+
+- Inspector: grup **State** — editor kondisi (`visibleWhen` di semua komponen, `disabledWhen` di button dan
+  field, `maskedWhen` di text): state atau request → operator → nilai, dipilih dari nilai yang bisa diberikan
+  tombol halaman (tidak diketik); `transition` (none · fade · collapse). `toggle` di grup Choice.
+- Panel **State** (kolom kiri): state halaman (dideklarasikan + grup / toggle tombol), `initial`, tambah / hapus,
+  dan **try** — nilai simulasi state dan hasil request untuk kanvas. Komponen yang tersembunyi diberi ◐ dan pudar
+  di Outline; yang dipilih tetap digambar samar di kanvas (`data-sdui-hidden`, opsi core `reveal`).
+- **Preview** kini menjalankan halaman dengan engine client (tap, `$request`, animasi); request dijawab sesuai
+  pilihan try (berhasil ±0,6 dtk · error · pending).
+- `stateWarnings`: kondisi yang tidak bisa diubah tombol mana pun, state yang tidak pernah ditulis (untuk
+  `maskedWhen`: saldo tidak bisa dibuka), request yang tidak dikirim, transition tanpa visibleWhen, state yang tidak
+  dipakai, kondisi yang tidak terbaca. `describeComponent` menjelaskan kondisi, transition, toggle.
+- API builder baru: `stateNames`, `stateValues`, `requestNames`, `conditionParts` / `conditionOf`,
+  `describeCondition`, `describeStateProps`, `simulatedState`, `conditionEditor`.
+- Service: `SpecContract` menerima 2.3 sejak tahap 1 (bentuk kondisi diperiksa schema; 422 untuk yang salah).
+- Dokumen: `spec/README.md` (State and transitions), `README.md`, `DESAIN-ARSITEKTUR-SDUI.md`, dan manual editor
+  (5.4 Interaksi tanpa kode + peringatan baru).
+
 ### Diperbaiki
 
 - Gambar tanpa `width` di dalam flex column (`vstack`, `card`, `form`) kini `width: auto; max-width: 100%;

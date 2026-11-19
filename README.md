@@ -247,12 +247,19 @@ screen back into code.
   from the app's allow-lists — URLs never enter a payload.
 - Save/Publish report `Saved ✔` / `Save failed: …` in the toolbar.
 
-- The inspector groups the props (Content · Field · Data · Choice · Layout · Style · Accessibility).
+- The inspector groups the props (Content · Field · Data · Choice · State · Layout · Style · Accessibility).
   Spec 2.2 props (fill, overlap, outline, per-side padding, shadow, pin, button icons and choices)
   have fields; `systemName` suggests the built-in symbols; with `uploadAsset` an image's `name`
   gets an upload button (the template's default picture).
   A text's value is a multi-line box with **B** / *I* buttons (spec 2.1 `markup`); picker
   options are a table; colors are theme tokens or hex.
+- Spec 2.3 interactions without scripts: the **State** group picks `visibleWhen` / `disabledWhen` /
+  `maskedWhen` (state or request → operator → value) and `transition` (fade · collapse); a button's
+  `toggle` sits in Choice. The **State** panel (left column) declares states with their `initial`
+  value and **try**s values (and request results) on the canvas; a component hidden by them is
+  marked ◐ in the outline and, when selected, drawn dimmed. **Preview** runs the page with the
+  client engine (taps, `$request`, animations; requests answered as tried). `stateWarnings` reports
+  conditions no button can change, states nothing writes, unknown requests, unused states.
 - The action section follows what the component does with an action (`ComponentInfo.action`):
   **Interaction** for a button (or a custom component), **Data source** for a chart (an `api`
   request only), nothing for other built-ins (a leftover action is shown only to remove it).

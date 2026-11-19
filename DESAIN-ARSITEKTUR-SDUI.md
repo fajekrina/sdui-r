@@ -255,6 +255,26 @@ Konsekuensi:
 - Tipe asing → descriptor Null-Object (tidak render; marker hanya di development), sama seperti 0.2.0.
 - Keamanan: `text` dirender sebagai teks, `attrs` hanya dari daftar atribut yang diizinkan descriptor (tidak ada `on*`, `style` string, atau `innerHTML`).
 
+**Spec 2.3 — state, kondisi, animasi (tanpa script).** Interaksi di dalam satu halaman (pilih satu → yang lain
+hilang, saldo disamarkan, banner ditutup) dibuat deklaratif, bukan dengan JS dari server dan bukan dengan
+duplikat halaman: JS tidak jalan di client native dan payload yang ditandatangani tidak boleh membawa kode;
+halaman duplikat memberi lompatan, bukan animasi.
+
+- *State* = `$selected.<nama>` di data layar (tempat grup pilihan 2.2 menulis), `template.state` memberi nilai
+  awal (`initial`, boleh token → wadah persistensi lewat backend). Diubah oleh **properti tombol** (`group` /
+  `value`, `toggle`), bukan action type baru: `ActionType` tertutup, dan client 2.2 yang bertemu type baru gagal
+  menampilkan seluruh layar. `$request.<request>` diisi engine untuk setiap `api`.
+- *Kondisi*: satu sumber + satu operator per properti (`visibleWhen`, `disabledWhen`, `maskedWhen`). Schema (CI +
+  backend) ketat soal bentuknya; client lunak — kondisi yang tidak bisa dievaluasi memakai fallback aman per
+  properti (tampil / aktif / tetap disamarkan), supaya operator dari minor berikutnya tidak menjatuhkan layar.
+  Sejalan dengan itu (K5), action type yang tidak dikenal dilewati saat decode dan dilaporkan
+  (`action_unsupported`), tidak lagi fatal.
+- *Animasi*: core yang memutuskan dan mengatur waktu (`RenderNode.motion`: jenis, sumbu, arah, waktu berjalan);
+  adapter memutarnya generik dengan `playMotion` (Web Animations API — tanpa stylesheet, CSP ketat tetap aman).
+  Delay negatif = waktu yang sudah berjalan, sehingga adapter yang membangun ulang DOM (vanilla) tetap mulus.
+  Komponen yang keluar `inert` + `aria-hidden`; `holdFocus` memindahkan fokus ke leluhur yang masih tampil;
+  `prefers-reduced-motion` dan preview statis tanpa animasi.
+
 ### 4.4 Pipeline render
 
 ```mermaid
