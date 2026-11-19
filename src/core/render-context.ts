@@ -7,9 +7,11 @@ import type { SduiNode } from './node'
 import type { SduiValue } from './value'
 import type { UiState } from './ui-store'
 import type { FieldRule } from './patterns'
+import { evaluate } from './condition'
 
 /// spec 2.2 — a choice: tapping a button with `group` selects its `value` in that group.
-export interface Selection { group: string; value: string }
+/// spec 2.3 — `toggle`: the tap flips state `group` between "on" and "" instead.
+export interface Selection { group: string; value: string; toggle?: boolean }
 
 /// What the render pass reports back to the screen controller.
 export interface RenderSink {
@@ -77,6 +79,8 @@ export class RenderContext {
   /// A type the adapter claims as a slot wins over a built-in of that name (an app may
   /// draw `chart` with its own toolkit instead of the built-in SVG chart).
   view(node: SduiNode): RenderNode | null {
+    // spec 2.3 — hidden while `visibleWhen` does not hold (unreadable → shown)
+    if (this.when(node, 'visibleWhen') === false) return null
     const component = this.env.slots.has(node.type) ? undefined : this.env.factory.component(node.type)
     if (component) return component.makeView(node, this)
     if (this.env.slots.has(node.type)) {
@@ -116,6 +120,23 @@ export class RenderContext {
   selected(group: string): string | undefined {
     const v = this.data.value(`$selected.${group}`)
     return typeof v === 'string' ? v : undefined
+  }
+
+  /// spec 2.3 — a state-bound prop: `undefined` when absent, `null` when it cannot be evaluated
+  when(node: SduiNode, prop: 'visibleWhen' | 'disabledWhen' | 'maskedWhen'): boolean | null | undefined {
+    const raw = node.props[prop]
+    return raw === undefined ? undefined : evaluate(raw, (k) => this.data.value(k))
+  }
+
+  /// spec 2.3 — `disabledWhen` holds (unreadable → enabled)
+  disabled(node: SduiNode): boolean {
+    return this.when(node, 'disabledWhen') === true
+  }
+
+  /// spec 2.3 — `maskedWhen` holds, or is present but unreadable (fail closed)
+  masked(node: SduiNode): boolean {
+    const m = this.when(node, 'maskedWhen')
+    return m === true || m === null
   }
 
   handlerKey(node: SduiNode): string {

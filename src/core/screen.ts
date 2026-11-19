@@ -60,11 +60,13 @@ export class ScreenController {
   /// a newer screen found while the user was mid-interaction (applied later)
   private pendingUpdate?: ScreenSpec
   private readonly timers = new Set<ReturnType<typeof setTimeout>>()
+  /// spec 2.3 — states set by a tap; the others follow their `initial`
+  private readonly setStates = new Set<string>()
 
   constructor(readonly engine: SduiEngine, readonly source: ScreenSource, seed: Record<string, SduiValue> = {}) {
     this.data = new DataContext(seed)
     this.ui = createUiStore()
-    this.unsubscribers.push(this.data.subscribe(() => this.changed()))
+    this.unsubscribers.push(this.data.subscribe(() => { this.syncInitial(); this.changed() }))
     this.unsubscribers.push(this.ui.subscribe(() => this.changed()))
     const viewport = engine.viewport?.subscribe?.(() => this.changed())
     if (viewport) this.unsubscribers.push(viewport)
@@ -115,6 +117,7 @@ export class ScreenController {
     if (token !== this.loadToken) return next
     this.pendingUpdate = undefined
     this.state = next
+    if (next.kind === 'loaded') this.loaded(next.screen)
     this.changed()
     if (next.kind === 'loaded' && next.screen.load.length > 0) void this.runLoads(next.screen.load, token)
     return next
@@ -125,10 +128,39 @@ export class ScreenController {
     const previous = this.state.kind === 'loaded' ? this.state.screen : undefined
     this.pendingUpdate = undefined
     this.state = { kind: 'loaded', screen, origin: 'network' }
+    this.loaded(screen)
     this.changed()
     if (screen.load.length > 0 && JSON.stringify(screen.load) !== JSON.stringify(previous?.load ?? [])) {
       void this.runLoads(screen.load, token)
     }
+  }
+
+  /// A screen became current: report actions this client cannot run (a later minor's type —
+  /// decoded leniently and skipped) and give its states their initial values.
+  private loaded(screen: ScreenSpec): void {
+    const seen = new Set<string>()
+    const report = (types: readonly string[] = []) => types.forEach((action) => {
+      if (!seen.has(action)) { seen.add(action); this.engine.emit({ type: 'action_unsupported', action }) }
+    })
+    const chain = (a?: ActionSpec): void => { if (a) { report(a.skipped); chain(a.onSuccess); chain(a.onError) } }
+    const walk = (n: SduiNode): void => { report(n.skippedAction); chain(n.action); n.children.forEach(walk) }
+    ;[screen.root, screen.variants.compact, screen.variants.wide].forEach((n) => n && walk(n))
+    this.syncInitial()
+  }
+
+  /// spec 2.3 — a declared state not yet set by a tap is its `initial`, re-resolved against the
+  /// data, so a value the backend returns in a `load` result lands in `$selected` when it arrives.
+  private syncInitial(): void {
+    if (this.state.kind !== 'loaded') return
+    const current = SduiValue.objectValue(this.data.get('$selected')) ?? {}
+    const next: Record<string, SduiValue> = { ...current }
+    let changed = false
+    for (const [name, decl] of Object.entries(this.state.screen.state)) {
+      if (this.setStates.has(name)) continue
+      const value = this.data.resolve(decl.initial ?? '')
+      if ((current[name] ?? '') !== value) { next[name] = value; changed = true }
+    }
+    if (changed) this.data.merge({ $selected: next })
   }
 
   /// A deferred newer layout is waiting (a form was dirty or an action ran).
@@ -308,8 +340,11 @@ export class ScreenController {
 
   /// spec 2.2 — select `value` in the choice `group`: `$selected.<group>` in the screen data
   /// (buttons of the group show it; actions read it as `{{$selected.<group>}}`).
-  select({ group, value }: Selection): void {
+  /// spec 2.3 — a toggle flips the state between "on" and "".
+  select({ group, value, toggle }: Selection): void {
     const current = SduiValue.objectValue(this.data.get('$selected')) ?? {}
+    this.setStates.add(group)
+    if (toggle) value = current[group] === 'on' ? '' : 'on'
     if (current[group] === value) return
     this.data.merge({ $selected: { ...current, [group]: value } })
     this.engine.emit({ type: 'choice_selected', group, value })
@@ -329,6 +364,10 @@ export class ScreenController {
       host: dispatcher.host,
       toast: (message, level) => this.ui.showToast(message, level),
       refresh: () => { void this.load() },
+      // spec 2.3 — `$request.<request>`: pending → success · error, in the screen data
+      requestStatus: (request, status) => {
+        this.data.merge({ $request: { ...(SduiValue.objectValue(this.data.get('$request')) ?? {}), [request]: status } })
+      },
       emit: (event) => this.engine.emit(event)
     }
     return dispatcher.dispatch(action, context)

@@ -30,6 +30,7 @@ export interface ActionSpecInit {
   params?: SduiProps
   onSuccess?: ActionSpec
   onError?: ActionSpec
+  skipped?: string[]
 }
 
 /// The *data* form of an action; the dispatcher turns it into behavior. Targets
@@ -49,16 +50,20 @@ export class ActionSpec {
   readonly params?: SduiProps
   readonly onSuccess?: ActionSpec
   readonly onError?: ActionSpec
+  /// spec 2.3 (K5) — the types of an `onSuccess` / `onError` step this client does not know:
+  /// dropped at decode (with what follows them), reported as `action_unsupported`
+  readonly skipped?: string[]
 
   constructor(init: ActionSpecInit) {
     this.type = init.type
-    for (const key of ['screen', 'presentation', 'request', 'link', 'message', 'level', 'command', 'params', 'onSuccess', 'onError'] as const) {
+    for (const key of ['screen', 'presentation', 'request', 'link', 'message', 'level', 'command', 'params', 'onSuccess', 'onError', 'skipped'] as const) {
       if (init[key] !== undefined) (this as Record<string, unknown>)[key] = init[key]
     }
   }
 
   /// Structural decode. An unknown `type`, `presentation`, or `level` is rejected
-  /// (closed vocabularies); unknown keys are ignored.
+  /// (closed vocabularies); unknown keys are ignored. Steps of the chain are decoded with
+  /// `decodeStep`: a step of an unknown type is skipped, not an error (spec 2.3, K5).
   static decode(raw: unknown, path = 'action'): ActionSpec {
     if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) throw SduiError.decode(`${path}: expected an object`)
     const o = raw as Record<string, unknown>
@@ -67,6 +72,9 @@ export class ActionSpec {
     if (presentation !== undefined && !PRESENTATIONS.includes(presentation)) throw SduiError.decode(`${path}.presentation: unknown value ${JSON.stringify(presentation)}`)
     const level = optionalString(o.level, `${path}.level`)
     if (level !== undefined && !LEVELS.includes(level)) throw SduiError.decode(`${path}.level: unknown value ${JSON.stringify(level)}`)
+    const onSuccess = ActionSpec.decodeStep(o.onSuccess, `${path}.onSuccess`)
+    const onError = ActionSpec.decodeStep(o.onError, `${path}.onError`)
+    const skipped = [onSuccess, onError].filter((s): s is string => typeof s === 'string')
     return new ActionSpec({
       type: o.type,
       screen: optionalString(o.screen, `${path}.screen`),
@@ -77,9 +85,20 @@ export class ActionSpec {
       level: level as ToastLevel | undefined,
       command: optionalString(o.command, `${path}.command`),
       params: o.params == null ? undefined : SduiValue.decodeObject(o.params, `${path}.params`),
-      onSuccess: o.onSuccess == null ? undefined : ActionSpec.decode(o.onSuccess, `${path}.onSuccess`),
-      onError: o.onError == null ? undefined : ActionSpec.decode(o.onError, `${path}.onError`)
+      onSuccess: onSuccess instanceof ActionSpec ? onSuccess : undefined,
+      onError: onError instanceof ActionSpec ? onError : undefined,
+      skipped: skipped.length > 0 ? skipped : undefined
     })
+  }
+
+  /// spec 2.3 (K5) — a node's action or a chain step as a client renders it: an action of a
+  /// type this client does not know (a later minor's) answers its type string instead of
+  /// failing the screen — the caller drops it. The schema (CI + backend) still rejects it.
+  static decodeStep(raw: unknown, path: string): ActionSpec | string | undefined {
+    if (raw == null) return undefined
+    const type = (raw as { type?: unknown }).type
+    if (typeof raw === 'object' && !Array.isArray(raw) && typeof type === 'string' && !ActionType.is(type)) return type
+    return ActionSpec.decode(raw, path)
   }
 
   toJSON(): Record<string, unknown> {

@@ -32,6 +32,9 @@ const glyphs = new Map<string, Glyph>([
   ['arrow.left', 'M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20z'],
   ['hand.thumbsup', { stroke: 'M13.5 11H17Q19 11 19 13V18Q19 20 17 20H7Q5 20 5 18V14.5Q5 13 6.2 12.2L9.3 10L10.6 5.6Q11.2 4 12.6 4.4Q14.2 5 13.9 7Z' }],
   ['hand.thumbsdown', { stroke: 'M10.5 13H7Q5 13 5 11V6Q5 4 7 4H17Q19 4 19 6V9.5Q19 11 17.8 11.8L14.7 14L13.4 18.4Q12.8 20 11.4 19.6Q9.8 19 10.1 17Z' }],
+  // spec 2.3 — a balance behind an eye button (`toggle`)
+  ['eye', { stroke: 'M2 12Q7 5 12 5T22 12Q17 19 12 19T2 12ZM12 9A3 3 0 1 0 12 15A3 3 0 1 0 12 9Z' }],
+  ['eye.slash', { stroke: 'M2 12Q7 5 12 5T22 12Q17 19 12 19T2 12ZM12 9A3 3 0 1 0 12 15A3 3 0 1 0 12 9ZM4 4L20 20' }],
   ['info.circle', 'M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z']
 ])
 

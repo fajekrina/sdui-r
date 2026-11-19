@@ -19,7 +19,27 @@ versi mengikuti Semantic Versioning (0.x: breaking change boleh di minor dengan 
 - Bounds: `maxStates` (16), `maxConditionValues` (16).
 - Fixture: `template_insight.json` naik ke 2.3 (umpan balik suka / tidak suka), `template_wallet.json`
   (saldo + mata), `template_banner.json` (banner yang bisa ditutup), dan 6 fixture invalid.
-- Belum: evaluasi kondisi, `toggle`, `$request`, animasi (fase 2–3) dan panel Studio (fase 4).
+
+### Ditambah: spec 2.3 (tahap 1, engine) — kondisi, toggle, status request
+
+- Kondisi dievaluasi saat render (`evaluate`, `RenderContext.when` / `disabled` / `masked`): `visibleWhen`
+  menyembunyikan komponen (tidak memakan tempat), `disabledWhen` menonaktifkan button (tanpa handler) dan
+  field, `maskedWhen` mengganti teks dengan `••••••` (termasuk label a11y-nya: nilainya tidak sampai ke view).
+  Kondisi yang tidak bisa dievaluasi (operator minor berikutnya, bentuk salah): `visibleWhen` → tampil,
+  `disabledWhen` → aktif, `maskedWhen` → tetap tersamar.
+- `button.toggle`: tap membalik state antara `"on"` dan `""` (sebelum action-nya jalan); `"on"` = terpilih
+  (`aria-pressed`, warna `selected*`).
+- `$request.<request>`: `pending` → `success` · `error` untuk setiap action `api` (`ActionContext.requestStatus`).
+- State yang dideklarasikan mengikuti `initial` (di-resolve ulang terhadap data) sampai di-set oleh tap — pilihan
+  yang disimpan backend dan dikembalikan lewat `load` muncul lagi tanpa mengubah template.
+- **K5:** action dengan type yang tidak dikenal (minor berikutnya) tidak lagi menggagalkan seluruh layar: dilewati
+  saat decode (beserta langkah sesudahnya), tidak pernah dijalankan, dan dilaporkan sekali lewat event
+  `action_unsupported`. `ActionSpec.decode` (authoring / Studio) tetap menolaknya, dan schema tetap menolaknya
+  di CI dan backend. `ActionSpec.decodeStep`, `ActionSpec.skipped`, `SduiNode.skippedAction`.
+- Simbol `eye` dan `eye.slash` (outline).
+- Budget ukuran core dinaikkan 26 → 28 KB (keputusan 2026-11-19); sekarang 26,1 KB.
+- Belum: animasi `transition` (fase 3) dan panel Studio (fase 4). Sampai fase 4, canvas Studio juga
+  menyembunyikan komponen yang `visibleWhen`-nya tidak terpenuhi pada state kosong.
 
 ### Ditambah: desain dan konten di satu editor, tetap disimpan terpisah
 

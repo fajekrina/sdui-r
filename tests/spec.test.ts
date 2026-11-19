@@ -42,7 +42,8 @@ describe('client validator vs spec fixtures', () => {
 
   // v2.3 state-bound props: props are open, so a malformed condition / transition is a schema
   // rejection (CI + backend); the client still renders the screen and falls back per prop.
-  const LENIENT = new Set(['condition_two_operators.json', 'condition_no_source.json', 'condition_two_sources.json', 'condition_unknown_operator.json', 'transition_unknown.json'])
+  // An unknown action type (K5) is skipped by the client — never run — instead of failing it.
+  const LENIENT = new Set(['action_unknown_type.json', 'condition_two_operators.json', 'condition_no_source.json', 'condition_two_sources.json', 'condition_unknown_operator.json', 'transition_unknown.json'])
 
   it.each(fixtureNames('invalid').filter((n) => !SCHEMA_ONLY.has(n) && !LENIENT.has(n)))('invalid/%s is rejected by decode or validation', async (name) => {
     await expect(Promise.resolve().then(() => clientCheck(name, fixture(`invalid/${name}`)))).rejects.toThrow()

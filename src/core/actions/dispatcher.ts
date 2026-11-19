@@ -25,6 +25,8 @@ export interface ActionContext {
   toast(message: string, level: ToastLevel): void
   /// reload the current screen
   refresh(): void
+  /// spec 2.3 — an `api` request's status for `$request.<request>`
+  requestStatus?(request: string, status: 'pending' | 'success' | 'error'): void
   /// observability hook
   emit?(event: { type: 'action_dispatched'; action: ActionType; ok: boolean; target?: string }): void
 }
@@ -88,6 +90,7 @@ class APICommand implements Command {
   async execute(spec: ActionSpec, ctx: ActionContext, d: ActionDispatcher) {
     if (spec.request === undefined) return this.fail(spec, ctx, d)
     let bytes: Uint8Array
+    ctx.requestStatus?.(spec.request, 'pending')
     try {
       const idempotencyKey = ctx.idempotencyKey ? `${ctx.idempotencyKey}:${spec.request}` : undefined
       bytes = await ctx.network.perform(new NamedRequest(spec.request), params(spec, ctx.data), { idempotencyKey })
@@ -99,12 +102,14 @@ class APICommand implements Command {
     } catch {
       // a non-JSON body still counts as success; there is just nothing to merge
     }
+    ctx.requestStatus?.(spec.request, 'success')
     ctx.emit?.({ type: 'action_dispatched', action: 'api', ok: true, target: spec.request })
     if (spec.onSuccess) await d.dispatch(spec.onSuccess, ctx)
   }
 
   private async fail(spec: ActionSpec, ctx: ActionContext, d: ActionDispatcher) {
     if (ctx.outcome) ctx.outcome.apiFailed = true
+    if (spec.request !== undefined) ctx.requestStatus?.(spec.request, 'error')
     ctx.emit?.({ type: 'action_dispatched', action: 'api', ok: false, target: spec.request })
     if (spec.onError) await d.dispatch(spec.onError, ctx)
   }

@@ -68,6 +68,9 @@ function container(node: SduiNode, ctx: RenderContext, style: Record<string, str
 
 // MARK: - text
 
+/// spec 2.3 — what a masked text shows
+const MASK = '••••••'
+
 /// spec 2.1 — `align` of a text: leading · center · trailing
 const TEXT_ALIGN: Record<string, string> = { leading: 'start', center: 'center', trailing: 'end' }
 
@@ -88,6 +91,10 @@ export class TextComponent implements Component {
     if (c) style.color = c
     const align = TEXT_ALIGN[node.string('align')]
     if (align) style.textAlign = align
+    // spec 2.3 — `maskedWhen`: the value never reaches the view (nor an a11y label built from it)
+    if (ctx.masked(node)) {
+      return renderNode(ctx.keyFor(node), 'span', { type: node.type, attrs: { 'data-sdui-masked': 'true' }, style: { ...style, ...sharedStyle(node) }, text: MASK })
+    }
     // a text always shows in full: every line of its value, line breaks kept (pre-wrap), never cut
     if (ctx.pending(template)) {
       // a `screen.load` result this text needs hasn't arrived yet → skeleton
@@ -266,13 +273,17 @@ export class ButtonComponent implements Component {
   makeView(node: SduiNode, ctx: RenderContext): RenderNode {
     const variant = BUTTON_VARIANTS[node.string('variant')] ?? BUTTON_VARIANTS.plain!
     const busy = ctx.busy(node)
+    // spec 2.3 — `disabledWhen`: no handler, dimmed like a busy button
+    const off = ctx.disabled(node)
     const key = ctx.keyFor(node)
-    // spec 2.2 — a choice: `group` + `value`; the selected button wears its `selected*` colors
+    // spec 2.2 — a choice: `group` + `value`; the selected button wears its `selected*` colors.
+    // spec 2.3 — `toggle`: the tap flips that state between "on" and ""; "on" reads as selected
     const group = node.string('group')
-    const select = group ? { group, value: node.string('value') || key } : undefined
+    const toggle = node.string('toggle')
+    const select = group ? { group, value: node.string('value') || key } : toggle ? { group: toggle, value: 'on', toggle: true } : undefined
     const selected = select !== undefined && ctx.selected(select.group) === select.value
     const pick = (name: string) => (selected && color(node.string(`selected${name[0]!.toUpperCase()}${name.slice(1)}`))) || color(node.string(name))
-    const style: Record<string, string> = { font: 'inherit', fontSize: '16px', cursor: busy ? 'progress' : 'pointer', opacity: busy ? '0.6' : '1', textAlign: 'center', ...variant, ...sharedStyle(node) }
+    const style: Record<string, string> = { font: 'inherit', fontSize: '16px', cursor: busy ? 'progress' : off ? 'default' : 'pointer', opacity: busy || off ? '0.6' : '1', textAlign: 'center', ...variant, ...sharedStyle(node) }
     const size = numberProp(node, 'size')
     if (size !== undefined && size > 0) style.fontSize = px(size)
     const weight = fontWeight(node.string('weight'))
@@ -302,10 +313,10 @@ export class ButtonComponent implements Component {
     }
     return renderNode(key, 'button', {
       type: node.type,
-      attrs: cleanAttrs({ type: 'button', disabled: busy, 'aria-busy': busy ? 'true' : undefined, 'aria-pressed': select ? String(selected) : undefined, ...a11y(node, ctx) }),
+      attrs: cleanAttrs({ type: 'button', disabled: busy || off, 'aria-busy': busy ? 'true' : undefined, 'aria-pressed': select ? String(selected) : undefined, ...a11y(node, ctx) }),
       style,
       ...(children ? { children } : { text: title }),
-      on: ctx.onClick(node, node.action, select)
+      on: off ? undefined : ctx.onClick(node, node.action, select)
     })
   }
 }
@@ -499,7 +510,7 @@ function field(node: SduiNode, ctx: RenderContext, control: (attrs: Record<strin
   const attrs = cleanAttrs({
     name: rule.name, required: rule.required, minlength: rule.minLength, maxlength: rule.maxLength,
     placeholder: node.string('placeholder') ? ctx.resolve(node.string('placeholder')) : undefined,
-    disabled: !ctx.interactive, 'aria-invalid': error ? 'true' : undefined, ...a11y(node, ctx)
+    disabled: !ctx.interactive || ctx.disabled(node), 'aria-invalid': error ? 'true' : undefined, ...a11y(node, ctx)
   })
   const input = control(attrs, value)
   if (ctx.interactive && rule.name) input.field = { formId, name: rule.name }

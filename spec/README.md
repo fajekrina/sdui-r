@@ -261,6 +261,12 @@ buttons stay, the choice still colors the picked one), `disabledWhen` never disa
 double-tap guard still holds), `toggle` does nothing, transitions are skipped — and **`maskedWhen`
 shows the value**.
 
+**Unknown action types (v2.3 client).** A node action or `onSuccess` / `onError` step of a type
+the client does not know (a later minor's) is skipped — with the steps after it — and reported
+once as `action_unsupported`; the screen still renders. The schema still rejects it.
+
+Symbols added: `eye`, `eye.slash`.
+
 ## Actions
 
 | `type` | Required | Optional | Effect |

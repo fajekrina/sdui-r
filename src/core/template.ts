@@ -197,7 +197,8 @@ export function compose(template: TemplateSpec, values?: ValueSet): ScreenSpec {
       type: n.type,
       props,
       children,
-      action: n.action
+      action: n.action,
+      skippedAction: n.skippedAction
     })
   }
   const variants: ScreenVariants = {}

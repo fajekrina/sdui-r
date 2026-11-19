@@ -10,6 +10,7 @@ export interface SduiNodeInit {
   props?: SduiProps
   children?: SduiNode[]
   action?: ActionSpec
+  skippedAction?: string[]
 }
 
 /// A decoded UI node — the Composite element the renderer walks.
@@ -28,6 +29,8 @@ export class SduiNode {
   readonly props: SduiProps
   readonly children: SduiNode[]
   readonly action?: ActionSpec
+  /// spec 2.3 (K5) — the type of an action this client does not know: dropped at decode
+  readonly skippedAction?: string[]
 
   constructor(init: SduiNodeInit) {
     if (init.id !== undefined) this.id = init.id
@@ -36,6 +39,7 @@ export class SduiNode {
     this.props = init.props ?? {}
     this.children = init.children ?? []
     if (init.action !== undefined) this.action = init.action
+    if (init.skippedAction !== undefined) this.skippedAction = init.skippedAction
   }
 
   /// Structural decode: `type` is required; `props`/`children` default to empty;
@@ -52,13 +56,15 @@ export class SduiNode {
     if (o.order != null && (typeof o.order !== 'number' || !Number.isInteger(o.order) || o.order < 0)) {
       throw SduiError.decode(`${path}.order: expected a non-negative integer`)
     }
+    const action = ActionSpec.decodeStep(o.action, `${path}.action`)
     return new SduiNode({
       id: optionalString(o.id, `${path}.id`),
       order: o.order == null ? undefined : o.order as number,
       type: o.type,
       props: o.props == null ? {} : SduiValue.decodeObject(o.props, `${path}.props`),
       children,
-      action: o.action == null ? undefined : ActionSpec.decode(o.action, `${path}.action`)
+      action: action instanceof ActionSpec ? action : undefined,
+      skippedAction: typeof action === 'string' ? [action] : undefined
     })
   }
 

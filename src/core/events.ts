@@ -11,6 +11,8 @@ export type SduiEvent =
   | { type: 'load_request'; request: string; ok: boolean; ms: number }
   | { type: 'form_invalid'; formId: string; fields: string[] }
   | { type: 'choice_selected'; group: string; value: string }
+  /// spec 2.3 (K5) — an action of a type this client does not know was skipped
+  | { type: 'action_unsupported'; action: string }
   | { type: 'rollback_rejected'; sequence: number }
   | { type: 'screen_revalidated'; key: string; changed: boolean; error?: string }
   | { type: 'screen_update_deferred'; key: string }
