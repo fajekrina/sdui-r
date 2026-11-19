@@ -1,6 +1,6 @@
 # Rencana spec 2.3 — state halaman dan animasi (tahap 1)
 
-Status: **rencana, belum ada kode** · branch `feat/single-admin` · 2026-11-19
+Status: **tahap 1 selesai** (fase 0–6) · branch `feat/single-admin` · 2026-11-19 · K1–K5 disetujui
 
 Interaksi seperti tombol suka / tidak suka di `insightV1` dibuat tanpa script JS dan tanpa
 duplikat halaman. Caranya: **state halaman yang deklaratif**. Maker memilih perilaku dari

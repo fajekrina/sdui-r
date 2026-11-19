@@ -31,6 +31,7 @@ export const STUDIO_CSS = `
 .sdui-studio .state{display:flex;flex-direction:column;gap:6px;padding:6px 8px 10px}
 .sdui-studio .state .srow{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
 .sdui-studio .state .srow input{flex:1;min-width:0}
+.sdui-studio .state .srow input.ini{flex-basis:100%}
 .sdui-studio .insp .cond{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
 .sdui-studio .insp .cond>label:first-child{flex-basis:100%}
 .sdui-studio .device [data-sdui-hidden]{outline:1px dashed #7c3aed}

@@ -732,7 +732,11 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
     }
     // one foldable section per group, in a fixed order
     const groups = new Map<FieldGroup, HTMLElement[]>()
-    for (const [key, kind] of fields) {
+    // spec 2.3 — State reads top-down: shown when → how it appears → disabled when → masked when
+    const STATE_ORDER = ['visibleWhen', 'transition', 'disabledWhen', 'maskedWhen']
+    const isState = ([key]: [string, FieldKind]) => groupOf(node.type, key) === 'State'
+    const ordered = [...fields.filter((f) => !isState(f)), ...fields.filter(isState).sort((a, b) => STATE_ORDER.indexOf(a[0]) - STATE_ORDER.indexOf(b[0]))]
+    for (const [key, kind] of ordered) {
       const g = groupOf(node.type, key)
       groups.set(g, [...(groups.get(g) ?? []), control(key, kind)])
     }
@@ -847,7 +851,7 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
       const value = selectOf(values, current[name] ?? '', (v) => v === '' ? '(empty)' : v)
       value.setAttribute('aria-label', `try ${name}`)
       value.addEventListener('change', () => { sim[name] = value.value; paint() })
-      const initial = el('input', { 'aria-label': `${name} initial`, placeholder: 'initial, e.g. {{insight.feedback}}' }) as HTMLInputElement
+      const initial = el('input', { class: 'ini', 'aria-label': `${name} initial`, placeholder: 'initial, e.g. {{insight.feedback}}', title: 'Initial value (tokens allowed): until a tap sets it' }) as HTMLInputElement
       initial.value = declared?.initial ?? ''
       initial.addEventListener('change', () => {
         const v = initial.value.trim()
@@ -855,7 +859,7 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
       })
       const remove = declared ? [button('✕', () => { const next = { ...doc.state }; delete next[name]; delete sim[name]; doc.setScreenState(next) })] : []
       remove.forEach((b) => b.setAttribute('aria-label', `Remove state ${name}`))
-      return el('div', { class: 'srow' }, el('strong', {}, name), el('label', {}, 'try', value), initial, ...remove)
+      return el('div', { class: 'srow' }, el('strong', {}, name), ...remove, el('label', {}, 'try', value), initial)
     })
     const requests = requestNames(doc.root).map((name) => {
       const select = selectOf(REQUEST_VALUES, requestSim[name] ?? '', (v) => v === '' ? '(not sent)' : v)
