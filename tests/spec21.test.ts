@@ -112,7 +112,7 @@ describe('Studio inspector (single admin)', () => {
   it('groups the props; only a button gets the Interaction section', () => {
     const { host, studio, done } = mount()
     studio.document.add('text')
-    expect(groups(host)).toEqual(['Content', 'Layout', 'Style', 'Accessibility', 'Props (JSON)'])
+    expect(groups(host)).toEqual(['Content', 'State', 'Layout', 'Style', 'Accessibility', 'Props (JSON)'])   // spec 2.3: every component can be state-bound
     const card = studio.document.add('card')
     studio.document.select(card)
     expect(groups(host)).not.toContain('Interaction')

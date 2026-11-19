@@ -26,6 +26,14 @@ export const STUDIO_CSS = `
 .sdui-studio .pal button{border:1px solid #e2e8f0;background:#f8fafc;border-radius:4px;padding:2px 6px;cursor:grab}
 .sdui-studio .row{display:block;min-width:0;padding:3px 8px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sdui-studio .row.sel{background:#dbeafe}
+.sdui-studio .row.dim{opacity:.5}
+.sdui-studio .row .cnd{color:#7c3aed}
+.sdui-studio .state{display:flex;flex-direction:column;gap:6px;padding:6px 8px 10px}
+.sdui-studio .state .srow{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.sdui-studio .state .srow input{flex:1;min-width:0}
+.sdui-studio .insp .cond{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.sdui-studio .insp .cond>label:first-child{flex-basis:100%}
+.sdui-studio .device [data-sdui-hidden]{outline:1px dashed #7c3aed}
 .sdui-studio .row .tw{display:inline-block;width:16px;text-align:center;font-size:12px;color:#64748b;user-select:none}
 .sdui-studio .row .tw[role=button]{cursor:pointer}
 .sdui-studio .row .tw[role=button]:hover{color:#0f172a}

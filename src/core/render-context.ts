@@ -42,6 +42,8 @@ export interface RenderEnvironment {
   /// spec 2.3 — a node with a `transition` is rendered (`visible`) or not: the animation in
   /// progress for it, if any (the screen remembers what each key showed last)
   motion?(key: string, visible: boolean, kind: MotionKind, axis: 'x' | 'y'): Motion | undefined
+  /// the Studio canvas: a hidden node it still draws (dimmed, `data-sdui-hidden`) — the selected one
+  reveal?(key: string): boolean
   sink: RenderSink
 }
 
@@ -94,8 +96,9 @@ export class RenderContext {
     const visible = this.when(node, 'visibleWhen') !== false
     const kind = node.props.visibleWhen === undefined ? undefined : motionKind(node.props.transition)
     const motion = kind ? this.env.motion?.(this.keyFor(node), visible, kind, this.layout === 'row' ? 'x' : 'y') : undefined
-    if (!visible && !motion) return null
+    if (!visible && !motion && !this.env.reveal?.(this.keyFor(node))) return null
     const view = this.render(node)
+    if (view && !visible && !motion) return { ...view, attrs: { ...view.attrs, 'data-sdui-hidden': 'true' }, style: { ...view.style, opacity: '0.45' } }
     if (view && motion) {
       view.motion = motion
       if (motion.direction === 'out') { view.attrs = { ...view.attrs, inert: true, 'aria-hidden': 'true' }; delete view.on }

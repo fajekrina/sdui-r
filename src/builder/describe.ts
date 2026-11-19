@@ -4,6 +4,7 @@
 // (`builderNote`, never delivered to clients). Shown in the Screen Builder (and as a check
 // in the Template Builder inspector).
 import { BUILDER_NOTE_PROP, V11_COMPONENTS, V1_COMPONENTS, type ActionSpec, type ActionUse, type ComponentFactory, type SduiNode } from '../core'
+import { describeStateProps } from './state-editor'
 
 const quote = (s: string | undefined) => `"${s ?? '?'}"`
 
@@ -108,6 +109,8 @@ export function describeComponent(node: SduiNode, factory?: ComponentFactory): s
   }
   // only buttons (and custom components) run an action: say a leftover one never runs
   if (use === 'none' && node.action) out.push('Its action never runs (it is not tappable)')
+  // spec 2.3 — shown / disabled / masked when …, its transition, a toggle
+  out.push(...describeStateProps(node))
   return out
 }
 

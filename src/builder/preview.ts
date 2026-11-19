@@ -3,6 +3,8 @@ import { DataContext, RenderContext, relativeAssetURL, type ComponentFactory, ty
 /// Render a node tree for the builder canvas with the SAME components the client
 /// uses (preview == client), non-interactive, every node tagged with
 /// `data-sdui-node` so a click on the canvas can select it.
+/// spec 2.3 — `data` may hold simulated state (`$selected`, `$request`); a component hidden by
+/// it is not drawn, except the `selected` one (dimmed, `data-sdui-hidden`), so it stays editable.
 export function renderPreview(factory: ComponentFactory, root: SduiNode, options: { data?: Record<string, SduiValue>; selected?: string; assetURL?: (name: string) => string } = {}): RenderNode | null {
   const ctx = new RenderContext(new DataContext(options.data ?? {}), {
     factory,
@@ -12,7 +14,8 @@ export function renderPreview(factory: ComponentFactory, root: SduiNode, options
     loading: false,
     assetURL: options.assetURL ?? relativeAssetURL,
     slots: new Set(),
-    sink: { bindAction: (key) => key, registerField: () => {}, unknownComponent: () => {} }
+    sink: { bindAction: (key) => key, registerField: () => {}, unknownComponent: () => {} },
+    reveal: (key) => key === options.selected
   })
   const view = ctx.view(root)
   if (!view) return null

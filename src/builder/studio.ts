@@ -2,8 +2,12 @@
 // and Vue (builder/react, builder/vue), so both builders behave identically.
 // The canvas uses the client's own components (`renderPreview`): preview == client.
 
-import { ActionSpec, ActionType, BUILDER_NOTE_PROP, ComponentFactory, FIELD_PATTERNS, SduiNode, SPEC_VERSION, Symbols, TemplateSpec, compose, type ActionUse, type SduiProps, type SduiValue } from '../core'
-import { renderNodeDOM } from '../vanilla'
+import {
+  ActionDispatcher, ActionSpec, ActionType, BUILDER_NOTE_PROP, ComponentFactory, DataContext, FIELD_PATTERNS, PayloadSecurity, SduiNode, SPEC_VERSION,
+  Symbols, TemplateSpec, compose, createEngine, evaluate, type ActionUse, type SduiProps, type SduiValue
+} from '../core'
+import { mount, renderNodeDOM, type MountedScreen } from '../vanilla'
+import { REQUEST_VALUES, conditionEditor, describeCondition, requestNames, simulatedState, stateNames, stateValues, stateWarnings } from './state-editor'
 import { EditorDocument } from './document'
 import { ancestorsOf, find, flatten, flattenVisible, isGeneratedId, ordersOf, outlineLabel } from './tree'
 import { ACTION_USES, actionUseOf, actionWarnings, describeComponent } from './describe'
@@ -105,7 +109,8 @@ export interface MountedStudio {
 /// how a prop is edited: `textarea` a multi-line text (a text's value: Enter = new line, with
 /// bold / italic buttons), `color` a theme token or hex, `options` a picker's option table,
 /// `items` a list's data (a `screen.load` request or a key path)
-export type FieldKind = 'text' | 'textarea' | 'number' | 'bool' | 'json' | 'color' | 'options' | 'items' | string[]
+/// spec 2.3: `condition` (a state-bound prop), `transition`, `state` (a state name: button `toggle`)
+export type FieldKind = 'text' | 'textarea' | 'number' | 'bool' | 'json' | 'color' | 'options' | 'items' | 'condition' | 'transition' | 'state' | string[]
 /// checkboxes whose prop defaults to true: unchecked writes `false`, checked removes the prop
 export const DEFAULT_TRUE = new Set(['showLabels', 'showLegend'])
 type Drag = { kind: 'type'; type: string } | { kind: 'node'; id: string }
@@ -116,10 +121,12 @@ export const COLORS = ['', 'primary', 'onPrimary', 'secondary', 'surface', 'onSu
 // spec 2.2: paddingHorizontal / paddingVertical, borderColor / borderWidth, shadow, pin
 export const SHARED: Array<[string, FieldKind]> = [['padding', 'number'], ['paddingHorizontal', 'number'], ['paddingVertical', 'number'],
   ['background', 'color'], ['cornerRadius', 'number'], ['foreground', 'color'], ['borderColor', 'color'], ['borderWidth', 'number'],
-  ['shadow', ['', 'small', 'medium', 'top']], ['pin', ['', 'top', 'bottom']], ['a11yLabel', 'text'], ['a11yId', 'text']]
+  ['shadow', ['', 'small', 'medium', 'top']], ['pin', ['', 'top', 'bottom']], ['a11yLabel', 'text'], ['a11yId', 'text'],
+  // spec 2.3: shown only while a condition holds, and how it appears / disappears
+  ['visibleWhen', 'condition'], ['transition', 'transition']]
 export const FIELDS: Record<string, Array<[string, FieldKind]>> = {
   // spec 2.1: align, markup (**bold** / *italic* in the value); a text always shows in full
-  text: [['value', 'textarea'], ['markup', 'bool'], ['style', ['', 'title', 'headline', 'body', 'caption']], ['weight', ['', 'regular', 'medium', 'semibold', 'bold', 'heavy']],
+  text: [['value', 'textarea'], ['markup', 'bool'], ['maskedWhen', 'condition'], ['style', ['', 'title', 'headline', 'body', 'caption']], ['weight', ['', 'regular', 'medium', 'semibold', 'bold', 'heavy']],
     ['size', 'number'], ['color', 'color'], ['align', ['', 'leading', 'center', 'trailing']]],
   image: [['systemName', 'text'], ['name', 'text'], ['contentMode', ['', 'fit', 'fill']], ['width', 'number'], ['height', 'number']],
   // height / maxHeight: the container decides the size; a `scroll` inside fills it and scrolls
@@ -131,15 +138,16 @@ export const FIELDS: Record<string, Array<[string, FieldKind]>> = {
   // spec 2.2: an icon, the title's size / weight, and a choice (group + value; selected colors)
   button: [['title', 'text'], ['variant', ['', 'primary', 'secondary', 'plain']], ['size', 'number'], ['weight', ['', 'regular', 'medium', 'semibold', 'bold', 'heavy']],
     ['systemName', 'text'], ['iconPosition', ['', 'leading', 'top']], ['iconSize', 'number'], ['iconPadding', 'number'], ['iconBackground', 'color'], ['iconForeground', 'color'],
-    ['group', 'text'], ['value', 'text'], ['selectedBackground', 'color'], ['selectedForeground', 'color'], ['selectedIconBackground', 'color'], ['selectedIconForeground', 'color']],
+    ['group', 'text'], ['value', 'text'], ['toggle', 'state'], ['selectedBackground', 'color'], ['selectedForeground', 'color'], ['selectedIconBackground', 'color'], ['selectedIconForeground', 'color'],
+    ['disabledWhen', 'condition']],
   spacer: [['height', 'number'], ['width', 'number']],
   grid: [['columns', 'number'], ['spacing', 'number'], ['rowHeight', 'number'], ['height', 'number'], ['maxHeight', 'number']],
   scroll: [['axis', ['', 'vertical', 'horizontal']], ['spacing', 'number']],
   list: [['items', 'items'], ['as', 'text'], ['spacing', 'number']],
   form: [['spacing', 'number']],
-  textField: [['name', 'text'], ['label', 'text'], ['placeholder', 'text'], ['keyboard', ['', 'text', 'number', 'email', 'phone']], ['required', 'bool'], ['minLength', 'number'], ['maxLength', 'number'], ['pattern', ['', ...Object.keys(FIELD_PATTERNS)]], ['secure', 'bool']],
-  textArea: [['name', 'text'], ['label', 'text'], ['placeholder', 'text'], ['rows', 'number'], ['required', 'bool'], ['maxLength', 'number']],
-  picker: [['name', 'text'], ['label', 'text'], ['placeholder', 'text'], ['required', 'bool'], ['options', 'options']],
+  textField: [['name', 'text'], ['label', 'text'], ['placeholder', 'text'], ['keyboard', ['', 'text', 'number', 'email', 'phone']], ['required', 'bool'], ['minLength', 'number'], ['maxLength', 'number'], ['pattern', ['', ...Object.keys(FIELD_PATTERNS)]], ['secure', 'bool'], ['disabledWhen', 'condition']],
+  textArea: [['name', 'text'], ['label', 'text'], ['placeholder', 'text'], ['rows', 'number'], ['required', 'bool'], ['maxLength', 'number'], ['disabledWhen', 'condition']],
+  picker: [['name', 'text'], ['label', 'text'], ['placeholder', 'text'], ['required', 'bool'], ['options', 'options'], ['disabledWhen', 'condition']],
   // sdui-r: data = a JSON array, or a key path into the screen data (e.g. a screen.load result)
   // the data source is the chart's ACTION (api → its request); no action = the static `data`
   chart: [['kind', ['', 'bar', 'line', 'area', 'pie', 'donut']], ['data', 'json'], ['labels', 'json'],
@@ -149,7 +157,7 @@ export const FIELDS: Record<string, Array<[string, FieldKind]>> = {
 }
 
 /// The inspector groups, in order (the action has its own section).
-export const GROUPS = ['Content', 'Field', 'Data', 'Choice', 'Layout', 'Style', 'Accessibility'] as const
+export const GROUPS = ['Content', 'Field', 'Data', 'Choice', 'State', 'Layout', 'Style', 'Accessibility'] as const
 export type FieldGroup = typeof GROUPS[number]
 const GROUP: Record<string, FieldGroup> = {
   value: 'Content', markup: 'Content', title: 'Content', systemName: 'Content', name: 'Content', label: 'Content', placeholder: 'Content', options: 'Content',
@@ -157,8 +165,9 @@ const GROUP: Record<string, FieldGroup> = {
   keyboard: 'Field', required: 'Field', minLength: 'Field', maxLength: 'Field', pattern: 'Field', secure: 'Field', rows: 'Field',
   spacing: 'Layout', alignment: 'Layout', width: 'Layout', height: 'Layout', maxHeight: 'Layout', columns: 'Layout', rowHeight: 'Layout', axis: 'Layout',
   padding: 'Layout', paddingHorizontal: 'Layout', paddingVertical: 'Layout', pin: 'Layout', contentMode: 'Layout', iconPosition: 'Layout', iconPadding: 'Layout',
-  group: 'Choice', selectedBackground: 'Choice', selectedForeground: 'Choice', selectedIconBackground: 'Choice', selectedIconForeground: 'Choice',
-  a11yLabel: 'Accessibility', a11yId: 'Accessibility'
+  group: 'Choice', toggle: 'Choice', selectedBackground: 'Choice', selectedForeground: 'Choice', selectedIconBackground: 'Choice', selectedIconForeground: 'Choice',
+  a11yLabel: 'Accessibility', a11yId: 'Accessibility',
+  visibleWhen: 'State', disabledWhen: 'State', maskedWhen: 'State', transition: 'State'
 }
 const FORM_FIELDS = new Set(['textField', 'textArea', 'picker'])
 /// The inspector group of a prop of a component type (Style for anything not listed).
@@ -253,6 +262,10 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
   let jsonOpen = true
   let jsonEditing = false
   let previewMode = false
+  /// spec 2.3 — simulated state values and request results for the canvas and the try mode
+  const sim: Record<string, string> = {}
+  const requestSim: Record<string, string> = {}
+  let trial: { view: MountedScreen; payload: string } | undefined
   let message = ''
   let status: { text: string; ok: boolean } | undefined
   let statusTimer: ReturnType<typeof setTimeout> | undefined
@@ -261,10 +274,11 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
   // datalists for the action editor's named targets (one set per Studio)
   const uid = Math.random().toString(36).slice(2, 8)
   const listId = (name: string) => `sdui-${uid}-${name}`
-  const LISTS = ['screens', 'requests', 'sources', 'links', 'commands', 'assets', 'symbols'] as const
+  const LISTS = ['screens', 'requests', 'sources', 'links', 'commands', 'assets', 'symbols', 'states'] as const
   const datalists = new Map(LISTS.map((name) => [name, el('datalist', { id: listId(name) })] as const))
   const namesOf = (name: typeof LISTS[number]): readonly string[] => {
     if (name === 'symbols') return Symbols.names
+    if (name === 'states') return stateNames(doc.root, doc.state)
     const own = (name === 'assets' ? undefined : opts[name]) ?? opts.catalog?.[name]
     // not split by the app: charts pick from the one request list, as before
     return own ?? (name === 'sources' ? namesOf('requests') : [])
@@ -459,8 +473,10 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
   dropSurface(device, 'data-sdui-node', true)
   const inspector = el('div', { class: 'insp' })
   const paletteBox = el('div', {}, el('h3', {}, 'Components'), el('div', { class: 'tip' }, 'Click to insert, or drag onto the canvas / outline.'), palette)
+  // spec 2.3 — the page's states: declare one (and its initial value), and try values on the canvas
+  const statePanel = el('div', { class: 'state', 'aria-label': 'Screen state' })
   const main = el('div', { class: 'main' },
-    el('div', { class: 'col' }, paletteBox, foldSection(d, `sdui-${uid}-outline`, 'Outline', outline)),
+    el('div', { class: 'col' }, paletteBox, foldSection(d, `sdui-${uid}-outline`, 'Outline', outline), foldSection(d, `sdui-${uid}-state`, 'State', statePanel)),
     el('div', { class: 'col canvas' }, device),
     el('div', { class: 'col' }, el('h3', {}, 'Inspector'), inspector)
   )
@@ -650,6 +666,27 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
         })
       }
       if (kind === 'color') return colorField(d, key, current, (v) => doc.setProp(id, key, v))
+      // spec 2.3 — a condition: picked (state / request → operator → value), never typed
+      if (kind === 'condition') {
+        return conditionEditor(d, key, current, {
+          states: stateNames(doc.root, doc.state),
+          requests: requestNames(doc.root),
+          valuesOf: (source, name) => source === 'request' ? REQUEST_VALUES : stateValues(doc.root, name)
+        }, (v) => doc.setProp(id, key, v))
+      }
+      if (kind === 'transition') {
+        const t = current && typeof current === 'object' && !Array.isArray(current) ? (current as { visible?: unknown }).visible : undefined
+        const select = selectOf(['', 'fade', 'collapse'], typeof t === 'string' ? t : '', (v) => v || 'none')
+        select.setAttribute('aria-label', 'transition')
+        select.addEventListener('change', () => doc.setProp(id, key, select.value ? { visible: select.value } : undefined))
+        return el('label', {}, 'transition (appear / disappear)', select)
+      }
+      if (kind === 'state') {
+        const input = el('input', { list: listId('states'), 'aria-label': key, placeholder: 'state name' }) as HTMLInputElement
+        input.value = typeof current === 'string' ? current : ''
+        input.addEventListener('change', () => doc.setProp(id, key, input.value.trim() || undefined))
+        return el('label', {}, `${key} (a tap switches this state on / off)`, input)
+      }
       if (kind === 'options') return optionsTable(d, key, current, (v) => doc.setProp(id, key, v))
       if (kind === 'items') {
         // a list repeats over an array in the screen data: a `screen.load` result, or a key path
@@ -795,6 +832,67 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
     }
   }
 
+  /// spec 2.3 — the sample data plus the simulated state (`$selected`) and request results
+  const canvasData = (): Record<string, SduiValue> => {
+    const data = new DataContext(opts.sampleData ?? {})
+    return { ...(opts.sampleData ?? {}), $selected: simulatedState(doc.root, doc.state, sim, (t) => data.resolve(t)), $request: { ...requestSim } }
+  }
+
+  const paintState = () => {
+    const names = stateNames(doc.root, doc.state)
+    const current = canvasData().$selected as Record<string, string>
+    const rows: Node[] = names.map((name) => {
+      const declared = doc.state[name]
+      const values = [...new Set([...stateValues(doc.root, name), current[name] ?? ''])]
+      const value = selectOf(values, current[name] ?? '', (v) => v === '' ? '(empty)' : v)
+      value.setAttribute('aria-label', `try ${name}`)
+      value.addEventListener('change', () => { sim[name] = value.value; paint() })
+      const initial = el('input', { 'aria-label': `${name} initial`, placeholder: 'initial, e.g. {{insight.feedback}}' }) as HTMLInputElement
+      initial.value = declared?.initial ?? ''
+      initial.addEventListener('change', () => {
+        const v = initial.value.trim()
+        doc.setScreenState({ ...doc.state, [name]: v ? { initial: v } : {} })
+      })
+      const remove = declared ? [button('✕', () => { const next = { ...doc.state }; delete next[name]; delete sim[name]; doc.setScreenState(next) })] : []
+      remove.forEach((b) => b.setAttribute('aria-label', `Remove state ${name}`))
+      return el('div', { class: 'srow' }, el('strong', {}, name), el('label', {}, 'try', value), initial, ...remove)
+    })
+    const requests = requestNames(doc.root).map((name) => {
+      const select = selectOf(REQUEST_VALUES, requestSim[name] ?? '', (v) => v === '' ? '(not sent)' : v)
+      select.setAttribute('aria-label', `try request ${name}`)
+      select.addEventListener('change', () => { if (select.value) requestSim[name] = select.value; else delete requestSim[name]; paint() })
+      return el('div', { class: 'srow' }, el('span', {}, `request ${name}`), select)
+    })
+    const add = el('input', { 'aria-label': 'New state name', placeholder: 'new state, e.g. balanceShown' }) as HTMLInputElement
+    const addBtn = button('Add state', () => {
+      const name = add.value.trim()
+      if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(name)) { message = `State: "${name}" is not a name (letters, digits, _)`; paint(); return }
+      doc.setScreenState({ ...doc.state, [name]: doc.state[name] ?? {} })
+    })
+    statePanel.replaceChildren(
+      el('div', { class: 'tip' }, names.length ? 'Pick a value to see the canvas in that state. Preview runs the page for real (taps, requests, animations); a request answers as picked here.' : 'No state yet: a button with a group or a toggle makes one, or add one here.'),
+      ...rows, ...requests, el('div', { class: 'srow' }, add, addBtn))
+  }
+
+  /// Preview = the page running for real (the client engine; requests answered as simulated)
+  const paintTrial = () => {
+    const payload = templateMode ? doc.templateDocument().toJSON() : doc.payload().toJSON()
+    const json = JSON.stringify(payload)
+    if (trial?.payload === json) return
+    trial?.view.destroy()
+    device.replaceChildren()
+    const perform = (request: { rawValue: string }) => new Promise<Uint8Array>((resolve, reject) => {
+      const outcome = requestSim[request.rawValue]
+      if (outcome === 'pending') return
+      setTimeout(() => outcome === 'error'
+        ? reject(new Error('simulated error'))
+        : resolve(new TextEncoder().encode(JSON.stringify(opts.sampleData?.[request.rawValue] ?? {}))), 600)
+    })
+    const engine = createEngine({ security: PayloadSecurity.insecureDevelopment, assetURL: opts.assetURL, actionDispatcher: new ActionDispatcher({ network: { perform } }) })
+    trial = { view: mount(device, { engine, source: { payload }, seed: opts.sampleData }), payload: json }
+  }
+  const endTrial = () => { trial?.view.destroy(); trial = undefined }
+
   const paint = () => {
     keyInput.value = doc.key
     versionInput.value = String(doc.version)
@@ -816,10 +914,15 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
     // folding the branch of the current selection afterwards stays folded
     if (doc.selection && doc.selection !== revealed) for (const id of ancestorsOf(doc.root, doc.selection)) folded.delete(id)
     revealed = doc.selection
+    const stateData = canvasData()
     outline.replaceChildren(...flattenVisible(doc.root, folded).map(([n, depth]) => {
       const text = outlineLabel(n)
-      const row = el('div', { class: n.id === doc.selection ? 'row sel' : 'row', role: 'treeitem', 'aria-level': String(depth + 1), 'data-sdui-row': n.id!, title: templateMode ? `${text} #${n.id}` : text },
-        twisty(n, () => paint()), text)
+      // spec 2.3 — a state-bound component: ◐, and dimmed while the simulated state hides it
+      const when = n.props.visibleWhen !== undefined ? describeCondition(n.props.visibleWhen) : undefined
+      const hidden = when !== undefined && evaluate(n.props.visibleWhen, (k) => new DataContext(stateData).value(k)) === false
+      const cls = `row${n.id === doc.selection ? ' sel' : ''}${hidden ? ' dim' : ''}`
+      const row = el('div', { class: cls, role: 'treeitem', 'aria-level': String(depth + 1), 'data-sdui-row': n.id!, title: templateMode ? `${text} #${n.id}` : text },
+        twisty(n, () => paint()), text, ...(when ? [el('span', { class: 'cnd', title: `Shown only when ${when}` }, ' ◐')] : []))
       if (n.children.length > 0) row.setAttribute('aria-expanded', String(!folded.has(n.id!)))
       row.style.paddingLeft = `${4 + depth * 14}px`
       row.addEventListener('click', () => doc.select(n.id))
@@ -832,9 +935,15 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
     }))
     // canvas
     device.style.width = `${width}px`
-    const preview = renderPreview(factory, doc.root, { data: opts.sampleData, selected: previewMode ? undefined : doc.selection, assetURL: opts.assetURL })
-    device.replaceChildren(...(preview ? [renderNodeDOM(preview, undefined, undefined, d)] : []))
-    if (!previewMode) decorate()
+    if (previewMode) {
+      paintTrial()
+    } else {
+      endTrial()
+      const preview = renderPreview(factory, doc.root, { data: stateData, selected: doc.selection, assetURL: opts.assetURL })
+      device.replaceChildren(...(preview ? [renderNodeDOM(preview, undefined, undefined, d)] : []))
+      decorate()
+    }
+    paintState()
     // bounded containers that clip their content (measured on the canvas)
     const clipped = previewMode ? [] : clippedContainers(device, doc.root)
     // inspector (rebuilt on every edit: the field being typed into keeps focus and caret)
@@ -867,6 +976,8 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
       // an api action naming the wrong kind (a chart reading a button's request, a button sending a data source)
       ...actionWarnings(doc.root, { requests: namesOf('requests'), sources: opts.sources ?? opts.catalog?.sources, links: namesOf('links') }, factory)
         .map((w) => el('div', { class: 'warn' }, `⚠ ${w}`)),
+      // spec 2.3 — conditions no button can change, states nothing writes, …
+      ...stateWarnings(doc.root, doc.state).map((w) => el('div', { class: 'warn' }, `⚠ ${w}`)),
       ...doc.importWarnings.map((w) => el('div', { class: 'warn' }, `↳ ${w}`))
     )
     const payload = templateMode ? doc.templateDocument().toJSON() : doc.payload().toJSON()
@@ -897,6 +1008,7 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
     },
     destroy() {
       unsubscribe()
+      endTrial()
       clearTimeout(editTimer)
       clearTimeout(statusTimer)
       root.remove()

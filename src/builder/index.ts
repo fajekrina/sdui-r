@@ -16,3 +16,4 @@ export { mountStudio, mountTemplateBuilder, deprecationText, groupOf, GROUPS, ty
 export { diff, type ChangeKind, type ScreenChange } from './diff'
 export { mergeContent, splitContent } from './content'
 export { fromUniversal, toIdentifier, type ConversionResult } from '../compat'
+export { CONDITION_PROPS, CONDITION_OPS, REQUEST_VALUES, conditionEditor, conditionOf, conditionParts, describeCondition, describeStateProps, requestNames, simulatedState, stateNames, stateValues, stateWarnings, type ConditionOp, type ConditionParts, type ConditionProp } from './state-editor'
