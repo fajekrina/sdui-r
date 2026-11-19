@@ -5,6 +5,10 @@ versi mengikuti Semantic Versioning (0.x: breaking change boleh di minor dengan 
 
 ## [Unreleased]
 
+### Diubah: budget ukuran core 28 → 30 KB
+
+- Keputusan 2026-11-19, untuk spec 2.4 (chart interaktif: pilih batang, tip bawaan, hover). Core saat ini 27,6 KB.
+
 ### Ditambah: spec 2.3 (tahap 1, bentuk dokumen) — state halaman dan transisi
 
 - `SPEC_VERSION` naik ke **2.3**. Tanpa komponen baru dan tanpa action type baru, jadi client 2.2 tetap

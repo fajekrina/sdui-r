@@ -12,8 +12,9 @@ const BUDGETS_KB = {
   // sdui-r 0.1.0: 20 → 22 KB for template composition + value-set validation;
   // then 22 → 24 KB for the built-in `chart`; 24 → 26 KB for spec 2.2 (shared layout props,
   // button icons and choices, stroke glyphs); 26 → 28 KB for spec 2.3 (screen state, conditions,
-  // toggle, request status, transitions) by decision 2026-11-19 (CHANGELOG).
-  'src/core/index.ts': 28,
+  // toggle, request status, transitions) by decision 2026-11-19; 28 → 30 KB for spec 2.4 (interactive
+  // chart: selection, built-in tip, hover) by decision 2026-11-19 (CHANGELOG).
+  'src/core/index.ts': 30,
   'src/react/index.ts': 3,      // <SduiScreen>; the engine comes from the app
   'src/vue/index.ts': 3,
   'src/vanilla/index.ts': 3,
