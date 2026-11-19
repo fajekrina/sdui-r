@@ -40,6 +40,9 @@ export function RenderNodeView({ node, screen, slots }: { node: RenderNode; scre
     }
   }
   if (node.element === 'form') props.onSubmit = (e: React.FormEvent) => e.preventDefault()
+  // v2.4 — a mouse hover previews (touch and pen never do)
+  if (node.on?.hover && screen) { const k = node.on.hover; props.onPointerEnter = (e: React.PointerEvent) => { if (e.pointerType === 'mouse') screen.hover(k) } }
+  if (node.on?.hoverEnd && screen) { const k = node.on.hoverEnd; props.onPointerLeave = (e: React.PointerEvent) => { if (e.pointerType === 'mouse') screen.hover(k) } }
   // spec 2.3 — called after commit, on every render while it animates (the delay keeps it in place)
   if (node.motion) { const motion = node.motion; props.ref = (el: Element | null) => { if (el) playMotion(el, motion) } }
 

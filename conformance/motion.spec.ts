@@ -31,3 +31,33 @@ for (const name of [...new Set(PAIR)]) {
     })
   }
 }
+
+// spec 2.4 — the chart tip follows a tapped bar (its place is computed, so both engines agree)
+for (const name of [...new Set(PAIR)]) {
+  test(`chart tip follows the tapped bar in ${name}`, async ({ baseURL }) => {
+    const browser = await ENGINES[name]!.launch()
+    try {
+      const page = await browser.newPage({ viewport: { width: 375, height: 812 } })
+      await page.goto(`${baseURL}/conformance/index.html?fixture=chart_tip.json`)
+      await page.waitForFunction(() => (window as unknown as { __sduiReady?: boolean }).__sduiReady === true)
+      const tip = page.locator('[data-sdui-key="spend:tip"]')
+      await expect(tip).toHaveText(/Apr 2025\s*Rp1\.140\.000/)
+      const bar = async (i: number) => (await page.locator(`[data-sdui-key="spend:bar${i}"]`).boundingBox())!
+      const right = async () => { const b = (await tip.boundingBox())!; return b.x + b.width }
+      // at the last bar the tip's right edge lines up with that bar's right edge
+      const last = await bar(2)
+      expect(Math.abs((await right()) - (last.x + last.width))).toBeLessThanOrEqual(2)
+      expect((await tip.boundingBox())!.y + (await tip.boundingBox())!.height).toBeLessThanOrEqual(last.y)
+      await page.locator('[data-sdui-key="spend:hit1"]').click()
+      await expect(tip).toHaveText(/Mar 2025\s*Rp950\.000/)
+      expect(await tip.evaluate((el) => el.getAnimations().filter((a) => a.id === 'sdui-motion').length)).toBe(1)
+      // once the slide ends (engines schedule its start a little differently), it rests centered over the bar
+      const mid = await bar(1)
+      await expect.poll(async () => { const t = (await tip.boundingBox())!; return Math.abs(t.x + t.width / 2 - (mid.x + mid.width / 2)) }, { timeout: 2000 }).toBeLessThanOrEqual(2)
+      // the state other components read: the picked item's key
+      await expect(page.locator('[data-sdui-key="picked"]')).toHaveText('Dipilih: 2025-03')
+    } finally {
+      await browser.close()
+    }
+  })
+}

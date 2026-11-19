@@ -52,6 +52,11 @@ export function renderNodeDOM(node: RenderNode, screen?: ScreenController, slots
     el.addEventListener('click', (e) => { e.preventDefault(); void screen.handle(key) })
   }
   if (node.element === 'form') el.addEventListener('submit', (e) => e.preventDefault())
+  // v2.4 — a mouse hover previews (touch and pen never do)
+  if (node.on?.hover && screen) { const k = node.on.hover; el.addEventListener('pointerenter', (e) => { if ((e as PointerEvent).pointerType === 'mouse') screen.hover(k) }) }
+  // a repaint replaces the DOM under a resting mouse: WebKit then sends pointerleave to the REMOVED
+  // node, which would end the preview, repaint, re-enter, … — a detached node's leave is ignored
+  if (node.on?.hoverEnd && screen) { const k = node.on.hoverEnd; el.addEventListener('pointerleave', (e) => { if ((e as PointerEvent).pointerType === 'mouse' && el.isConnected) screen.hover(k) }) }
   for (const child of node.children) el.appendChild(renderNodeDOM(child, screen, slots, doc))
   // spec 2.3 — once the new DOM is in the page (a collapse measures it)
   if (node.motion) { const motion = node.motion; queueMicrotask(() => playMotion(el, motion)) }

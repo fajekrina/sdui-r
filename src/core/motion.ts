@@ -15,7 +15,12 @@ export interface Motion {
   duration: number
   /// ms already played
   elapsed: number
+  /// v2.4 — a slide (`kind` is ignored): from this place to the one in the node's style
+  from?: Record<string, string>
 }
+
+/// v2.4 — how long a moving node (the chart tip) slides to its new place
+export const MOVE_MS = 200
 
 /// Engine-owned durations (ms).
 export const MOTION_MS: Readonly<Record<MotionKind, number>> = { fade: 200, collapse: 250 }
@@ -42,6 +47,14 @@ export function playMotion(el: Element | null | undefined, motion: Motion | unde
   if (!h || typeof h.animate !== 'function') return
   for (const a of h.getAnimations?.() ?? []) if (a.id === 'sdui-motion') a.cancel()
   if (!motion) return
+  if (motion.from) {
+    const to: Keyframe = {}
+    for (const k of Object.keys(motion.from)) to[k] = h.style.getPropertyValue(k.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`))
+    const slide = h.animate([motion.from as Keyframe, to], { duration: motion.duration, delay: -motion.elapsed, fill: 'both', easing: 'ease' })
+    slide.id = 'sdui-motion'
+    slide.onfinish = () => slide.cancel()
+    return
+  }
   let shown: Keyframe = { opacity: 1 }
   let gone: Keyframe = { opacity: 0 }
   if (motion.kind === 'collapse') {

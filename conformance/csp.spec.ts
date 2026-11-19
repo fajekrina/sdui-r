@@ -17,7 +17,7 @@ for (const name of names) {
       await page.waitForFunction(() => (window as unknown as { __csp?: { ready: boolean } }).__csp?.ready === true)
       const result = await page.evaluate(() => (window as unknown as { __csp: { violations: string[]; studioStyled: boolean; animated: number } }).__csp)
       expect(result.violations).toEqual([])
-      expect(result.animated).toBe(2)   // spec 2.3: the fade and the collapse ran
+      expect(result.animated).toBe(3)   // spec 2.3: the fade and the collapse; 2.4: the tip's slide
       expect(result.studioStyled).toBe(true)
       expect(await page.locator('[data-sdui-screen]').count()).toBe(FIXTURES.length)
     } finally {

@@ -24,9 +24,9 @@ doc.importJSON(await (await fetch('/spec/fixtures/valid/dashboard.json')).json()
 mountStudio(document.getElementById('studio')!, { document: doc })
 
 // spec 2.3 — transitions (Web Animations) under the strict policy: the insight feedback fades,
-// the promo banner collapses
+// the promo banner collapses, and (v2.4) the chart tip slides to a tapped bar
 let animated = 0
-for (const [tap, leaving] of [['like', 'dislike'], ['bannerClose', 'banner']]) {
+for (const [tap, leaving] of [['like', 'dislike'], ['bannerClose', 'banner'], ['spend:hit0', 'spend:tip']]) {
   const button = document.querySelector<HTMLElement>(`[data-sdui-key="${tap}"]`)
   if (!button) continue
   button.click()

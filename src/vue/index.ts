@@ -44,6 +44,9 @@ export function renderNodeVNode(node: RenderNode, screen?: ScreenController, slo
     props.onClick = (e: Event) => { e.preventDefault(); void screen.handle(key) }
   }
   if (node.element === 'form') props.onSubmit = (e: Event) => e.preventDefault()
+  // v2.4 — a mouse hover previews (touch and pen never do)
+  if (node.on?.hover && screen) { const k = node.on.hover; props.onPointerenter = (e: PointerEvent) => { if (e.pointerType === 'mouse') screen.hover(k) } }
+  if (node.on?.hoverEnd && screen) { const k = node.on.hoverEnd; props.onPointerleave = (e: PointerEvent) => { if (e.pointerType === 'mouse') screen.hover(k) } }
   // spec 2.3 — after the element is in the page
   if (node.motion) {
     const motion = node.motion

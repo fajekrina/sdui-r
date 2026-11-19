@@ -25,8 +25,9 @@ export interface RenderNode {
   text?: string
   /// form field binding: the value lives in the UI store
   field?: { formId: string; name: string }
-  /// event → handler key, passed back to `screen.handle(key)`
-  on?: { click?: string; submit?: string }
+  /// event → handler key, passed back to `screen.handle(key)`. v2.4: `hover` / `hoverEnd` → `screen.hover(key)`
+  /// (renderers bind pointerenter / pointerleave of a MOUSE only: a preview, never a commit)
+  on?: { click?: string; submit?: string; hover?: string; hoverEnd?: string }
   preventDefault?: boolean
   /// a toolkit-specific component the adapter renders itself (React chart, map…)
   slot?: { type: string; props: Record<string, unknown>; data: Record<string, unknown> }

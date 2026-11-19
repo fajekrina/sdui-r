@@ -20,7 +20,7 @@ import type { ActionSpec } from './actions/spec'
 import type { SduiEngine, LoadState, ScreenSource } from './engine'
 import type { SduiNode } from './node'
 import type { Selection } from './render-context'
-import { MOTION_MS, type Motion, type MotionKind } from './motion'
+import { MOTION_MS, MOVE_MS, type Motion, type MotionKind } from './motion'
 
 export interface RenderOptions {
   /// false = static preview (builder): no handlers, fields disabled
@@ -66,6 +66,10 @@ export class ScreenController {
   /// spec 2.3 — per node key with a `transition`: what it showed last, and its animation
   private readonly shown = new Map<string, boolean>()
   private readonly motions = new Map<string, { visible: boolean; start: number }>()
+  /// v2.4 — web hover previews (chart key → item key), their handlers, and moving nodes' places
+  private readonly hovers = new Map<string, string>()
+  private hoverHandlers = new Map<string, { chart: string; item: string | undefined }>()
+  private readonly places = new Map<string, { at: Record<string, string>; from?: Record<string, string>; start: number }>()
 
   constructor(readonly engine: SduiEngine, readonly source: ScreenSource, seed: Record<string, SduiValue> = {}) {
     this.data = new DataContext(seed)
@@ -219,6 +223,7 @@ export class ScreenController {
   render(options: RenderOptions = {}): RenderResult {
     const interactive = options.interactive ?? true
     this.handlers = new Map()
+    this.hoverHandlers = new Map()
     this.fieldRules = new Map()
     const ui = this.ui.getState()
     if (this.state.kind === 'loading') return { nodes: [loadingView()], overlays: [] }
@@ -235,6 +240,8 @@ export class ScreenController {
       busy: (key, formId) => this.inFlight.has(key) || (formId !== undefined && this.inFlight.has(`form:${formId}`)),
       // a static preview (Studio canvas) never animates
       motion: interactive ? (key, visible, kind, axis) => this.motion(key, visible, kind, axis) : undefined,
+      place: interactive ? (key, at) => this.place(key, at) : undefined,
+      hovered: (chart) => this.hovers.get(chart),
       sink: {
         bindAction: (key, action, data, formId, select) => {
           this.handlers.set(key, { action, data, formId, select })
@@ -245,7 +252,11 @@ export class ScreenController {
           rules.push(rule)
           this.fieldRules.set(formId, rules)
         },
-        unknownComponent: (componentType) => this.engine.emit({ type: 'unknown_component', componentType })
+        unknownComponent: (componentType) => this.engine.emit({ type: 'unknown_component', componentType }),
+        bindHover: (key, chart, item) => {
+          this.hoverHandlers.set(key, { chart, item })
+          return key
+        }
       }
     }
     const root = this.pickRoot(this.state.screen)
@@ -276,6 +287,35 @@ export class ScreenController {
     const elapsed = now - m.start
     if (elapsed >= duration) { this.motions.delete(key); return undefined }
     return { kind, axis, direction: visible ? 'in' : 'out', duration, elapsed }
+  }
+
+  /// v2.4 — a mouse entered (or left) a pickable bar: preview its tip; the state does not change.
+  hover(key: string): void {
+    const h = this.hoverHandlers.get(key)
+    if (!h || this.hovers.get(h.chart) === h.item) return
+    if (h.item === undefined) this.hovers.delete(h.chart)
+    else this.hovers.set(h.chart, h.item)
+    this.changed()
+  }
+
+  /// v2.4 — a moving node (the chart tip) is rendered at `at`: when that differs from its last place,
+  /// it slides there (never on its first render, never under reduced motion).
+  private place(key: string, at: Record<string, string>): Motion | undefined {
+    const now = this.engine.now()
+    const last = this.places.get(key)
+    if (!last || JSON.stringify(last.at) === JSON.stringify(at)) {
+      if (!last) this.places.set(key, { at, start: now })
+    } else if (this.engine.reducedMotion()) {
+      this.places.set(key, { at, start: now })
+    } else {
+      this.places.set(key, { at, from: last.at, start: now })
+      const timer = setTimeout(() => { this.timers.delete(timer); this.changed() }, MOVE_MS + 16)
+      this.timers.add(timer)
+    }
+    const p = this.places.get(key)!
+    const elapsed = now - p.start
+    if (!p.from || elapsed >= MOVE_MS) return undefined
+    return { kind: 'fade', axis: 'x', direction: 'in', duration: MOVE_MS, elapsed, from: p.from }
   }
 
   /// The layout for the current width: a variant when one fits, else `root`.

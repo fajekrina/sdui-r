@@ -25,6 +25,8 @@ export interface RenderSink {
   bindAction(key: string, action: ActionSpec | undefined, data: DataContext, formId?: string, select?: Selection): string
   registerField(formId: string, rule: FieldRule): void
   unknownComponent(type: string): void
+  /// v2.4 — a hover handler: `item` previewed in `chart` (undefined: the preview ends)
+  bindHover?(key: string, chart: string, item: string | undefined): string
 }
 
 export interface RenderEnvironment {
@@ -44,6 +46,10 @@ export interface RenderEnvironment {
   motion?(key: string, visible: boolean, kind: MotionKind, axis: 'x' | 'y'): Motion | undefined
   /// the Studio canvas: a hidden node it still draws (dimmed, `data-sdui-hidden`) — the selected one
   reveal?(key: string): boolean
+  /// v2.4 — the item a web hover previews in this chart
+  hovered?(chart: string): string | undefined
+  /// v2.4 — a node that moves (the chart tip) is at `place`: the slide in progress from its last place
+  place?(key: string, place: Record<string, string>): Motion | undefined
   sink: RenderSink
 }
 

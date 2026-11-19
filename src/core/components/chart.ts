@@ -4,6 +4,7 @@ import type { SduiNode } from '../node'
 import { SduiValue, type SduiProps } from '../value'
 import { renderNode, type RenderNode } from '../render-node'
 import { color, numberProp, sharedStyle } from '../style'
+import { parseMarkup } from '../markup'
 
 // sdui-r — the built-in `chart`: bar, line, area, pie and donut, drawn as SVG `path`s
 // (the only shapes the RenderNode vocabulary has), so every renderer draws the same
@@ -27,9 +28,11 @@ import { color, numberProp, sharedStyle } from '../style'
 //   showValues  bool — each item's value (above the bar/point, or in the legend)
 //   showLegend  bool — pie/donut legend (default true)
 //   a11yLabel   the chart's accessible name (default: a generated summary)
+//   v2.4 (bar): selectState (a tapped bar writes $selected.<state> = its item key), initialSelection
+//   (last · first · none · a key), selectedColor, tip ({{item.x}} of the picked item, markup)
 
 type Kind = 'bar' | 'line' | 'area' | 'pie' | 'donut'
-interface Point { key: string; label: string; value: number; color?: string }
+interface Point { key: string; label: string; value: number; color?: string; item: Record<string, SduiValue> }
 
 const KINDS: readonly Kind[] = ['bar', 'line', 'area', 'pie', 'donut']
 /// slice colors, in order, for pie/donut (theme tokens, so a host theme restyles them)
@@ -72,7 +75,7 @@ function points(node: SduiNode, ctx: RenderContext): { points: Point[]; path?: s
     const label = obj ? SduiValue.displayString(obj[labelKey] ?? '') : SduiValue.displayString(labels[i] ?? '')
     const c = obj ? SduiValue.stringValue(obj.color) : undefined
     const k = obj ? SduiValue.displayString(obj[keyKey] ?? '') : ''
-    out.push({ key: k, label: ctx.resolve(label), value, ...(c ? { color: c } : {}) })
+    out.push({ key: k, label: ctx.resolve(label), value, ...(c ? { color: c } : {}), item: obj ?? { label: ctx.resolve(label), value } })
   })
   return { points: out, path }
 }
@@ -127,17 +130,19 @@ export class ChartComponent implements Component {
         children: [label(`${key}:empty`, 'No data', { flex: '0 0 auto' })]
       })
     }
-    const attrs = { role: 'img', 'aria-label': summary }
+    // v2.4 — pickable bars are buttons inside: the chart is then a labelled group, not an image
+    const pickable = kind === 'bar' && IDENT.test(node.string('selectState')) && ctx.interactive
+    const attrs = { role: pickable ? 'group' : 'img', 'aria-label': summary }
     return renderNode(key, 'div', {
       type: node.type,
       attrs,
       style: base,
-      children: kind === 'pie' || kind === 'donut' ? this.round(key, node, data, kind, height) : this.axes(key, node, data, kind, height)
+      children: kind === 'pie' || kind === 'donut' ? this.round(key, node, data, kind, height) : this.axes(key, node, data, kind, height, ctx)
     })
   }
 
   /// bar / line / area: a stretched 100×100 view; strokes keep their width.
-  private axes(key: string, node: SduiNode, data: Point[], kind: Kind, height: number): RenderNode[] {
+  private axes(key: string, node: SduiNode, data: Point[], kind: Kind, height: number, ctx: RenderContext): RenderNode[] {
     const values = data.map((p) => p.value)
     const lo = Math.min(0, numberProp(node, 'min') ?? Math.min(...values))
     const hiRaw = Math.max(0, numberProp(node, 'max') ?? Math.max(...values))
@@ -145,6 +150,7 @@ export class ChartComponent implements Component {
     const y = (v: number) => VIEW - ((Math.max(lo, Math.min(hi, v)) - lo) / (hi - lo)) * (VIEW - 4)
     const slot = VIEW / data.length
     const fill = color(node.string('color')) ?? color('primary')!
+    const pick = kind === 'bar' ? picking(node, ctx, key, data) : undefined
     const shapes: RenderNode[] = []
     if (kind === 'bar') {
       data.forEach((p, i) => {
@@ -154,7 +160,7 @@ export class ChartComponent implements Component {
         const bottom = Math.max(y(p.value), y(0))
         shapes.push(renderNode(`${key}:bar${i}`, 'path', {
           attrs: { d: `M${num(x)} ${num(bottom)}V${num(top)}H${num(x + w)}V${num(bottom)}Z`, 'data-index': i },
-          style: { fill: p.color ? color(p.color) ?? fill : fill }
+          style: { fill: (i === pick?.shown && pick.color) || (p.color ? color(p.color) ?? fill : fill) }
         }))
       })
     } else {
@@ -186,11 +192,12 @@ export class ChartComponent implements Component {
         children: data.map((p, i) => label(`${key}:v${i}`, format(p.value), { color: 'var(--sdui-color-onSurface, #111827)', fontWeight: '600' }))
       }))
     }
-    out.push(renderNode(`${key}:svg`, 'svg', {
+    const svg = renderNode(`${key}:svg`, 'svg', {
       attrs: { viewBox: `0 0 ${VIEW} ${VIEW}`, preserveAspectRatio: 'none', width: '100%', height: String(height), 'aria-hidden': 'true' },
       style: { display: 'block', overflow: 'visible' },
       children: shapes
-    }))
+    })
+    out.push(pick ? plot(key, node, ctx, data, pick, svg, slot, y) : svg)
     if (show.labels && data.some((p) => p.label)) {
       out.push(renderNode(`${key}:labels`, 'div', { style: { display: 'flex' }, children: data.map((p, i) => label(`${key}:l${i}`, p.label)) }))
     }
@@ -251,4 +258,93 @@ export class ChartComponent implements Component {
     })]
     return [renderNode(`${key}:row`, 'div', { style: { display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }, children: [svg, ...legend] })]
   }
+}
+
+// MARK: - v2.4: picking a bar, its tip
+
+const IDENT = /^[A-Za-z][A-Za-z0-9_]*$/
+
+interface Pick {
+  /// the state a tap writes (absent: the pick is `initialSelection` only)
+  state?: string
+  /// the index picked (state, else initialSelection); -1: none
+  picked: number
+  /// the index shown: a hover preview, else `picked`
+  shown: number
+  color?: string
+}
+
+const keyOf = (p: Point, i: number) => p.key || String(i)
+
+/// The bars' pick: the state when a tap set it, else `initialSelection` (re-resolved against the
+/// data on every render, like a state's initial); a web hover previews another bar. `undefined`
+/// when the chart has none of the 2.4 props (it then renders exactly as in 2.3).
+function picking(node: SduiNode, ctx: RenderContext, key: string, data: Point[]): Pick | undefined {
+  const name = node.string('selectState')
+  const state = IDENT.test(name) ? name : undefined
+  const initial = node.string('initialSelection')
+  if (!state && !initial && !node.string('tip') && !node.string('selectedColor')) return undefined
+  const indexOf = (k: string | undefined) => (k ? data.findIndex((p, i) => keyOf(p, i) === k) : -1)
+  const initialKey = initial === 'last' ? keyOf(data[data.length - 1]!, data.length - 1) : initial === 'first' ? keyOf(data[0]!, 0) : initial === 'none' ? undefined : initial || undefined
+  const picked = indexOf((state && ctx.selected(state)) || initialKey)
+  const hovered = indexOf(ctx.env.hovered?.(key))
+  return { state, picked, shown: hovered >= 0 ? hovered : picked, color: color(node.string('selectedColor')) }
+}
+
+/// The plot: the bars, a transparent button over each (tap target; web hover previews), and the
+/// tip above the shown bar. The tip's place is computed from the data — the bar's center (or edge,
+/// at either end) and top as percentages of the plot — never measured: every engine agrees.
+function plot(key: string, node: SduiNode, ctx: RenderContext, data: Point[], pick: Pick, svg: RenderNode, slot: number, y: (v: number) => number): RenderNode {
+  const children: RenderNode[] = [svg]
+  const sink = ctx.env.sink
+  if (pick.state && ctx.interactive) {
+    const state = pick.state
+    children.push(renderNode(`${key}:hits`, 'div', {
+      style: { position: 'absolute', inset: '0', display: 'flex' },
+      on: sink.bindHover ? { hoverEnd: sink.bindHover(`h:${key}:end`, key, undefined) } : undefined,
+      children: data.map((p, i) => {
+        const amount = SduiValue.stringValue(p.item.amount)
+        return renderNode(`${key}:hit${i}`, 'button', {
+          attrs: { type: 'button', 'aria-label': `${p.label || keyOf(p, i)}, ${amount ?? format(p.value)}`, 'aria-pressed': String(i === pick.picked) },
+          // no UA button look (engines differ): an invisible, full-height tap target
+          style: { flex: '1 1 0', minWidth: '0', height: '100%', margin: '0', padding: '0', border: '0', background: 'transparent', font: 'inherit', color: 'inherit', cursor: 'pointer' },
+          on: {
+            click: sink.bindAction(`a:${key}:bar${i}`, undefined, ctx.data, ctx.formId, { group: state, value: keyOf(p, i) }),
+            ...(sink.bindHover ? { hover: sink.bindHover(`h:${key}:${i}`, key, keyOf(p, i)) } : {})
+          }
+        })
+      })
+    }))
+  }
+  const template = node.string('tip')
+  const lines = template ? template.split('\n').length : 0
+  const shown = data[pick.shown]
+  if (template && shown) {
+    const i = pick.shown
+    const n = data.length
+    // at the first / last bar the tip lines up with that bar's outer edge (never cut off)
+    const left = n > 1 && i === 0 ? i * slot + slot * 0.15 : n > 1 && i === n - 1 ? i * slot + slot * 0.85 : i * slot + slot / 2
+    const shift = n > 1 && i === 0 ? 0 : n > 1 && i === n - 1 ? -100 : -50
+    const top = Math.min(y(shown.value), y(0))
+    const place = { left: `${num(left)}%`, bottom: `calc(${num(((VIEW - top) / VIEW) * 100)}% + 6px)`, transform: `translateX(${shift}%)` }
+    const tipCtx = ctx.child('tip', { item: shown.item })
+    const runs = template.includes('*') ? parseMarkup(template) : [{ text: template, bold: false, italic: false }]
+    const tip = renderNode(`${key}:tip`, 'div', {
+      attrs: { 'aria-live': 'polite' },
+      style: {
+        position: 'absolute', ...place, zIndex: '1', pointerEvents: 'none', width: 'max-content', maxWidth: '60%',
+        padding: '6px 10px', borderRadius: '8px', background: 'var(--sdui-color-background, #FFFFFF)', color: 'var(--sdui-color-onSurface, #111827)',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.12)', fontSize: '12px', lineHeight: '1.4', whiteSpace: 'pre-wrap', textAlign: 'left'
+      },
+      children: runs.map((r, j) => renderNode(`${key}:tip${j}`, 'span', {
+        style: { ...(r.bold ? { fontWeight: '700' } : {}), ...(r.italic ? { fontStyle: 'italic' } : {}) },
+        text: tipCtx.resolve(r.text)
+      }))
+    })
+    const motion = ctx.env.place?.(`${key}:tip`, place)
+    if (motion) tip.motion = motion
+    children.push(tip)
+  }
+  // room above the tallest bar for the tip (it never covers what is above the chart)
+  return renderNode(`${key}:plot`, 'div', { style: { position: 'relative', ...(lines ? { marginTop: `${lines * 17 + 18}px` } : {}) }, children })
 }
