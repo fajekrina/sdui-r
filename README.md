@@ -253,6 +253,9 @@ screen back into code.
   gets an upload button (the template's default picture).
   A text's value is a multi-line box with **B** / *I* buttons (spec 2.1 `markup`); picker
   options are a table; colors are theme tokens or hex.
+- Text typography (spec 2.3): `font` is picked from rounded · serif · mono plus the app's
+  `catalog.fonts` (a name the app maps with `--sdui-font-<name>`, never CSS); `transform`,
+  `letterSpacing`, `lineHeight` sit in Style.
 - Spec 2.3 interactions without scripts: the **State** group picks `visibleWhen` / `disabledWhen` /
   `maskedWhen` (state or request → operator → value) and `transition` (fade · collapse); a button's
   `toggle` sits in Choice. The **State** panel (left column) declares states with their `initial`

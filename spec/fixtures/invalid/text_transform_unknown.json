@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "2.3",
+  "screen": {
+    "key": "s",
+    "root": {
+      "type": "text",
+      "props": {
+        "value": "x",
+        "transform": "shout"
+      }
+    }
+  }
+}

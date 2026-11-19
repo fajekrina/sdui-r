@@ -76,6 +76,14 @@ versi mengikuti Semantic Versioning (0.x: breaking change boleh di minor dengan 
 - Dokumen: `spec/README.md` (State and transitions), `README.md`, `DESAIN-ARSITEKTUR-SDUI.md`, dan manual editor
   (5.4 Interaksi tanpa kode + peringatan baru).
 
+### Ditambah: spec 2.3 — tipografi teks
+
+- `text.font` (nama font, bukan CSS: `rounded` · `serif` · `mono` bawaan; app memetakan nama apa pun lewat
+  `--sdui-font-<nama>`), `text.transform` (`uppercase` · `lowercase` · `capitalize`), `text.letterSpacing` (px,
+  -5…20), `text.lineHeight` (kelipatan ukuran, 0,8…3; default 1,3). `typography(node)` dan `FONT_STACKS` di core.
+- Schema memeriksa bentuknya (nama identifier, enum, rentang); client mengabaikan nilai yang salah.
+- Studio: pilihan font (bawaan + `catalog.fonts` dari app), `transform`, `letterSpacing`, `lineHeight` di grup Style.
+
 ### Diperbaiki
 
 - Gambar tanpa `width` di dalam flex column (`vstack`, `card`, `form`) kini `width: auto; max-width: 100%;

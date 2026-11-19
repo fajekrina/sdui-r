@@ -3,7 +3,7 @@ import type { RenderContext } from '../render-context'
 import type { SduiNode } from '../node'
 import { SduiValue } from '../value'
 import { cleanAttrs, renderNode, type RenderNode } from '../render-node'
-import { color, fontWeight, numberProp, sharedStyle, textStyle } from '../style'
+import { color, fontWeight, numberProp, sharedStyle, textStyle, typography } from '../style'
 import { Symbols } from './symbols'
 import type { FieldRule } from '../patterns'
 import { ChartComponent } from './chart'
@@ -85,7 +85,9 @@ export class TextComponent implements Component {
     const weight = fontWeight(node.string('weight')) ?? base.weight
     const style: Record<string, string> = {
       display: 'block', margin: '0', whiteSpace: 'pre-wrap',
-      fontSize: px(size), fontWeight: String(weight), lineHeight: '1.3'
+      fontSize: px(size), fontWeight: String(weight), lineHeight: '1.3',
+      // spec 2.3 — font (a name), transform, letterSpacing, lineHeight
+      ...typography(node)
     }
     const c = color(node.string('color'))
     if (c) style.color = c

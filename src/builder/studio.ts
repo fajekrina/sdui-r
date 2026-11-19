@@ -4,7 +4,7 @@
 
 import {
   ActionDispatcher, ActionSpec, ActionType, BUILDER_NOTE_PROP, ComponentFactory, DataContext, FIELD_PATTERNS, PayloadSecurity, SduiNode, SPEC_VERSION,
-  Symbols, TemplateSpec, compose, createEngine, evaluate, type ActionUse, type SduiProps, type SduiValue
+  FONT_STACKS, Symbols, TemplateSpec, compose, createEngine, evaluate, type ActionUse, type SduiProps, type SduiValue
 } from '../core'
 import { mount, renderNodeDOM, type MountedScreen } from '../vanilla'
 import { REQUEST_VALUES, conditionEditor, describeCondition, requestNames, simulatedState, stateNames, stateValues, stateWarnings } from './state-editor'
@@ -88,6 +88,8 @@ export interface StudioCatalog {
   commands?: readonly string[]
   /// image names the app's `assetURL` maps
   assets?: readonly string[]
+  /// spec 2.3 — font names the app maps (`--sdui-font-<name>`), offered next to rounded / serif / mono
+  fonts?: readonly string[]
   /// deprecated template keys: marked in the page picker of `navigate` (and the Screen Builder)
   deprecated?: readonly string[]
 }
@@ -110,7 +112,7 @@ export interface MountedStudio {
 /// bold / italic buttons), `color` a theme token or hex, `options` a picker's option table,
 /// `items` a list's data (a `screen.load` request or a key path)
 /// spec 2.3: `condition` (a state-bound prop), `transition`, `state` (a state name: button `toggle`)
-export type FieldKind = 'text' | 'textarea' | 'number' | 'bool' | 'json' | 'color' | 'options' | 'items' | 'condition' | 'transition' | 'state' | string[]
+export type FieldKind = 'text' | 'textarea' | 'number' | 'bool' | 'json' | 'color' | 'options' | 'items' | 'condition' | 'transition' | 'state' | 'font' | string[]
 /// checkboxes whose prop defaults to true: unchecked writes `false`, checked removes the prop
 export const DEFAULT_TRUE = new Set(['showLabels', 'showLegend'])
 type Drag = { kind: 'type'; type: string } | { kind: 'node'; id: string }
@@ -126,8 +128,10 @@ export const SHARED: Array<[string, FieldKind]> = [['padding', 'number'], ['padd
   ['visibleWhen', 'condition'], ['transition', 'transition']]
 export const FIELDS: Record<string, Array<[string, FieldKind]>> = {
   // spec 2.1: align, markup (**bold** / *italic* in the value); a text always shows in full
-  text: [['value', 'textarea'], ['markup', 'bool'], ['maskedWhen', 'condition'], ['style', ['', 'title', 'headline', 'body', 'caption']], ['weight', ['', 'regular', 'medium', 'semibold', 'bold', 'heavy']],
-    ['size', 'number'], ['color', 'color'], ['align', ['', 'leading', 'center', 'trailing']]],
+  // spec 2.3: font (a name from the app's list), transform, letterSpacing, lineHeight
+  text: [['value', 'textarea'], ['markup', 'bool'], ['maskedWhen', 'condition'], ['style', ['', 'title', 'headline', 'body', 'caption']], ['font', 'font'], ['weight', ['', 'regular', 'medium', 'semibold', 'bold', 'heavy']],
+    ['size', 'number'], ['color', 'color'], ['align', ['', 'leading', 'center', 'trailing']], ['transform', ['', 'uppercase', 'lowercase', 'capitalize']],
+    ['letterSpacing', 'number'], ['lineHeight', 'number']],
   image: [['systemName', 'text'], ['name', 'text'], ['contentMode', ['', 'fit', 'fill']], ['width', 'number'], ['height', 'number']],
   // height / maxHeight: the container decides the size; a `scroll` inside fills it and scrolls
   // spec 2.2: alignment `fill` (children take the full width); a negative spacing overlaps
@@ -680,6 +684,14 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
         select.setAttribute('aria-label', 'transition')
         select.addEventListener('change', () => doc.setProp(id, key, select.value ? { visible: select.value } : undefined))
         return el('label', {}, 'transition (appear / disappear)', select)
+      }
+      // spec 2.3 — a font: a name the app maps (built-ins + `catalog.fonts`), never CSS
+      if (kind === 'font') {
+        const fonts = ['', ...new Set([...Object.keys(FONT_STACKS), ...(opts.catalog?.fonts ?? [])])]
+        const select = selectOf(fonts, current, (v) => v || 'default')
+        select.setAttribute('aria-label', 'font')
+        select.addEventListener('change', () => doc.setProp(id, key, select.value || undefined))
+        return el('label', {}, 'font', select)
       }
       if (kind === 'state') {
         const input = el('input', { list: listId('states'), 'aria-label': key, placeholder: 'state name' }) as HTMLInputElement

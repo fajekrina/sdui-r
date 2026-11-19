@@ -33,7 +33,7 @@ export { ComponentFactory, type Component, type ComponentType, type ComponentInf
 export { parseMarkup, type MarkupRun } from './markup'
 export * from './components/builtins'
 export { Symbols } from './components/symbols'
-export { parseHexColor, color, fontWeight, textStyle, sharedStyle, COLOR_TOKENS, type SduiRGBA } from './style'
+export { parseHexColor, color, fontWeight, textStyle, sharedStyle, typography, FONT_STACKS, COLOR_TOKENS, type SduiRGBA } from './style'
 export { createUiStore, type UiStore, type UiState, type UiChange, type ToastState, type FormState } from './ui-store'
 
 // Actions

@@ -449,6 +449,30 @@
         "toggle": {
           "$ref": "#/$defs/identifier",
           "description": "v2.3 — button: a tap flips state `$selected.<toggle>` between \"on\" and \"\" (before its action runs, like a choice)."
+        },
+        "font": {
+          "$ref": "#/$defs/identifier",
+          "description": "v2.3 — text: a font NAME (never CSS). rounded · serif · mono are built in; a host maps any name with the CSS variable --sdui-font-<name> (native: its own font table). Unknown → the default font."
+        },
+        "transform": {
+          "enum": [
+            "uppercase",
+            "lowercase",
+            "capitalize"
+          ],
+          "description": "v2.3 — text: letter case."
+        },
+        "letterSpacing": {
+          "type": "number",
+          "minimum": -5,
+          "maximum": 20,
+          "description": "v2.3 — text: extra space between letters, in px."
+        },
+        "lineHeight": {
+          "type": "number",
+          "minimum": 0.8,
+          "maximum": 3,
+          "description": "v2.3 — text: line height as a multiple of the size (default 1.3)."
         }
       }
     },

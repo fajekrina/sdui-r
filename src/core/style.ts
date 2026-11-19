@@ -87,6 +87,30 @@ export function textStyle(style: string): { size: number; weight: number } {
   }
 }
 
+/// spec 2.3 — a text's typography beyond size / weight: `font` (a NAME — never CSS: a host
+/// maps it with `--sdui-font-<name>`; rounded / serif / mono have built-in stacks; any other
+/// identifier falls back to the inherited font), `transform`, `letterSpacing` (px, -5…20) and
+/// `lineHeight` (a multiple of the size, 0.8…3). Out-of-range or unknown values are ignored.
+export const FONT_STACKS: Readonly<Record<string, string>> = {
+  rounded: 'ui-rounded, "SF Pro Rounded", "Nunito", system-ui, sans-serif',
+  serif: 'ui-serif, Georgia, "Times New Roman", serif',
+  mono: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
+}
+const TRANSFORMS = ['uppercase', 'lowercase', 'capitalize']
+
+export function typography(node: SduiNode): Record<string, string> {
+  const out: Record<string, string> = {}
+  const font = node.string('font')
+  if (/^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(font)) out.fontFamily = `var(--sdui-font-${font}, ${FONT_STACKS[font] ?? 'inherit'})`
+  const transform = node.string('transform')
+  if (TRANSFORMS.includes(transform)) out.textTransform = transform
+  const spacing = num(node, 'letterSpacing')
+  if (spacing !== undefined && spacing >= -5 && spacing <= 20) out.letterSpacing = `${spacing}px`
+  const line = num(node, 'lineHeight')
+  if (line !== undefined && line >= 0.8 && line <= 3) out.lineHeight = String(line)
+  return out
+}
+
 const num = (node: SduiNode, key: string): number | undefined => {
   const v = node.value(key)
   return typeof v === 'number' && Number.isFinite(v) ? v : undefined

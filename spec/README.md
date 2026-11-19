@@ -163,6 +163,18 @@ ignores both props (it shows the asterisks). A text is never truncated: every li
 value shows, a newline is a line break. Native hosts parse the same way
 (`parseMarkup` in the core is the reference).
 
+**Typography (v2.3)** — on `text`:
+
+| Prop | Values | Effect |
+| --- | --- | --- |
+| `font` | a name (identifier) | the font. `rounded` · `serif` · `mono` are built in; a host maps any name — web: the CSS variable `--sdui-font-<name>` (built-ins fall back to a system stack, other names to the inherited font); native: its own font table. Never CSS: an unknown name is the default font |
+| `transform` | `uppercase` · `lowercase` · `capitalize` | letter case (the value itself is unchanged) |
+| `letterSpacing` | number, -5…20 (px) | extra space between letters |
+| `lineHeight` | number, 0.8…3 | line height as a multiple of the size (default 1.3) |
+
+Out-of-range or unknown values are ignored by the client and rejected by the schema. All four
+are design (template), not content.
+
 ### Actions per component
 
 Only a `button` runs its action when tapped. A `chart` reads its `api` action's `request` as
