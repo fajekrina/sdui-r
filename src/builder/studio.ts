@@ -162,6 +162,21 @@ export const FIELDS: Record<string, Array<[string, FieldKind]>> = {
     ['tip', 'tip'], ['selectState', 'state'], ['initialSelection', 'pick'], ['selectedColor', 'color']]
 }
 
+/// The chart props a `kind` reads (others are kept but unused: the inspector hides them, and lists them
+/// with a Remove button when they hold a value). Not listed = every kind.
+export const CHART_KINDS: Readonly<Record<string, readonly string[]>> = {
+  color: ['bar', 'line', 'area'],
+  min: ['bar', 'line', 'area'],
+  max: ['bar', 'line', 'area'],
+  showLegend: ['pie', 'donut'],
+  // spec 2.4: picking a bar (other kinds: spec 2.5)
+  tip: ['bar'], selectState: ['bar'], initialSelection: ['bar'], selectedColor: ['bar']
+}
+/// Does a chart of `kind` read prop `key`?
+export function chartReads(kind: string, key: string): boolean {
+  return CHART_KINDS[key]?.includes(kind || 'bar') ?? true
+}
+
 /// The inspector groups, in order (the action has its own section).
 export const GROUPS = ['Content', 'Field', 'Data', 'Choice', 'State', 'Layout', 'Style', 'Accessibility'] as const
 export type FieldGroup = typeof GROUPS[number]
@@ -650,8 +665,11 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
   const foldedGroups = new Set<string>()
   const inspectorFor = (node: SduiNode) => {
     const id = node.id!
-    const fields = [...(FIELDS[node.type] ?? []), ...SHARED]
     const props = node.props
+    // a chart shows only what its kind reads; values its kind ignores are listed, never dropped silently
+    const chartKind = node.type === 'chart' ? node.string('kind') || 'bar' : undefined
+    const unused = chartKind ? (FIELDS.chart ?? []).map(([k]) => k).filter((k) => !chartReads(chartKind, k) && props[k] !== undefined) : []
+    const fields = [...(FIELDS[node.type] ?? []), ...SHARED].filter(([k]) => !chartKind || chartReads(chartKind, k))
     const control = (key: string, kind: FieldKind): HTMLElement => {
       const current = props[key]
       if (kind === 'bool') {
@@ -759,13 +777,15 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
         doc.setProp(id, key, input.value === '' ? undefined : kind === 'number' ? Number(input.value) : input.value, { typing: true })
       })
       input.addEventListener('change', () => doc.endTyping())
+      // a pie / donut's height is its diameter
+      const label = chartKind && key === 'height' && (chartKind === 'pie' || chartKind === 'donut') ? 'height (diameter)' : key
       // spec 2.2 — an image's default picture: upload a file (the maker can still replace it)
       if (node.type === 'image' && key === 'name' && opts.uploadAsset) {
         const picker = el('input', { type: 'file', accept: IMAGE_TYPES.join(','), 'aria-label': 'Upload a picture' }) as HTMLInputElement
         picker.addEventListener('change', () => { const file = picker.files?.[0]; if (file) void uploadPicture(id, file) })
         return el('label', {}, key, input, picker)
       }
-      return el('label', {}, key, input)
+      return el('label', {}, label, input)
     }
     // one foldable section per group, in a fixed order
     const groups = new Map<FieldGroup, HTMLElement[]>()
@@ -783,6 +803,12 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
       return box
     }
     const controls = GROUPS.filter((g) => groups.has(g)).map((g) => section(g, ...groups.get(g)!))
+    const notes: Node[] = []
+    if (unused.length) {
+      const remove = button('Remove', () => { const next = { ...props }; for (const k of unused) delete next[k]; doc.setProps(id, next) })
+      remove.setAttribute('aria-label', `Remove ${unused.join(', ')}`)
+      notes.push(el('div', { class: 'tip warn unused' }, `Not used by a ${chartKind} chart: ${unused.join(', ')} (kept — switching back uses them again). `, remove))
+    }
 
     // parent picker (moves the node to the end of another container)
     const placement: Node[] = []
@@ -846,6 +872,7 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
 
     inspector.replaceChildren(
       el('fieldset', {}, el('legend', {}, `${node.type}${node.id && !isGeneratedId(node.id) ? ` #${node.id}` : ''}`), ...identity, ...placement),
+      ...notes,
       ...controls,
       ...actionSection,
       section('Props (JSON)', propsJSON),

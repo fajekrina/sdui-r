@@ -5,6 +5,14 @@ versi mengikuti Semantic Versioning (0.x: breaking change boleh di minor dengan 
 
 ## [Unreleased]
 
+### Diubah: inspector chart mengikuti `kind`
+
+- Studio hanya menampilkan properti yang dibaca jenis chart itu (`CHART_KINDS`, `chartReads`): `color` / `min` / `max`
+  untuk bar · line · area, `showLegend` untuk pie · donut, properti pilih 2.4 untuk bar; `height` pie / donut berlabel
+  "height (diameter)".
+- Mengganti `kind` tidak membuang nilai: properti yang tidak dibaca jenis baru tetap tersimpan, didaftar ("Not used by
+  a pie chart: …") dengan tombol **Remove** (satu langkah undo); kembali ke jenis lama memakainya lagi.
+
 ### Ditambah: spec 2.4 — chart interaktif (bar)
 
 - `SPEC_VERSION` 2.4 (hanya properti; client 2.3 menampilkan grafik statis). Chart `bar`: `selectState` (batang yang
