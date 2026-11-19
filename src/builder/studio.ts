@@ -112,7 +112,7 @@ export interface MountedStudio {
 /// bold / italic buttons), `color` a theme token or hex, `options` a picker's option table,
 /// `items` a list's data (a `screen.load` request or a key path)
 /// spec 2.3: `condition` (a state-bound prop), `transition`, `state` (a state name: button `toggle`)
-export type FieldKind = 'text' | 'textarea' | 'number' | 'bool' | 'json' | 'color' | 'options' | 'items' | 'condition' | 'transition' | 'state' | 'font' | string[]
+export type FieldKind = 'text' | 'textarea' | 'number' | 'bool' | 'json' | 'color' | 'options' | 'items' | 'condition' | 'transition' | 'state' | 'font' | 'tip' | 'pick' | string[]
 /// checkboxes whose prop defaults to true: unchecked writes `false`, checked removes the prop
 export const DEFAULT_TRUE = new Set(['showLabels', 'showLegend'])
 type Drag = { kind: 'type'; type: string } | { kind: 'node'; id: string }
@@ -157,7 +157,9 @@ export const FIELDS: Record<string, Array<[string, FieldKind]>> = {
   chart: [['kind', ['', 'bar', 'line', 'area', 'pie', 'donut']], ['data', 'json'], ['labels', 'json'],
     ['keyKey', 'text'], ['labelKey', 'text'], ['valueKey', 'text'],
     ['color', 'color'], ['height', 'number'], ['min', 'number'], ['max', 'number'],
-    ['showLabels', 'bool'], ['showKeys', 'bool'], ['showValues', 'bool'], ['showLegend', 'bool']]
+    ['showLabels', 'bool'], ['showKeys', 'bool'], ['showValues', 'bool'], ['showLegend', 'bool'],
+    // spec 2.4 (bar): a tapped bar is picked; the tip above it reads {{item.x}}
+    ['tip', 'tip'], ['selectState', 'state'], ['initialSelection', 'pick'], ['selectedColor', 'color']]
 }
 
 /// The inspector groups, in order (the action has its own section).
@@ -169,7 +171,7 @@ const GROUP: Record<string, FieldGroup> = {
   keyboard: 'Field', required: 'Field', minLength: 'Field', maxLength: 'Field', pattern: 'Field', secure: 'Field', rows: 'Field',
   spacing: 'Layout', alignment: 'Layout', width: 'Layout', height: 'Layout', maxHeight: 'Layout', columns: 'Layout', rowHeight: 'Layout', axis: 'Layout',
   padding: 'Layout', paddingHorizontal: 'Layout', paddingVertical: 'Layout', pin: 'Layout', contentMode: 'Layout', iconPosition: 'Layout', iconPadding: 'Layout',
-  group: 'Choice', toggle: 'Choice', selectedBackground: 'Choice', selectedForeground: 'Choice', selectedIconBackground: 'Choice', selectedIconForeground: 'Choice',
+  group: 'Choice', toggle: 'Choice', selectState: 'Choice', initialSelection: 'Choice', selectedColor: 'Choice', tip: 'Choice', selectedBackground: 'Choice', selectedForeground: 'Choice', selectedIconBackground: 'Choice', selectedIconForeground: 'Choice',
   a11yLabel: 'Accessibility', a11yId: 'Accessibility',
   visibleWhen: 'State', disabledWhen: 'State', maskedWhen: 'State', transition: 'State'
 }
@@ -697,7 +699,30 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
         const input = el('input', { list: listId('states'), 'aria-label': key, placeholder: 'state name' }) as HTMLInputElement
         input.value = typeof current === 'string' ? current : ''
         input.addEventListener('change', () => doc.setProp(id, key, input.value.trim() || undefined))
-        return el('label', {}, `${key} (a tap switches this state on / off)`, input)
+        return el('label', {}, node.type === 'chart' ? `${key} (a tapped bar writes its key here)` : `${key} (a tap switches this state on / off)`, input)
+      }
+      // spec 2.4 — the chart's tip: {{item.x}} of the picked bar; picking one turns on selectState
+      if (kind === 'tip') {
+        const fields = chartFields(node)
+        const box = multilineText(d, {
+          label: key, value: typeof current === 'string' ? current : '', rows: 2,
+          onChange: (v) => {
+            doc.setProp(id, key, v === '' ? undefined : v, { typing: true })
+            if (v && !props.selectState) doc.setProp(id, 'selectState', `${id}Bar`, { typing: true })
+          },
+          onCommit: () => doc.endTyping()
+        })
+        box.append(el('div', { class: 'tip' }, fields.length
+          ? `Fields of the picked bar: ${fields.map((f) => `{{item.${f}}}`).join(' ')} · **bold** · new line = line break`
+          : 'Fields of the picked bar: {{item.label}} {{item.value}} (and any other field of the data)'))
+        return box
+      }
+      if (kind === 'pick') {
+        const keys = chartKeys(node)
+        const select = selectOf(['', 'last', 'first', 'none', ...keys], current, (v) => v === '' ? '— none —' : keys.includes(v) ? `item ${v}` : v)
+        select.setAttribute('aria-label', key)
+        select.addEventListener('change', () => doc.setProp(id, key, select.value || undefined))
+        return el('label', {}, `${key} (picked until a tap)`, select)
       }
       if (kind === 'options') return optionsTable(d, key, current, (v) => doc.setProp(id, key, v))
       if (kind === 'items') {
@@ -847,6 +872,16 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
         ? `unknown image "${node.string('name')}"` : 'Image frame — the maker uploads the picture')
     }
   }
+
+  /// spec 2.4 — a chart's items: its static `data`, or the sample answer of its data source
+  const chartItems = (node: SduiNode): Array<Record<string, unknown>> => {
+    const request = node.action?.type === 'api' ? node.action.request : undefined
+    const raw = request ? opts.sampleData?.[request] : node.props.data
+    const list = Array.isArray(raw) ? raw : raw && typeof raw === 'object' && Array.isArray((raw as { items?: unknown }).items) ? (raw as { items: unknown[] }).items : []
+    return list.filter((i): i is Record<string, unknown> => !!i && typeof i === 'object' && !Array.isArray(i))
+  }
+  const chartFields = (node: SduiNode): string[] => [...new Set(chartItems(node).flatMap((i) => Object.keys(i)))]
+  const chartKeys = (node: SduiNode): string[] => chartItems(node).map((i) => i.key).filter((k): k is string => typeof k === 'string')
 
   /// spec 2.3 — the sample data plus the simulated state (`$selected`) and request results
   const canvasData = (): Record<string, SduiValue> => {

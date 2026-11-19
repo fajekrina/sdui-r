@@ -17,8 +17,8 @@ const walk = (root: SduiNode, visit: (n: SduiNode) => void) => { visit(root); ro
 export function stateNames(root: SduiNode, declared: ScreenState = {}): string[] {
   const out = new Set(Object.keys(declared))
   walk(root, (n) => {
-    if (n.type !== 'button') return
-    const name = n.string('group') || n.string('toggle')
+    // a button's group / toggle, or (2.4) a chart's picked bar
+    const name = n.type === 'button' ? n.string('group') || n.string('toggle') : n.type === 'chart' ? n.string('selectState') : ''
     if (name) out.add(name)
   })
   return [...out]
@@ -28,6 +28,12 @@ export function stateNames(root: SduiNode, declared: ScreenState = {}): string[]
 export function stateValues(root: SduiNode, name: string): string[] {
   const out = new Set<string>([''])
   walk(root, (n) => {
+    if (n.type === 'chart' && n.string('selectState') === name) {
+      // a picked bar writes its item key (static data; a data source's keys come with its answer)
+      const data = n.props.data
+      if (Array.isArray(data)) data.forEach((item, i) => out.add(item && typeof item === 'object' && !Array.isArray(item) && typeof (item as Record<string, unknown>).key === 'string' ? (item as Record<string, string>).key : String(i)))
+      return
+    }
     if (n.type !== 'button') return
     if (n.string('group') === name) out.add(n.string('value') || n.id || '')
     else if (n.string('toggle') === name) out.add('on')
@@ -94,6 +100,7 @@ export function describeStateProps(node: SduiNode): string[] {
   const kind = t && typeof t === 'object' && !Array.isArray(t) ? (t as { visible?: unknown }).visible : undefined
   if (node.props.visibleWhen !== undefined && (kind === 'fade' || kind === 'collapse')) out.push(`Appears / disappears with a ${kind}`)
   if (node.type === 'button' && node.string('toggle')) out.push(`A tap switches state ${node.string('toggle')} on / off`)
+  if (node.type === 'chart' && node.string('selectState')) out.push(`A tapped bar is picked (state ${node.string('selectState')})${node.string('tip') ? '; a tip above it shows its data' : ''}`)
   return out
 }
 
@@ -112,7 +119,13 @@ export function simulatedState(root: SduiNode, declared: ScreenState, sim: Recor
 export function stateWarnings(root: SduiNode, declared: ScreenState = {}): string[] {
   const out: string[] = []
   const writers = new Set<string>()
-  walk(root, (n) => { if (n.type === 'button') { const w = n.string('group') || n.string('toggle'); if (w) writers.add(w) } })
+  walk(root, (n) => {
+    const w = n.type === 'button' ? n.string('group') || n.string('toggle') : n.type === 'chart' ? n.string('selectState') : ''
+    if (w) writers.add(w)
+  })
+  // a chart that picks from a data source writes keys this Studio cannot list
+  const sourced = new Set<string>()
+  walk(root, (n) => { if (n.type === 'chart' && n.action?.type === 'api' && n.string('selectState')) sourced.add(n.string('selectState')) })
   const requests = requestNames(root)
   const read = new Set<string>()
   walk(root, (n) => {
@@ -137,9 +150,16 @@ export function stateWarnings(root: SduiNode, declared: ScreenState = {}): strin
       // a value no button sets (and that the backend may not return either) is suspicious
       const possible = stateValues(root, p.name)
       const missing = p.values.filter((v) => !possible.includes(v))
-      if (missing.length && !initial?.includes('{{')) out.push(`${at}: no button sets ${p.name} to ${missing.map(shown).join(' or ')}`)
+      if (missing.length && !initial?.includes('{{') && !sourced.has(p.name)) out.push(`${at}: no button sets ${p.name} to ${missing.map(shown).join(' or ')}`)
     }
     if (n.props.transition !== undefined && n.props.visibleWhen === undefined) out.push(`${at}: a transition animates visibleWhen changes; this component has none`)
+    // spec 2.4 — the picking props work on a bar chart; a tip needs a bar to sit on
+    if (n.type === 'chart') {
+      const picks = ['tip', 'selectState', 'initialSelection', 'selectedColor'].filter((k) => n.props[k] !== undefined)
+      const kind = n.string('kind') || 'bar'
+      if (picks.length && kind !== 'bar') out.push(`${at}: ${picks.join(', ')} only work on a bar chart (this one is ${kind})`)
+      else if (n.string('tip') && !n.string('selectState') && (!n.string('initialSelection') || n.string('initialSelection') === 'none')) out.push(`${at}: the tip never shows — set selectState (a tap picks a bar) or initialSelection`)
+    }
   })
   for (const name of Object.keys(declared)) {
     if (!read.has(name) && !writers.has(name)) out.push(`state "${name}" is declared but nothing uses it`)
