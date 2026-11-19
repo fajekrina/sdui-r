@@ -1,6 +1,6 @@
 import {
   ActionSpec, ComponentFactory, SchemaValidator, SduiError, SduiNode, SduiPayload, ScreenSpec, SPEC_VERSION,
-  TemplateDocument, TemplateSpec, compose, parseJSON, sortedJSONStringify, type BytesLike, type LoadRequest, type SduiProps
+  TemplateDocument, TemplateSpec, compose, parseJSON, sortedJSONStringify, type BytesLike, type LoadRequest, type ScreenState, type SduiProps
 } from '../core'
 import { fromUniversal } from '../compat'
 import {
@@ -18,7 +18,7 @@ export interface ValidationIssue {
 /// position, a release `version` and a palette `title`.
 export type EditorMode = 'screen' | 'template'
 
-type Snapshot = { root: SduiNode; load: LoadRequest[]; key: string; version: number; title?: string }
+type Snapshot = { root: SduiNode; load: LoadRequest[]; key: string; version: number; title?: string; state: ScreenState }
 
 /// The editable screen: a spec node tree where every node has an id, the
 /// selection, `screen.load`, and undo history. Views subscribe and call its edit
@@ -30,6 +30,7 @@ export class EditorDocument {
   private _selection?: string
   private _version: number
   private _title?: string
+  private _state: ScreenState
   private undoStack: Snapshot[] = []
   private redoStack: Snapshot[] = []
   readonly mode: EditorMode
@@ -41,7 +42,7 @@ export class EditorDocument {
   /// component's id never comes back on a different component (value sets are keyed by ids).
   private readonly seen = new Map<string, string>()
 
-  constructor(init: { key?: string; root?: SduiNode; load?: LoadRequest[]; factory?: ComponentFactory; mode?: EditorMode; version?: number; title?: string } = {}) {
+  constructor(init: { key?: string; root?: SduiNode; load?: LoadRequest[]; factory?: ComponentFactory; mode?: EditorMode; version?: number; title?: string; state?: ScreenState } = {}) {
     this.factory = init.factory ?? ComponentFactory.withBuiltins()
     this.mode = init.mode ?? 'screen'
     this._key = init.key ?? (this.mode === 'template' ? 'template' : 'screen')
@@ -50,6 +51,7 @@ export class EditorDocument {
     this._root = this.ensureIds(init.root ?? new SduiNode({ id: this.mode === 'template' ? 'root' : undefined, type: 'vstack', props: { spacing: 12, alignment: 'leading', padding: 16 } }))
     this.remember(this._root)
     this._load = init.load ?? []
+    this._state = init.state ?? {}
   }
 
   /// template mode: ids that must never be generated again — those of every released version
@@ -133,6 +135,8 @@ export class EditorDocument {
   get title(): string | undefined { return this._title }
   get root(): SduiNode { return this._root }
   get load(): LoadRequest[] { return this._load }
+  /// v2.3 — the declared screen state
+  get state(): ScreenState { return this._state }
   get selection(): string | undefined { return this._selection }
   get selected(): SduiNode | undefined { return this._selection ? find(this._root, this._selection) : undefined }
 
@@ -158,7 +162,7 @@ export class EditorDocument {
     for (const listener of [...this.listeners]) listener()
   }
 
-  private snapshot(): Snapshot { return { root: this._root, load: this._load, key: this._key, version: this._version, title: this._title } }
+  private snapshot(): Snapshot { return { root: this._root, load: this._load, key: this._key, version: this._version, title: this._title, state: this._state } }
 
   private restore(s: Snapshot): void {
     this.remember(this._root)
@@ -168,13 +172,14 @@ export class EditorDocument {
     this._key = s.key
     this._version = s.version
     this._title = s.title
+    this._state = s.state
   }
 
   private mutate(next: Partial<Snapshot>, typing?: string): void {
     const s: Snapshot = { ...this.snapshot(), ...next }
     // a no-op edit must not touch undo/redo history
     if (s.root.equals(this._root) && JSON.stringify(s.load) === JSON.stringify(this._load) && s.key === this._key &&
-        s.version === this._version && s.title === this._title) return
+        s.version === this._version && s.title === this._title && JSON.stringify(s.state) === JSON.stringify(this._state)) return
     // keystrokes into the same field: one undo step for the whole word / sentence
     if (!(typing !== undefined && typing === this.typing && this.undoStack.length > 0)) this.undoStack.push(this.snapshot())
     this.typing = typing
@@ -303,13 +308,15 @@ export class EditorDocument {
 
   /// template mode: the template document (ids kept, `order` = position).
   templateDocument(): TemplateDocument {
-    return new TemplateDocument(SPEC_VERSION, new TemplateSpec(this._key, this._version, withOrders(this._root), { title: this._title, load: this._load }))
+    return new TemplateDocument(SPEC_VERSION, new TemplateSpec(this._key, this._version, withOrders(this._root), { title: this._title, load: this._load, state: this._state }))
   }
   setLoad(load: LoadRequest[]): void { this.mutate({ load }) }
+  /// v2.3 — replace the declared screen state
+  setScreenState(state: ScreenState): void { this.mutate({ state }) }
 
   /// The payload (generated ids stripped).
   payload(): SduiPayload {
-    return new SduiPayload(SPEC_VERSION, new ScreenSpec(this._key, strippingGeneratedIds(this._root), { load: this._load }))
+    return new SduiPayload(SPEC_VERSION, new ScreenSpec(this._key, strippingGeneratedIds(this._root), { load: this._load, state: this._state }))
   }
 
   /// Validation issues for the current tree (empty = valid).
@@ -338,7 +345,7 @@ export class EditorDocument {
       if (options.keepIds && this.mode === 'template') this.assertIdsKept(t.root)
       this.undoStack.push(this.snapshot())
       this.redoStack = []
-      this.restore({ root: this.ensureIds(sortedByOrder(t.root)), load: t.load, key: t.key, version: t.version, title: t.title })
+      this.restore({ root: this.ensureIds(sortedByOrder(t.root)), load: t.load, key: t.key, version: t.version, title: t.title, state: t.state })
       this.importWarnings = []
       this._selection = undefined
       this.changed()
@@ -359,6 +366,7 @@ export class EditorDocument {
     this._root = this.ensureIds(payload.screen.root)
     this.remember(this._root)
     this._load = payload.screen.load
+    this._state = payload.screen.state
     this._selection = undefined
     this.changed()
   }

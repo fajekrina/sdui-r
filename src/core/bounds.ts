@@ -13,7 +13,7 @@
 /// recursion limits.
 import {
   maxArrayItems, maxChainDepth, maxChildren, maxDepth, maxIdentifierLength,
-  maxLoadRequests, maxNodes, maxProps, maxStringLength
+  maxConditionValues, maxLoadRequests, maxNodes, maxProps, maxStates, maxStringLength
 } from '../../spec/bounds.json'
 
 export class SduiBounds {
@@ -27,6 +27,10 @@ export class SduiBounds {
   readonly maxChainDepth: number
   /// v1.1 — `screen.load` requests per screen.
   readonly maxLoadRequests: number
+  /// v2.3 — declared screen states (`state`) per screen.
+  readonly maxStates: number
+  /// v2.3 — values in one condition's `in` list.
+  readonly maxConditionValues: number
 
   constructor(init: Partial<SduiBounds> = {}) {
     this.maxDepth = init.maxDepth ?? maxDepth
@@ -38,6 +42,8 @@ export class SduiBounds {
     this.maxIdentifierLength = init.maxIdentifierLength ?? maxIdentifierLength
     this.maxChainDepth = init.maxChainDepth ?? maxChainDepth
     this.maxLoadRequests = init.maxLoadRequests ?? maxLoadRequests
+    this.maxStates = init.maxStates ?? maxStates
+    this.maxConditionValues = init.maxConditionValues ?? maxConditionValues
   }
 
   static readonly default = new SduiBounds()

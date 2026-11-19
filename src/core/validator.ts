@@ -3,6 +3,7 @@ import { SduiError } from './errors'
 import type { SduiNode } from './node'
 import type { SduiPayload } from './payload'
 import type { TemplateDocument, ValuesDocument } from './template'
+import type { ScreenState } from './payload'
 import type { ActionSpec } from './actions/spec'
 import type { SduiValue } from './value'
 import { isContentProp } from '../spec'
@@ -33,6 +34,7 @@ export class SchemaValidator {
     this.requireIdentifier(t.key, 'template.key')
     if (!Number.isInteger(t.version) || t.version < 1) throw SduiError.schema('template.version must be a positive integer')
     if (t.title !== undefined && length(t.title) > this.bounds.maxStringLength) throw SduiError.bounds(`string length exceeds ${this.bounds.maxStringLength}`)
+    this.validateState(t.state, 'template.state')
     const trees: [string, SduiNode | undefined][] = [['root', t.root], ['variants.compact', t.variants.compact], ['variants.wide', t.variants.wide]]
     for (const [label, tree] of trees) {
       if (!tree) continue
@@ -106,6 +108,21 @@ export class SchemaValidator {
       this.requireIdentifier(load.request, 'load.request')
       if (load.params) this.validateParams(load.params)
     }
+    this.validateState(screen.state, 'screen.state')
+  }
+
+  /// v2.3 — the declared screen state: at most `maxStates`, names are identifiers, `initial`
+  /// is length-bounded. (State-bound props are not checked here: props are open, and a
+  /// condition the client cannot evaluate falls back per prop at render. The schema — CI
+  /// and backend — is strict about their shape.)
+  private validateState(state: ScreenState, path: string): void {
+    const names = Object.keys(state)
+    if (names.length > this.bounds.maxStates) throw SduiError.bounds(`states exceed ${this.bounds.maxStates}`)
+    for (const name of names) {
+      this.requireIdentifier(name, `${path} name`)
+      const initial = state[name]!.initial
+      if (initial !== undefined) this.validateValue(initial)
+    }
   }
 
   /// Validate a node tree without the payload envelope (handy for tests/tools).
@@ -132,6 +149,11 @@ export class SchemaValidator {
     const props = Object.values(node.props)
     if (props.length > b.maxProps) throw SduiError.bounds(`props exceed ${b.maxProps}`)
     for (const value of props) this.validateValue(value)
+    // v2.3 — a bound, not a shape check: an `in` list longer than maxConditionValues
+    for (const key of CONDITION_PROPS) {
+      const list = (node.props[key] as { in?: unknown } | null | undefined)?.in
+      if (Array.isArray(list) && list.length > b.maxConditionValues) throw SduiError.bounds(`${key}.in exceeds ${b.maxConditionValues} values`)
+    }
 
     if (node.children.length > b.maxChildren) throw SduiError.bounds(`children exceed ${b.maxChildren}`)
     for (const child of node.children) this.validateNode(child, depth + 1, counter)
@@ -201,6 +223,9 @@ export class SchemaValidator {
     }
   }
 }
+
+/// v2.3 — the props that hold one condition
+const CONDITION_PROPS = ['visibleWhen', 'disabledWhen', 'maskedWhen'] as const
 
 /// Mirrors the schema patterns: `^[A-Za-z][A-Za-z0-9_]*$` (dots allowed for
 /// namespaced component types). ASCII only — rejects URLs, paths, injection.

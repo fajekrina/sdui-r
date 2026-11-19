@@ -1,0 +1,71 @@
+{
+  "schemaVersion": "2.3",
+  "template": {
+    "key": "promoBanner",
+    "version": 1,
+    "title": "Banner promo",
+    "state": {
+      "promoBanner": {}
+    },
+    "root": {
+      "type": "vstack",
+      "id": "root",
+      "order": 0,
+      "props": {
+        "alignment": "fill",
+        "spacing": 12
+      },
+      "children": [
+        {
+          "type": "hstack",
+          "id": "banner",
+          "order": 0,
+          "props": {
+            "spacing": 8,
+            "alignment": "center",
+            "padding": 12,
+            "background": "#FFF4D6",
+            "cornerRadius": 12,
+            "visibleWhen": {
+              "state": "promoBanner",
+              "notEquals": "dismissed"
+            },
+            "transition": {
+              "visible": "collapse"
+            }
+          },
+          "children": [
+            {
+              "type": "text",
+              "id": "bannerText",
+              "order": 0,
+              "props": {
+                "value": "Cashback 10% minggu ini"
+              }
+            },
+            {
+              "type": "button",
+              "id": "bannerClose",
+              "order": 1,
+              "props": {
+                "title": "✕",
+                "a11yLabel": "Tutup",
+                "variant": "plain",
+                "group": "promoBanner",
+                "value": "dismissed"
+              }
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "id": "body",
+          "order": 1,
+          "props": {
+            "value": "Isi halaman"
+          }
+        }
+      ]
+    }
+  }
+}

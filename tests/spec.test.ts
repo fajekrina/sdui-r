@@ -40,8 +40,16 @@ describe('client validator vs spec fixtures', () => {
   // ignores them by policy (forward-compatible minors) — and so never acts on them.
   const SCHEMA_ONLY = new Set(['action_extra_key.json', 'node_extra_key.json', 'api_raw_url.json', 'variants_unknown_key.json', 'values_extra_key.json'])
 
-  it.each(fixtureNames('invalid').filter((n) => !SCHEMA_ONLY.has(n)))('invalid/%s is rejected by decode or validation', async (name) => {
+  // v2.3 state-bound props: props are open, so a malformed condition / transition is a schema
+  // rejection (CI + backend); the client still renders the screen and falls back per prop.
+  const LENIENT = new Set(['condition_two_operators.json', 'condition_no_source.json', 'condition_two_sources.json', 'condition_unknown_operator.json', 'transition_unknown.json'])
+
+  it.each(fixtureNames('invalid').filter((n) => !SCHEMA_ONLY.has(n) && !LENIENT.has(n)))('invalid/%s is rejected by decode or validation', async (name) => {
     await expect(Promise.resolve().then(() => clientCheck(name, fixture(`invalid/${name}`)))).rejects.toThrow()
+  })
+
+  it.each([...LENIENT])('invalid/%s: the client still materializes the screen', async (name) => {
+    await clientCheck(name, fixture(`invalid/${name}`))
   })
 
   it.each([...SCHEMA_ONLY])('invalid/%s: the unknown keys are dropped, never used', (name) => {
@@ -84,5 +92,7 @@ describe('spec/bounds.json', () => {
     expect(defs.node.properties.children.maxItems).toBe(numbers.maxChildren)
     expect(defs.identifier.maxLength).toBe(numbers.maxIdentifierLength)
     expect(defs.screen.properties.load.maxItems).toBe(numbers.maxLoadRequests)
+    expect(defs.screenState.maxProperties).toBe(numbers.maxStates)
+    expect(defs.condition.properties.in.maxItems).toBe(numbers.maxConditionValues)
   })
 })

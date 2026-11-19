@@ -13,7 +13,7 @@ export {
 } from './bytes'
 export { SduiNode, type SduiNodeInit } from './node'
 export { ActionSpec, ActionType, canonical, type ActionSpecInit, type Presentation, type ToastLevel } from './actions/spec'
-export { SduiPayload, ScreenSpec, SduiEnvelope, parseJSON, type LoadRequest, type ScreenVariants } from './payload'
+export { SduiPayload, ScreenSpec, SduiEnvelope, parseJSON, type LoadRequest, type ScreenVariants, type ScreenState, type StateDecl } from './payload'
 export {
   TemplateSpec, TemplateDocument, ValueSet, ValuesDocument, compose, isScreenBundle, bundleBytes,
   type TemplateRef, type ComponentValue, type ScreenBundle

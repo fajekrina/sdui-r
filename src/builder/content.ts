@@ -22,7 +22,7 @@ const withTrees = (t: TemplateSpec, map: (n: SduiNode) => SduiNode): TemplateSpe
   const variants: ScreenVariants = {}
   if (t.variants.compact) variants.compact = map(t.variants.compact)
   if (t.variants.wide) variants.wide = map(t.variants.wide)
-  return new TemplateSpec(t.key, t.version, root, { title: t.title, load: t.load, variants })
+  return new TemplateSpec(t.key, t.version, root, { title: t.title, load: t.load, variants, state: t.state })
 }
 
 /// The tree the Studio edits: the value set's content written into the template's components

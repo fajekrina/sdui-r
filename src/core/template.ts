@@ -7,7 +7,7 @@ import { SduiValue, type SduiProps } from './value'
 import { ActionSpec } from './actions/spec'
 import { chartSource } from './components/chart'
 import { BUILDER_NOTE_PROP } from '../spec'
-import { ScreenSpec, type LoadRequest, type ScreenVariants, parseJSON } from './payload'
+import { ScreenSpec, type LoadRequest, type ScreenState, type ScreenVariants, parseJSON } from './payload'
 import type { BytesLike } from './bytes'
 
 const asObject = (raw: unknown, path: string): Record<string, unknown> => {
@@ -36,16 +36,19 @@ export class TemplateSpec {
   readonly title?: string
   readonly load: LoadRequest[]
   readonly variants: ScreenVariants
+  /// v2.3 — the declared screen state
+  readonly state: ScreenState
 
   constructor(
     readonly key: string,
     readonly version: number,
     readonly root: SduiNode,
-    extra: { title?: string; load?: LoadRequest[]; variants?: ScreenVariants } = {}
+    extra: { title?: string; load?: LoadRequest[]; variants?: ScreenVariants; state?: ScreenState } = {}
   ) {
     if (extra.title !== undefined) this.title = extra.title
     this.load = extra.load ?? []
     this.variants = extra.variants ?? {}
+    this.state = extra.state ?? {}
   }
 
   get ref(): TemplateRef { return { key: this.key, version: this.version } }
@@ -54,15 +57,15 @@ export class TemplateSpec {
     const o = asObject(raw, path)
     const version = requireVersion(o, 'version', path)
     if (o.title != null && typeof o.title !== 'string') throw SduiError.decode(`${path}.title: expected a string`)
-    // load / variants / root decode exactly like a screen
-    const shape = ScreenSpec.decode({ key: o.key, root: o.root, load: o.load, variants: o.variants }, path)
-    return new TemplateSpec(shape.key, version, shape.root, { title: (o.title as string | null) ?? undefined, load: shape.load, variants: shape.variants })
+    // load / state / variants / root decode exactly like a screen
+    const shape = ScreenSpec.decode({ key: o.key, root: o.root, load: o.load, variants: o.variants, state: o.state }, path)
+    return new TemplateSpec(shape.key, version, shape.root, { title: (o.title as string | null) ?? undefined, load: shape.load, variants: shape.variants, state: shape.state })
   }
 
   toJSON(): Record<string, unknown> {
     const out: Record<string, unknown> = { key: this.key, version: this.version }
     if (this.title !== undefined) out.title = this.title
-    const shape = new ScreenSpec(this.key, this.root, { load: this.load, variants: this.variants }).toJSON()
+    const shape = new ScreenSpec(this.key, this.root, { load: this.load, variants: this.variants, state: this.state }).toJSON()
     delete shape.key
     return { ...out, ...shape }
   }
@@ -208,5 +211,5 @@ export function compose(template: TemplateSpec, values?: ValueSet): ScreenSpec {
     n.children.forEach(walk)
   }
   ;[root, variants.compact, variants.wide].forEach((n) => n && walk(n))
-  return new ScreenSpec(values?.screen ?? template.key, root, { load, variants })
+  return new ScreenSpec(values?.screen ?? template.key, root, { load, variants, state: template.state })
 }

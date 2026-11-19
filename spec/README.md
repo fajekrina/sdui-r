@@ -1,4 +1,4 @@
-# SDUI-R spec (v2.2)
+# SDUI-R spec (v2.3)
 
 The contract between the backend and `@fajekrina/sdui-r`. The machine-readable source
 of truth is [`sdui.schema.json`](./sdui.schema.json) (JSON Schema Draft 2020-12);
@@ -10,7 +10,9 @@ splits a screen into a template and a value set — a new major, so 1.x payloads
 **v2.1** adds props only (a 2.0 document is a valid 2.1 document): `text.align` and
 `text.markup` — see [Text (v2.1)](#text-v21). **v2.2** adds props and symbols only — full-width
 children, overlap, outlines, per-side padding, shadow, pin, button icons and choices — see
-[Layout and choices (v2.2)](#layout-and-choices-v22).
+[Layout and choices (v2.2)](#layout-and-choices-v22). **v2.3** adds screen state, state-bound props
+and transitions — no new components and no new action types, so a 2.2 client still renders a 2.3
+screen (see the table in [State and transitions (v2.3)](#state-and-transitions-v23)).
 
 ## v2.0 — template + value set
 
@@ -190,6 +192,75 @@ choice and can send it (`"params": { "vote": "{{$selected.feedback}}" }`). The s
 renders `aria-pressed="true"`. Symbols added: `arrow.left`, `hand.thumbsup`,
 `hand.thumbsdown`. Every 2.2 prop is template (design), not content.
 
+### State and transitions (v2.3)
+
+Interactions without scripts: a screen keeps named **state**, components read it through one
+**condition** per prop, and the engine animates the change.
+
+**State.** State `x` is `$selected.x` in the screen data — the place a 2.2 choice group already
+writes, so a choice group *is* a state. A template may declare its states:
+
+```json
+"state": { "feedback": { "initial": "{{insight.feedback}}" }, "balanceShown": {} }
+```
+
+`initial` (default `""`) may hold `{{token}}`s; until the state is first set it is re-resolved
+against the data, so a `load` result that lands later still fills it. State is lost when the
+screen closes. To keep it, an action sends it (`"params": { "vote": "{{$selected.feedback}}" }`),
+the backend stores it and returns it in `load` data, and `initial` reads it — the template does not
+change. A group or toggle used without a declaration still works and starts empty. At most
+`maxStates` (16) per screen.
+
+**What changes state** — button props (they run before the button's action, like a choice):
+
+| Prop | Effect of a tap |
+| --- | --- |
+| `group` + `value` (v2.2) | `$selected.<group>` = `value` |
+| `toggle` | `$selected.<toggle>` flips between `"on"` and `""` |
+
+**Request status.** For every `api` action the engine keeps `$request.<request>`:
+`pending` → `success` or `error`.
+
+**Conditions** — exactly one source and exactly one operator; values compare as strings, an
+unset state is `""`:
+
+```json
+{ "state": "feedback", "in": ["", "like"] }
+{ "request": "sendFeedback", "equals": "success" }
+```
+
+| Operator | Holds when |
+| --- | --- |
+| `equals` / `notEquals` | the value is / is not that string |
+| `in` | the value is one of the list (1 – `maxConditionValues` = 16) |
+| `empty: true` / `notEmpty: true` | the value is / is not `""` |
+
+AND: nest containers (an outer `visibleWhen` around an inner one). Anything richer: the backend
+computes one field.
+
+**State-bound props** (template / design, never content):
+
+| Prop | On | Effect while the condition holds |
+| --- | --- | --- |
+| `visibleWhen` | every component | shown (otherwise hidden: no space, out of the accessibility tree) |
+| `disabledWhen` | `button`, `textField`, `textArea`, `picker` | disabled |
+| `maskedWhen` | `text` | the value is replaced by a mask (`••••••`) |
+| `transition` | every component | `{ "visible": "none" \| "fade" \| "collapse" }` — how `visibleWhen` changes animate; `collapse` shrinks along the parent's axis |
+
+The engine owns the durations (fade 200 ms, collapse 250 ms), drops them under
+`prefers-reduced-motion`, and never animates the first render. `maskedWhen` is cosmetic — it
+hides a value from onlookers, not from the client.
+
+**Strict schema, lenient client.** The schema (CI and backend, on save and publish) rejects a
+malformed condition or transition. A client that meets a condition it cannot evaluate (e.g. an
+operator from a later minor) falls back per prop: `visibleWhen` → shown, `disabledWhen` →
+enabled, `maskedWhen` → masked. The only client-side check is the `in` bound.
+
+**A 2.2 client** ignores the unknown props: `visibleWhen` components always show (both feedback
+buttons stay, the choice still colors the picked one), `disabledWhen` never disables (the
+double-tap guard still holds), `toggle` does nothing, transitions are skipped — and **`maskedWhen`
+shows the value**.
+
 ## Actions
 
 | `type` | Required | Optional | Effect |
@@ -211,7 +282,8 @@ dispatches when it passes.
 
 `{{a.b}}` resolves against the screen's data context: navigation params seed it,
 `api` / `native` / `load` results merge in under their names, a `form` adds
-`form.<field>`, a `list` row adds `<as>`. Missing tokens render as empty strings;
+`form.<field>`, a `list` row adds `<as>`. Reserved: `$selected.<state>` (v2.2 / 2.3),
+`$request.<request>` (v2.3), `$load.<request>`. Missing tokens render as empty strings;
 while a `load` request is pending, text whose tokens are still missing renders as a
 loading placeholder.
 

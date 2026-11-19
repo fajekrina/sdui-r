@@ -5,6 +5,22 @@ versi mengikuti Semantic Versioning (0.x: breaking change boleh di minor dengan 
 
 ## [Unreleased]
 
+### Ditambah: spec 2.3 (tahap 1, bentuk dokumen) — state halaman dan transisi
+
+- `SPEC_VERSION` naik ke **2.3**. Tanpa komponen baru dan tanpa action type baru, jadi client 2.2 tetap
+  menampilkan layar 2.3 (properti barunya diabaikan; lihat tabel di `spec/README.md`).
+- Template / screen `state`: state bernama (`$selected.<nama>`, tempat grup pilihan 2.2 menulis) dengan
+  `initial` yang boleh berisi `{{token}}` — wadah untuk pilihan yang nanti disimpan backend.
+  `TemplateSpec.state`, `ScreenSpec.state`, `compose`, `EditorDocument.state` / `setScreenState`,
+  `mergeContent` / `splitContent` membawanya (state adalah desain, bukan konten).
+- Schema: `#/$defs/nodeProps` memeriksa bentuk `visibleWhen` / `disabledWhen` / `maskedWhen` (satu sumber
+  `state` atau `request`, satu operator `equals` · `notEquals` · `in` · `empty` · `notEmpty`), `transition`
+  (`visible`: none · fade · collapse) dan `toggle`. Client tetap lunak (fallback per prop saat render).
+- Bounds: `maxStates` (16), `maxConditionValues` (16).
+- Fixture: `template_insight.json` naik ke 2.3 (umpan balik suka / tidak suka), `template_wallet.json`
+  (saldo + mata), `template_banner.json` (banner yang bisa ditutup), dan 6 fixture invalid.
+- Belum: evaluasi kondisi, `toggle`, `$request`, animasi (fase 2–3) dan panel Studio (fase 4).
+
 ### Ditambah: desain dan konten di satu editor, tetap disimpan terpisah
 
 - `mergeContent(template, values)` (builder): menulis konten value set ke komponen template, jadi satu pohon

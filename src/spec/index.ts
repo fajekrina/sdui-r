@@ -3,7 +3,7 @@
 // gracefully); a different MAJOR is rejected.
 
 /// The spec version this engine writes and fully understands.
-export const SPEC_VERSION = '2.2'
+export const SPEC_VERSION = '2.3'
 
 /// The only accepted MAJOR.
 export const SUPPORTED_MAJOR = 2
@@ -13,6 +13,11 @@ export const V1_COMPONENTS = ['text', 'image', 'vstack', 'hstack', 'zstack', 'bu
 export const V11_COMPONENTS = ['spacer', 'divider', 'grid', 'scroll', 'list', 'form', 'textField', 'textArea', 'picker'] as const
 /// sdui-r 2.0 additions.
 export const V20_COMPONENTS = ['chart'] as const
+/// sdui-r 2.3 additions (no new components, no new action types): screen `state` (each state is
+/// `$selected.<name>`, the place a 2.2 choice group already writes; `initial` may hold tokens),
+/// the state-bound props `visibleWhen` / `disabledWhen` / `maskedWhen` (one condition each),
+/// `transition` (`visible`: none · fade · collapse), button `toggle`, and `$request.<request>`
+/// (pending · success · error) kept by the engine for every `api` action.
 /// sdui-r 2.2 additions (props + symbols, no new components): vstack/card `alignment: fill`,
 /// negative vstack `spacing` (overlap), card `spacing`, shared `paddingHorizontal` /
 /// `paddingVertical` / `borderColor` / `borderWidth` / `shadow` / `pin`, button icon

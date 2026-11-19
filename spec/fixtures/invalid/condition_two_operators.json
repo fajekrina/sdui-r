@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "2.3",
+  "screen": {
+    "key": "s",
+    "root": {
+      "type": "text",
+      "props": {
+        "value": "x",
+        "visibleWhen": {
+          "state": "a",
+          "equals": "1",
+          "notEmpty": true
+        }
+      }
+    }
+  }
+}

@@ -9,5 +9,7 @@
   "maxArrayItems": 512,
   "maxIdentifierLength": 128,
   "maxChainDepth": 4,
-  "maxLoadRequests": 8
+  "maxLoadRequests": 8,
+  "maxStates": 16,
+  "maxConditionValues": 16
 }

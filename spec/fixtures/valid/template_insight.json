@@ -1,9 +1,14 @@
 {
-  "schemaVersion": "2.2",
+  "schemaVersion": "2.3",
   "template": {
     "key": "insightV1",
     "version": 1,
     "title": "Insight buat kamu",
+    "state": {
+      "feedback": {
+        "initial": "{{insight.feedback}}"
+      }
+    },
     "root": {
       "type": "vstack",
       "id": "root",
@@ -215,7 +220,28 @@
                     "group": "feedback",
                     "value": "dislike",
                     "selectedIconBackground": "#22C55E",
-                    "selectedIconForeground": "#FFFFFF"
+                    "selectedIconForeground": "#FFFFFF",
+                    "visibleWhen": {
+                      "state": "feedback",
+                      "in": [
+                        "",
+                        "dislike"
+                      ]
+                    },
+                    "disabledWhen": {
+                      "request": "sendFeedback",
+                      "equals": "pending"
+                    },
+                    "transition": {
+                      "visible": "fade"
+                    }
+                  },
+                  "action": {
+                    "type": "api",
+                    "request": "sendFeedback",
+                    "params": {
+                      "vote": "{{$selected.feedback}}"
+                    }
                   }
                 },
                 {
@@ -236,10 +262,48 @@
                     "group": "feedback",
                     "value": "like",
                     "selectedIconBackground": "#22C55E",
-                    "selectedIconForeground": "#FFFFFF"
+                    "selectedIconForeground": "#FFFFFF",
+                    "visibleWhen": {
+                      "state": "feedback",
+                      "in": [
+                        "",
+                        "like"
+                      ]
+                    },
+                    "disabledWhen": {
+                      "request": "sendFeedback",
+                      "equals": "pending"
+                    },
+                    "transition": {
+                      "visible": "fade"
+                    }
+                  },
+                  "action": {
+                    "type": "api",
+                    "request": "sendFeedback",
+                    "params": {
+                      "vote": "{{$selected.feedback}}"
+                    }
                   }
                 }
               ]
+            },
+            {
+              "type": "text",
+              "id": "feedbackThanks",
+              "order": 2,
+              "props": {
+                "value": "Terima kasih atas masukannya!",
+                "size": 13,
+                "color": "#333333",
+                "visibleWhen": {
+                  "request": "sendFeedback",
+                  "equals": "success"
+                },
+                "transition": {
+                  "visible": "fade"
+                }
+              }
             }
           ]
         },

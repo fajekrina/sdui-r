@@ -1,0 +1,62 @@
+{
+  "schemaVersion": "2.3",
+  "template": {
+    "key": "walletBalance",
+    "version": 1,
+    "title": "Saldo",
+    "load": [
+      {
+        "request": "balance"
+      }
+    ],
+    "state": {
+      "balanceShown": {}
+    },
+    "root": {
+      "type": "hstack",
+      "id": "root",
+      "order": 0,
+      "props": {
+        "spacing": 8,
+        "alignment": "center",
+        "padding": 16
+      },
+      "children": [
+        {
+          "type": "text",
+          "id": "balanceLabel",
+          "order": 0,
+          "props": {
+            "value": "Saldo",
+            "size": 13
+          }
+        },
+        {
+          "type": "text",
+          "id": "balanceValue",
+          "order": 1,
+          "props": {
+            "value": "{{balance.formatted}}",
+            "size": 20,
+            "weight": "bold",
+            "maskedWhen": {
+              "state": "balanceShown",
+              "empty": true
+            }
+          }
+        },
+        {
+          "type": "button",
+          "id": "balanceEye",
+          "order": 2,
+          "props": {
+            "title": "",
+            "systemName": "eye",
+            "a11yLabel": "Tampilkan saldo",
+            "toggle": "balanceShown"
+          }
+        }
+      ]
+    }
+  }
+}

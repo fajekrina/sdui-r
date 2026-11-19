@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "2.3",
+  "screen": {
+    "key": "s",
+    "state": {
+      "bad-name": {}
+    },
+    "root": {
+      "type": "text",
+      "props": {
+        "value": "x"
+      }
+    }
+  }
+}

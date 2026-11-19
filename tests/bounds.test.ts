@@ -52,7 +52,9 @@ const GENERATORS: Record<string, { schema: boolean; make: (n: number) => Json }>
   maxArrayItems: { schema: true, make: (n) => payload({ type: 'text', props: { value: 'x', items: Array.from({ length: n }, (_, i) => i) } }) },
   maxIdentifierLength: { schema: true, make: (n) => payload({ type: 'button', props: { title: 'go' }, action: { type: 'navigate', screen: 'a'.repeat(n) } }) },
   maxChainDepth: { schema: false, make: (n) => payload({ type: 'button', props: { title: 'go' }, action: chain(n) }) },
-  maxLoadRequests: { schema: true, make: (n) => payload(text(), { load: Array.from({ length: n }, (_, i) => ({ request: `r${i}` })) }) }
+  maxLoadRequests: { schema: true, make: (n) => payload(text(), { load: Array.from({ length: n }, (_, i) => ({ request: `r${i}` })) }) },
+  maxStates: { schema: true, make: (n) => payload(text(), { state: Object.fromEntries(Array.from({ length: n }, (_, i) => [`s${i}`, {}])) }) },
+  maxConditionValues: { schema: true, make: (n) => payload({ type: 'text', props: { value: 'x', visibleWhen: { state: 's', in: Array.from({ length: n }, (_, i) => `v${i}`) } } }) }
 }
 
 const validator = new SchemaValidator()

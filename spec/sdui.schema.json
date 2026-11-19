@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/fajekrina/sdui-r/main/spec/sdui.schema.json",
-  "title": "SDUI-R Payload (v2.0)",
-  "description": "Authoritative STRUCTURAL schema for @fajekrina/sdui-r. sdui-r (v2.0) splits a screen into a TEMPLATE (structure + behavior; every node has an id and an order; reusable across screens and merchants) and a VALUE SET (content per template component, per merchant screen), signed and delivered separately and composed by the client. A resolved screen payload (what the client composes) is still accepted for previews and tests. Derived from @fajekrina/sdui v1.1 and murti.schema.json v1 (Apache-2.0, see NOTICE). Tree depth, total node count, action-chain depth, load-request count, id uniqueness, order uniqueness among siblings, value ids existing in the template, and semantic resolution are enforced by the client validator — see spec/README.md.",
+  "title": "SDUI-R Payload (v2.3)",
+  "description": "Authoritative STRUCTURAL schema for @fajekrina/sdui-r. sdui-r (v2.0) splits a screen into a TEMPLATE (structure + behavior; every node has an id and an order; reusable across screens and merchants) and a VALUE SET (content per template component, per merchant screen), signed and delivered separately and composed by the client. A resolved screen payload (what the client composes) is still accepted for previews and tests. Derived from @fajekrina/sdui v1.1 and murti.schema.json v1 (Apache-2.0, see NOTICE). Tree depth, total node count, action-chain depth, load-request count, id uniqueness, order uniqueness among siblings, value ids existing in the template, and semantic resolution are enforced by the client validator — see spec/README.md. v2.3 adds screen state (`state`) and the state-bound node props `visibleWhen`, `disabledWhen`, `maskedWhen`, `transition` and `toggle` (#/$defs/nodeProps): the schema (CI + backend) is strict about their shape; a client that meets one it cannot evaluate falls back per prop instead of rejecting the screen.",
   "oneOf": [
     {
       "$ref": "#/$defs/envelope"
@@ -111,7 +111,7 @@
           "minimum": 0
         },
         "props": {
-          "$ref": "#/$defs/props",
+          "$ref": "#/$defs/nodeProps",
           "description": "Default values; a value set overrides them per id (shallow merge)."
         },
         "children": {
@@ -173,6 +173,9 @@
           "items": {
             "$ref": "#/$defs/loadRequest"
           }
+        },
+        "state": {
+          "$ref": "#/$defs/screenState"
         },
         "root": {
           "$ref": "#/$defs/templateNode"
@@ -314,6 +317,9 @@
           "$ref": "#/$defs/identifier",
           "description": "Stable screen key. Must resolve in the ScreenFactory (a semantic check the client performs)."
         },
+        "state": {
+          "$ref": "#/$defs/screenState"
+        },
         "root": {
           "$ref": "#/$defs/node"
         },
@@ -377,7 +383,7 @@
           "description": "v2.0 — position among siblings (render order). Required in templates."
         },
         "props": {
-          "$ref": "#/$defs/props"
+          "$ref": "#/$defs/nodeProps"
         },
         "children": {
           "type": "array",
@@ -397,6 +403,148 @@
       "maxProperties": 64,
       "additionalProperties": {
         "$ref": "#/$defs/value"
+      }
+    },
+    "screenState": {
+      "type": "object",
+      "description": "v2.3 — the screen state: named values a screen keeps while it is open (lost when it closes). State `x` lives in the data context as `$selected.x` — the same place a v2.2 choice group writes (`button.group`), so a choice group is a state. `initial` (default \"\") may hold {{token}}s; until the state is first set it is re-resolved against the data, so a value the backend stored (sent earlier through action params as {{$selected.x}}) and returns in `load` data comes back. A group or toggle used without a declaration still works and starts empty.",
+      "maxProperties": 16,
+      "propertyNames": {
+        "$ref": "#/$defs/identifier"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "initial": {
+            "type": "string",
+            "maxLength": 4096
+          }
+        }
+      }
+    },
+    "nodeProps": {
+      "description": "A node's props: the open props bag, with the v2.3 state-bound props checked for shape. Template (design) props — never content.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/props"
+        }
+      ],
+      "properties": {
+        "visibleWhen": {
+          "$ref": "#/$defs/condition",
+          "description": "v2.3 — every component: shown only while the condition holds; hidden, it takes no space and leaves the accessibility tree."
+        },
+        "disabledWhen": {
+          "$ref": "#/$defs/condition",
+          "description": "v2.3 — button, textField, textArea, picker: disabled while the condition holds."
+        },
+        "maskedWhen": {
+          "$ref": "#/$defs/condition",
+          "description": "v2.3 — text: its value is replaced by a mask while the condition holds (a balance behind an eye button). Cosmetic: it hides the value from onlookers, not from the client."
+        },
+        "transition": {
+          "$ref": "#/$defs/transition"
+        },
+        "toggle": {
+          "$ref": "#/$defs/identifier",
+          "description": "v2.3 — button: a tap flips state `$selected.<toggle>` between \"on\" and \"\" (before its action runs, like a choice)."
+        }
+      }
+    },
+    "condition": {
+      "type": "object",
+      "description": "v2.3 — one condition: exactly one source (`state`: `$selected.<state>`; `request`: `$request.<request>` = pending · success · error, kept by the engine for every `api` action) and exactly one operator. Values compare as strings; an unset state is \"\". AND = nest containers; anything richer is computed by the backend into one field.",
+      "additionalProperties": false,
+      "properties": {
+        "state": {
+          "$ref": "#/$defs/identifier"
+        },
+        "request": {
+          "$ref": "#/$defs/identifier"
+        },
+        "equals": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "notEquals": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "in": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": {
+            "type": "string",
+            "maxLength": 4096
+          }
+        },
+        "empty": {
+          "const": true
+        },
+        "notEmpty": {
+          "const": true
+        }
+      },
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "required": [
+                "state"
+              ]
+            },
+            {
+              "required": [
+                "request"
+              ]
+            }
+          ]
+        },
+        {
+          "oneOf": [
+            {
+              "required": [
+                "equals"
+              ]
+            },
+            {
+              "required": [
+                "notEquals"
+              ]
+            },
+            {
+              "required": [
+                "in"
+              ]
+            },
+            {
+              "required": [
+                "empty"
+              ]
+            },
+            {
+              "required": [
+                "notEmpty"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "transition": {
+      "type": "object",
+      "description": "v2.3 — how a change is animated, per kind of change. `visible` (with visibleWhen): none (default) · fade · collapse (shrinks along the parent's axis). The engine owns the durations and drops them under reduced motion; the first render is never animated.",
+      "additionalProperties": false,
+      "properties": {
+        "visible": {
+          "enum": [
+            "none",
+            "fade",
+            "collapse"
+          ]
+        }
       }
     },
     "value": {

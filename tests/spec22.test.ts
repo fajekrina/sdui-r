@@ -118,7 +118,7 @@ describe('button (spec 2.2)', () => {
 describe('the insight template (fixture)', () => {
   it('decodes, composes and renders with the 2.2 props', async () => {
     const doc = TemplateDocument.decode(fixtureJSON('valid/template_insight.json'))
-    expect(doc.schemaVersion).toBe('2.2')
+    expect(doc.schemaVersion).toBe('2.3')   // raised to 2.3 for its feedback state; the 2.2 props stay
     const screen = compose(doc.template)
     const top = find(screen.root, 'top')!
     expect(top.props.spacing).toBe(-128)

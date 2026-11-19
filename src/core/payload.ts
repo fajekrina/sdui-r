@@ -36,10 +36,13 @@ export class ScreenSpec {
   readonly load: LoadRequest[]
   /// v1.1 — per-width layouts; `root` is the fallback.
   readonly variants: ScreenVariants
+  /// v2.3 — the declared screen state (`$selected.<name>`), with initial values.
+  readonly state: ScreenState
 
-  constructor(readonly key: string, readonly root: SduiNode, extra: { load?: LoadRequest[]; variants?: ScreenVariants } = {}) {
+  constructor(readonly key: string, readonly root: SduiNode, extra: { load?: LoadRequest[]; variants?: ScreenVariants; state?: ScreenState } = {}) {
     this.load = extra.load ?? []
     this.variants = extra.variants ?? {}
+    this.state = extra.state ?? {}
   }
 
   static decode(raw: unknown, path = 'screen'): ScreenSpec {
@@ -62,12 +65,14 @@ export class ScreenSpec {
       if (v.compact != null) variants.compact = SduiNode.decode(v.compact, `${path}.variants.compact`)
       if (v.wide != null) variants.wide = SduiNode.decode(v.wide, `${path}.variants.wide`)
     }
-    return new ScreenSpec(requireString(o, 'key', path), SduiNode.decode(o.root, `${path}.root`), { load, variants })
+    const state = decodeState(o.state, `${path}.state`)
+    return new ScreenSpec(requireString(o, 'key', path), SduiNode.decode(o.root, `${path}.root`), { load, variants, state })
   }
 
   toJSON() {
     const out: Record<string, unknown> = { key: this.key }
     if (this.load.length > 0) out.load = this.load.map((r) => (r.params ? { request: r.request, params: r.params } : { request: r.request }))
+    if (Object.keys(this.state).length > 0) out.state = stateJSON(this.state)
     out.root = this.root.toJSON()
     if (this.variants.compact || this.variants.wide) {
       const variants: Record<string, unknown> = {}
@@ -82,6 +87,34 @@ export class ScreenSpec {
 export interface LoadRequest {
   request: string
   params?: SduiProps
+}
+
+/// v2.3 — one declared state. `initial` (default "") may hold `{{token}}`s; until the
+/// state is first set it is re-resolved against the screen data.
+export interface StateDecl {
+  initial?: string
+}
+
+/// v2.3 — the screen state by name; each lives in the data context as `$selected.<name>`.
+export type ScreenState = Readonly<Record<string, StateDecl>>
+
+/// Decode `state`: an object of objects; unknown keys inside an entry are ignored
+/// (forward-compatible), a non-string `initial` is a decode error.
+export function decodeState(raw: unknown, path: string): ScreenState {
+  if (raw == null) return {}
+  const out: Record<string, StateDecl> = {}
+  for (const [name, entry] of Object.entries(asObject(raw, path))) {
+    const e = asObject(entry, `${path}.${name}`)
+    if (e.initial != null && typeof e.initial !== 'string') throw SduiError.decode(`${path}.${name}.initial: expected a string`)
+    out[name] = typeof e.initial === 'string' ? { initial: e.initial } : {}
+  }
+  return out
+}
+
+export function stateJSON(state: ScreenState): Record<string, StateDecl> {
+  const out: Record<string, StateDecl> = {}
+  for (const name of Object.keys(state)) out[name] = state[name]!.initial !== undefined ? { initial: state[name]!.initial } : {}
+  return out
 }
 
 export interface ScreenVariants {
