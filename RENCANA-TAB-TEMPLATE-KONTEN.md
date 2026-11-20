@@ -1,6 +1,6 @@
 # Rencana — kembali ke tab Template & Konten (editor Studio di keduanya)
 
-Status: **disetujui (K1–K10, 2026-11-20); menunggu lampu hijau F1** · branch `feat/single-admin` · belum ada kode.
+Status: **selesai (F1–F5, 2026-11-20)** · branch `feat/single-admin` (package, service, app) · keputusan tambahan di §6.
 Lanjutan rencana single-admin (2026-11-18) dan single publish (app `d8b360c`); menggantikan alur "satu editor + satu
 Terbitkan".
 
@@ -141,3 +141,25 @@ Halaman "Smart Insight Detail", warna dan ukuran diperkirakan dari gambar (bisa 
 - **K9** Tidak ada checker; semua pengguna menerbitkan langsung; riwayat mencatat siapa dan kapan.
 - **K10** Template boleh menyimpan isi contoh; teks yang seluruhnya `[...]` = isi contoh → peringatan (tidak memblokir)
   saat Terbitkan halaman. Tanpa migrasi data.
+
+## 6. Keputusan selama pengerjaan (2026-11-20, mengikuti rekomendasi; dilaporkan setelah selesai)
+
+- **D1 — `list.items` boleh array langsung** (spec 2.6): baris kartu diisi di halaman (K4), selain key path data.
+  Komponen ber-id di baris list kini dikunci per baris (`<list>:r<i>:<id>`), karena sebelumnya action baris
+  saling menimpa (bug lama).
+- **D2 — target dari data**: `navigate.screen` / `openURL.link` boleh tepat satu `{{token}}` (mis.
+  `{{item.target}}`), diselesaikan saat diketuk; hasil harus identifier, bukan URL (selain itu tidak terjadi apa-apa).
+  Dibutuhkan untuk "tujuan klik per kartu" (K4). `api.request` / `native.command` tetap nama literal.
+- **D3 — owner template bersama `sdui`** (struktur tabel tetap, K6): template lama milik kanal tetap dipakai
+  halamannya; lookup milik-kanal-dulu lalu bersama; key template baru unik di semua owner.
+- **D4 — gambar template di kanal `sdui`**: gambar default yang diunggah di tab Template berlaku untuk halaman di
+  kanal mana pun (pratinjau, validasi, terbit). Kanal `sdui` tidak tampil dan tidak bisa dibuat pengguna.
+- **D5 — login** menerima `.` dan `-` (nama orang), scope semua kanal; kanal dibuat lewat **+ Kanal**.
+- **D6 — `[Section Title]`** diberi kurung siku di template (di gambar tanpa kurung) agar ikut diperingatkan.
+- **D7 — penanda versi baru**: halaman di tab Konten menampilkan "template vN tersedia"; **Perbarui** memindah
+  draf (belum terbit).
+- **D8 — tab Konten**: state halaman hanya bisa dicoba (deklarasi state milik template; value set tidak menyimpan state).
+- **D9 — editor menyimpan root saja** (perilaku lama): `assertSameStructure` membandingkan pohon yang diedit;
+  varian layout template tetap menerima nilai halaman lewat id.
+- Belum: uji visual di browser (hanya unit, DOM jsdom, kontrak service, e2e API, build app); `ScreenBuilder` /
+  `ValuesEditor` belum dihapus (deprecated).

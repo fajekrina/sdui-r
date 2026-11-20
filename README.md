@@ -44,11 +44,12 @@ const engine = createEngine({
   action replaces the template action; width variants get the same values through the ids.
 - Fail-closed: a value set for another template release, an id the template lacks, a
   value set for another screen, or either part unsigned/forged → the screen is rejected.
-- **Two builders, one admin**: the **Template Builder** (`mountTemplateBuilder` /
-  `<SduiTemplateBuilder>`: components → template) and the **content editor**
-  (`mountScreenBuilder` / `<SduiScreenBuilder>`: fill in a template's components → value set;
-  `showTemplates: false` when the page's template is fixed). The same admin designs and fills;
-  `onPublish` publishes directly (no review step).
+- **One editor, two modes** (spec 2.6): the Studio (`mountTemplateBuilder` / `<SduiTemplateBuilder>`)
+  edits a **template** (components → template), and — with `new EditorDocument({ mode: 'template',
+  locked: true })` and the `pageTemplate` option — a **page**: the template's components, nothing added,
+  removed or moved, any prop and action changed (marked, with "↺ template"). `mergePage` / `splitPage`
+  turn a template + a value set into that tree and back (the value set stores only what differs).
+  `onPublish` publishes directly (no review step). The content-only `mountScreenBuilder` is deprecated.
 
 - **Spec** — [`spec/sdui.schema.json`](spec/sdui.schema.json): our own contract,
   derived from [murti](https://github.com/iQbalADR/murti) v1 with additive v1.1
