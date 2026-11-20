@@ -1,0 +1,465 @@
+{
+  "schemaVersion": "2.6",
+  "template": {
+    "key": "smartInsightV1",
+    "version": 1,
+    "title": "Smart Insight V1",
+    "state": {
+      "feedback": {}
+    },
+    "root": {
+      "type": "vstack",
+      "id": "root",
+      "order": 0,
+      "props": {
+        "alignment": "fill",
+        "spacing": 0,
+        "background": "#FFFFFF"
+      },
+      "children": [
+        {
+          "type": "vstack",
+          "id": "top",
+          "order": 0,
+          "props": {
+            "alignment": "fill",
+            "spacing": -96
+          },
+          "children": [
+            {
+              "type": "vstack",
+              "id": "hero",
+              "order": 0,
+              "props": {
+                "alignment": "fill",
+                "spacing": 8,
+                "background": "#C2F0ED"
+              },
+              "children": [
+                {
+                  "type": "hstack",
+                  "id": "header",
+                  "order": 0,
+                  "props": {
+                    "spacing": 10,
+                    "paddingHorizontal": 24,
+                    "paddingVertical": 16,
+                    "alignment": "center"
+                  },
+                  "children": [
+                    {
+                      "type": "button",
+                      "id": "back",
+                      "order": 0,
+                      "props": {
+                        "title": "",
+                        "systemName": "arrow.left",
+                        "iconSize": 24,
+                        "foreground": "#1A1A1A",
+                        "a11yLabel": "Kembali"
+                      },
+                      "action": {
+                        "type": "dismiss"
+                      }
+                    },
+                    {
+                      "type": "text",
+                      "id": "pageTitle",
+                      "order": 1,
+                      "props": {
+                        "value": "[Page Name]",
+                        "size": 17,
+                        "weight": "bold",
+                        "color": "#1A1A1A",
+                        "a11yTraits": [
+                          "header"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "vstack",
+                  "id": "illustrationBox",
+                  "order": 1,
+                  "props": {
+                    "alignment": "fill",
+                    "spacing": 0,
+                    "paddingHorizontal": 48
+                  },
+                  "children": [
+                    {
+                      "type": "image",
+                      "id": "illustration",
+                      "order": 0,
+                      "props": {
+                        "height": 140,
+                        "contentMode": "fit",
+                        "a11yLabel": "Ilustrasi"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "spacer",
+                  "id": "heroTail",
+                  "order": 2,
+                  "props": {
+                    "height": 96
+                  }
+                }
+              ]
+            },
+            {
+              "type": "vstack",
+              "id": "cardBox",
+              "order": 1,
+              "props": {
+                "alignment": "fill",
+                "spacing": 0,
+                "paddingHorizontal": 20
+              },
+              "children": [
+                {
+                  "type": "card",
+                  "id": "insightCard",
+                  "order": 0,
+                  "props": {
+                    "alignment": "fill",
+                    "spacing": 12,
+                    "background": "#FFFFFF",
+                    "borderColor": "#E3E3E3",
+                    "cornerRadius": 16,
+                    "paddingHorizontal": 16,
+                    "paddingVertical": 20
+                  },
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "insightTitle",
+                      "order": 0,
+                      "props": {
+                        "value": "[Insight Title]",
+                        "size": 17,
+                        "weight": "bold",
+                        "color": "#1A1A1A"
+                      }
+                    },
+                    {
+                      "type": "text",
+                      "id": "insightBody",
+                      "order": 1,
+                      "props": {
+                        "value": "[Insight Long Description]",
+                        "size": 14,
+                        "color": "#222222"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "vstack",
+          "id": "section",
+          "order": 1,
+          "props": {
+            "alignment": "fill",
+            "spacing": 12,
+            "paddingHorizontal": 20,
+            "paddingVertical": 20
+          },
+          "children": [
+            {
+              "type": "text",
+              "id": "sectionTitle",
+              "order": 0,
+              "props": {
+                "value": "[Section Title]",
+                "size": 15,
+                "weight": "bold",
+                "color": "#1A1A1A"
+              }
+            },
+            {
+              "type": "list",
+              "id": "listCards",
+              "order": 1,
+              "props": {
+                "items": [
+                  {
+                    "title": "[List Title 1]",
+                    "description1": "[Card Description 1]",
+                    "description2": "[Card Description 2]",
+                    "target": ""
+                  },
+                  {
+                    "title": "[List Title 2]",
+                    "description1": "[Card Description 1]",
+                    "description2": "[Card Description 2]",
+                    "target": ""
+                  },
+                  {
+                    "title": "[List Title 3]",
+                    "description1": "[Card Description 1]",
+                    "description2": "[Card Description 2]",
+                    "target": ""
+                  }
+                ],
+                "as": "item",
+                "spacing": 12
+              },
+              "children": [
+                {
+                  "type": "card",
+                  "id": "listCard",
+                  "order": 0,
+                  "props": {
+                    "alignment": "fill",
+                    "spacing": 0,
+                    "background": "#FFFFFF",
+                    "borderColor": "#E3E3E3",
+                    "cornerRadius": 12,
+                    "paddingHorizontal": 16,
+                    "paddingVertical": 14
+                  },
+                  "children": [
+                    {
+                      "type": "hstack",
+                      "id": "listRow",
+                      "order": 0,
+                      "props": {
+                        "spacing": 12,
+                        "alignment": "center"
+                      },
+                      "children": [
+                        {
+                          "type": "image",
+                          "id": "listIcon",
+                          "order": 0,
+                          "props": {
+                            "width": 32,
+                            "height": 32,
+                            "cornerRadius": 16,
+                            "a11yLabel": "Ikon"
+                          }
+                        },
+                        {
+                          "type": "vstack",
+                          "id": "listTexts",
+                          "order": 1,
+                          "props": {
+                            "alignment": "leading",
+                            "spacing": 4
+                          },
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "listTitle",
+                              "order": 0,
+                              "props": {
+                                "value": "{{item.title}}",
+                                "size": 14,
+                                "weight": "semibold",
+                                "color": "#1A1A1A"
+                              }
+                            },
+                            {
+                              "type": "text",
+                              "id": "listDesc1",
+                              "order": 1,
+                              "props": {
+                                "value": "{{item.description1}}",
+                                "size": 11,
+                                "color": "#555555"
+                              }
+                            },
+                            {
+                              "type": "text",
+                              "id": "listDesc2",
+                              "order": 2,
+                              "props": {
+                                "value": "{{item.description2}}",
+                                "size": 14,
+                                "weight": "bold",
+                                "color": "#1A1A1A"
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "type": "spacer",
+                          "id": "listGap",
+                          "order": 2,
+                          "props": {}
+                        },
+                        {
+                          "type": "image",
+                          "id": "listChevron",
+                          "order": 3,
+                          "props": {
+                            "systemName": "chevron.right",
+                            "foreground": "#1A1A1A",
+                            "a11yLabel": "Lihat detail"
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  "action": {
+                    "type": "navigate",
+                    "screen": "{{item.target}}"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "vstack",
+          "id": "feedback",
+          "order": 2,
+          "props": {
+            "alignment": "center",
+            "spacing": 12,
+            "paddingVertical": 16
+          },
+          "children": [
+            {
+              "type": "text",
+              "id": "feedbackQuestion",
+              "order": 0,
+              "props": {
+                "value": "Suka dengan insight ini?",
+                "size": 12,
+                "color": "#333333"
+              }
+            },
+            {
+              "type": "hstack",
+              "id": "feedbackChoices",
+              "order": 1,
+              "props": {
+                "spacing": 40,
+                "alignment": "top"
+              },
+              "children": [
+                {
+                  "type": "button",
+                  "id": "dislike",
+                  "order": 0,
+                  "props": {
+                    "title": "Kurang Suka",
+                    "systemName": "hand.thumbsdown",
+                    "iconPosition": "top",
+                    "iconSize": 26,
+                    "iconPadding": 12,
+                    "iconBackground": "#F7F7F7",
+                    "iconForeground": "#1A1A1A",
+                    "size": 12,
+                    "weight": "semibold",
+                    "foreground": "#1A1A1A",
+                    "group": "feedback",
+                    "value": "dislike",
+                    "selectedIconBackground": "#22C55E",
+                    "selectedIconForeground": "#FFFFFF",
+                    "visibleWhen": {
+                      "state": "feedback",
+                      "in": [
+                        "",
+                        "dislike"
+                      ]
+                    },
+                    "disabledWhen": {
+                      "request": "sendFeedback",
+                      "equals": "pending"
+                    },
+                    "transition": {
+                      "visible": "fade"
+                    }
+                  },
+                  "action": {
+                    "type": "api",
+                    "request": "sendFeedback",
+                    "params": {
+                      "vote": "{{$selected.feedback}}"
+                    }
+                  }
+                },
+                {
+                  "type": "button",
+                  "id": "like",
+                  "order": 1,
+                  "props": {
+                    "title": "Suka!",
+                    "systemName": "hand.thumbsup",
+                    "iconPosition": "top",
+                    "iconSize": 26,
+                    "iconPadding": 12,
+                    "iconBackground": "#F7F7F7",
+                    "iconForeground": "#1A1A1A",
+                    "size": 12,
+                    "weight": "semibold",
+                    "foreground": "#1A1A1A",
+                    "group": "feedback",
+                    "value": "like",
+                    "selectedIconBackground": "#22C55E",
+                    "selectedIconForeground": "#FFFFFF",
+                    "visibleWhen": {
+                      "state": "feedback",
+                      "in": [
+                        "",
+                        "like"
+                      ]
+                    },
+                    "disabledWhen": {
+                      "request": "sendFeedback",
+                      "equals": "pending"
+                    },
+                    "transition": {
+                      "visible": "fade"
+                    }
+                  },
+                  "action": {
+                    "type": "api",
+                    "request": "sendFeedback",
+                    "params": {
+                      "vote": "{{$selected.feedback}}"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "feedbackThanks",
+              "order": 2,
+              "props": {
+                "value": "Terima kasih atas masukannya!",
+                "size": 12,
+                "color": "#333333",
+                "visibleWhen": {
+                  "request": "sendFeedback",
+                  "equals": "success"
+                },
+                "transition": {
+                  "visible": "fade"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "type": "spacer",
+          "id": "bottomGap",
+          "order": 3,
+          "props": {
+            "height": 24
+          }
+        }
+      ]
+    }
+  }
+}
