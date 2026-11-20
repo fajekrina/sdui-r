@@ -5,6 +5,18 @@ versi mengikuti Semantic Versioning (0.x: breaking change boleh di minor dengan 
 
 ## [Unreleased]
 
+### Ditambah: text, image, dan card bisa diklik (spec 2.5)
+
+- `text`, `image`, dan `card` dengan `action` kini menjalankannya saat diketuk (sebelumnya hanya `button`). Dirender
+  sebagai `<button>` asli dengan tampilan yang sama (gaya di-reset, lalu gaya komponennya), jadi keyboard dan screen
+  reader ikut bekerja; `disabledWhen` dan action yang sedang berjalan meredupkannya seperti button.
+- `image` berisi gambar: `<img>` dibungkus button yang mengambil ukuran / sudutnya; ikon dan frame kosong menjadi
+  button itu sendiri.
+- `card` yang berisi kontrol (button, field form, chart yang bisa dipilih, atau komponen lain yang bisa diklik) tidak
+  menjalankan action-nya sendiri (button di dalam button tidak diizinkan); Studio dan `actionWarnings` memperingatkan.
+- Studio: grup **Interaction** muncul untuk text, image, card; peringatan untuk image yang bisa diklik tanpa
+  `a11yLabel`. Client 2.4 mengabaikan action ini.
+
 ### Ditambah: `button.iconCornerRadius` (spec 2.5)
 
 - Latar ikon (`iconBackground`) tidak lagi harus lingkaran: `iconCornerRadius` (px) membuatnya kotak bersudut bulat,

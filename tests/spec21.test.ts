@@ -73,28 +73,37 @@ describe('text (spec 2.1)', () => {
 })
 
 describe('what a component does with its action', () => {
-  it('button = tap, chart = source, other built-ins = none, custom = tap (or what it declares)', () => {
+  it('button / text / image / card = tap (spec 2.5), chart = source, other built-ins = none, custom = tap (or what it declares)', () => {
     const f = ComponentFactory.withBuiltins()
-    expect(['button', 'chart', 'text', 'card', 'vstack', 'image'].map((t) => f.info(t)!.action)).toEqual(['tap', 'source', 'none', 'none', 'none', 'none'])
+    expect(['button', 'chart', 'text', 'card', 'vstack', 'image', 'divider'].map((t) => f.info(t)!.action)).toEqual(['tap', 'source', 'tap', 'tap', 'none', 'tap', 'none'])
     f.register('rating', () => null)
     expect(f.info('rating')!.action).toBe('tap')
     f.register('badge', () => null, { action: 'none' })
     expect(f.info('badge')!.action).toBe('none')
-    expect(actionUseOf('card')).toBe('none')
+    expect(actionUseOf('card')).toBe('tap')
+    expect(actionUseOf('vstack')).toBe('none')
     expect(actionUseOf('lottie')).toBe('tap')
   })
 
-  it('describe and warn: a card\'s action never runs; a chart reads only an api source', () => {
+  it('describe and warn: a vstack\'s action never runs, nor a card\'s holding a button; a chart reads only an api source', () => {
+    const stack = SduiNode.decode({ type: 'vstack', id: 's', action: { type: 'navigate', screen: 'detail' } })
+    expect(describeComponent(stack).join(' ')).not.toContain('Tappable')
+    expect(describeComponent(stack)).toContain('Its action never runs (it is not tappable)')
     const card = SduiNode.decode({ type: 'card', id: 'c', action: { type: 'navigate', screen: 'detail' } })
-    expect(describeComponent(card).join(' ')).not.toContain('Tappable')
-    expect(describeComponent(card)).toContain('Its action never runs (it is not tappable)')
+    expect(describeComponent(card).join(' ')).toContain('Tappable; opens')
+    const held = SduiNode.decode({ type: 'card', id: 'h', action: { type: 'navigate', screen: 'detail' }, children: [{ type: 'button', id: 'in' }] })
+    expect(describeComponent(held)).toContain('Its action never runs: it holds a button, a field or another tappable')
     const root = SduiNode.decode({ type: 'vstack', id: 'root', children: [
-      { type: 'card', id: 'c', action: { type: 'navigate', screen: 'detail' } },
+      { type: 'vstack', id: 'c', action: { type: 'navigate', screen: 'detail' } },
+      { type: 'card', id: 'h', action: { type: 'navigate', screen: 'detail' }, children: [{ type: 'button', id: 'in' }] },
+      { type: 'image', id: 'i', action: { type: 'navigate', screen: 'detail' } },
       { type: 'chart', id: 'k', action: { type: 'navigate', screen: 'detail' } },
       { type: 'button', id: 'b', action: { type: 'navigate', screen: 'detail' } }
     ] })
     expect(actionWarnings(root, {})).toEqual([
-      'card #c: a card never runs its action (only buttons do) — remove it',
+      'vstack #c: a vstack never runs its action (it is not tappable) — remove it',
+      'card #h: a card holding a button, a field or another tappable never runs its own action — remove it, or the controls inside',
+      'image #i: a tappable image needs an a11yLabel (screen readers name the button by it)',
       'chart #k: a chart only reads an api data source; its navigate action is ignored'
     ])
   })
@@ -109,16 +118,16 @@ describe('Studio inspector (single admin)', () => {
   }
   const groups = (host: Element) => [...host.querySelectorAll('.insp details.grp > summary')].map((s) => s.textContent)
 
-  it('groups the props; only a button gets the Interaction section', () => {
+  it('groups the props; a button, text, image or card gets the Interaction section', () => {
     const { host, studio, done } = mount()
     studio.document.add('text')
-    expect(groups(host)).toEqual(['Content', 'State', 'Layout', 'Style', 'Accessibility', 'Props (JSON)'])   // spec 2.3: every component can be state-bound
-    const card = studio.document.add('card')
+    expect(groups(host)).toEqual(['Content', 'State', 'Layout', 'Style', 'Accessibility', 'Interaction', 'Props (JSON)'])   // spec 2.3: every component can be state-bound
+    const card = studio.document.add('vstack')
     studio.document.select(card)
     expect(groups(host)).not.toContain('Interaction')
     studio.document.add('button')
     expect(groups(host)).toContain('Interaction')
-    // a leftover action on a card: shown only to remove it
+    // a leftover action on a vstack: shown only to remove it
     studio.document.setAction(card, ActionSpec.decode({ type: 'navigate', screen: 'home' }))
     studio.document.select(card)
     expect(groups(host)).toContain('Action (ignored)')

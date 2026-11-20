@@ -4,7 +4,7 @@
 
 import {
   ActionDispatcher, ActionSpec, ActionType, BUILDER_NOTE_PROP, ComponentFactory, DataContext, FIELD_PATTERNS, PayloadSecurity, SduiNode, SPEC_VERSION,
-  FONT_STACKS, Symbols, TemplateSpec, compose, createEngine, evaluate, type ActionUse, type SduiProps, type SduiValue
+  FONT_STACKS, Symbols, TemplateSpec, compose, createEngine, evaluate, holdsControl, type ActionUse, type SduiProps, type SduiValue
 } from '../core'
 import { mount, renderNodeDOM, type MountedScreen } from '../vanilla'
 import { REQUEST_VALUES, conditionEditor, describeCondition, requestNames, simulatedState, stateNames, stateValues, stateWarnings } from './state-editor'
@@ -846,12 +846,14 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
     const use: ActionUse = actionUseOf(node.type, factory)
     const actionSection: Node[] = []
     if (use === 'tap') {
-      actionSection.push(section('Interaction', actionEditor(node.action?.toJSON(), commitAction, 0), el('details', {}, el('summary', {}, 'Action JSON'), actionJSON)))
+      actionSection.push(section('Interaction',
+        ...(node.type === 'card' && node.action && holdsControl(node) ? [el('div', { class: 'tip warn' }, 'This card holds a button, a field or another tappable, so its own action never runs (a button cannot hold a button).')] : []),
+        actionEditor(node.action?.toJSON(), commitAction, 0), el('details', {}, el('summary', {}, 'Action JSON'), actionJSON)))
     } else if (use === 'source') {
       actionSection.push(section('Data source', sourceEditor(node, commitAction)))
     } else if (node.action) {
       actionSection.push(section('Action (ignored)',
-        el('div', { class: 'tip warn' }, `A ${node.type} does nothing when tapped: this action never runs. Only buttons run actions.`),
+        el('div', { class: 'tip warn' }, `A ${node.type} does nothing when tapped: this action never runs.`),
         button('Remove action', () => commitAction(undefined))))
     }
 

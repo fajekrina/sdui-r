@@ -179,7 +179,11 @@ are design (template), not content.
 
 ### Actions per component
 
-Only a `button` runs its action when tapped. A `chart` reads its `api` action's `request` as
+A `button` runs its action when tapped — and, since v2.5, a `text`, an `image` or a `card`: each
+renders as a native button that looks the same (keyboard and screen readers included) and honors
+`disabledWhen`; a tappable image should carry an `a11yLabel`. A `card` that holds a control (a
+button, a form field, a picking chart or another tappable) never runs its own action — a button cannot
+hold a button; the builder warns. A 2.4 client ignores these actions. A `chart` reads its `api` action's `request` as
 its data source (loaded with the screen, never run on a tap; other action types and
 `onSuccess` / `onError` are ignored). Every other built-in ignores an action; the builder
 warns about one. A third-party component may run its own (`ComponentInfo.action`).

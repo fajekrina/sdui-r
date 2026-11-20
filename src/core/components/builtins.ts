@@ -38,6 +38,31 @@ function a11y(node: SduiNode, ctx: RenderContext): Record<string, string> {
 const spacing = (node: SduiNode) => numberProp(node, 'spacing') ?? DEFAULT_SPACING
 const px = (n: number) => `${n}px`
 
+/// spec 2.5 — a text, an image or a card with an `action` runs it when tapped: it renders
+/// as a native `<button>` (keyboard and screen readers for free) that looks the same — the
+/// reset below, then the view's own style. `disabledWhen` and a running action dim it like
+/// a button. A card holding a control (a button, a field, another tappable) keeps its
+/// action unused: a button inside a button is not allowed.
+const TAP_RESET: Record<string, string> = { font: 'inherit', color: 'inherit', background: 'none', border: '0', padding: '0', margin: '0', textAlign: 'start', appearance: 'none' }
+const CONTROLS = new Set(['button', 'textField', 'textArea', 'picker', 'form'])
+
+export function holdsControl(node: SduiNode): boolean {
+  return node.children.some((c) => CONTROLS.has(c.type) || (c.action !== undefined && c.type !== 'chart') || (c.type === 'chart' && c.string('selectState') !== '') || holdsControl(c))
+}
+
+function tappable(node: SduiNode, ctx: RenderContext, view: RenderNode): RenderNode {
+  if (!node.action || (node.type === 'card' && holdsControl(node))) return view
+  const busy = ctx.busy(node)
+  const off = ctx.disabled(node)
+  return {
+    ...view,
+    element: 'button',
+    attrs: cleanAttrs({ type: 'button', disabled: busy || off, 'aria-busy': busy ? 'true' : undefined, ...view.attrs }),
+    style: { ...TAP_RESET, ...view.style, cursor: busy ? 'progress' : off ? 'default' : 'pointer', ...(busy || off ? { opacity: '0.6' } : {}) },
+    on: off ? undefined : ctx.onClick(node, node.action)
+  }
+}
+
 /// The size of a bounded container (vstack, card, grid): `height` (fixed) and/or
 /// `maxHeight`, in px. A bounded container clips what does not fit — scrolling is always
 /// an explicit `scroll` inside it, which then fills the space left. `minHeight: 0` lets the
@@ -78,7 +103,11 @@ export class TextComponent implements Component {
   static readonly type = 'text'
   static readonly category = 'content'
   static readonly defaultProps = { value: 'Text' }
+  static readonly action = 'tap'
   makeView(node: SduiNode, ctx: RenderContext): RenderNode {
+    return tappable(node, ctx, this.view(node, ctx))
+  }
+  private view(node: SduiNode, ctx: RenderContext): RenderNode {
     const template = node.string('value')
     const base = textStyle(node.string('style'))
     const size = numberProp(node, 'size') ?? base.size
@@ -137,7 +166,26 @@ export class ImageComponent implements Component {
   /// a new image is an empty FRAME the maker fills (upload / link / drop); `systemName`
   /// makes it an icon instead
   static readonly defaultProps = { height: 160 }
+  static readonly action = 'tap'
   makeView(node: SduiNode, ctx: RenderContext): RenderNode {
+    const view = this.view(node, ctx)
+    if (!node.action) return view
+    // spec 2.5 — tappable. An icon or an empty frame becomes the button itself (a frame's
+    // `role: img` would hide the button); a picture goes INSIDE one that takes its box
+    if (view.element !== 'img') {
+      const { role: _role, ...attrs } = view.attrs
+      return tappable(node, ctx, { ...view, attrs })
+    }
+    const { objectFit, ...box } = view.style
+    const { src, alt, loading, ...attrs } = view.attrs
+    return tappable(node, ctx, renderNode(view.key, 'button', {
+      type: node.type,
+      attrs,
+      style: { display: 'block', overflow: 'hidden', ...box },
+      children: [renderNode(`${view.key}:img`, 'img', { attrs: cleanAttrs({ src, alt, loading }), style: { display: 'block', width: '100%', height: '100%', objectFit: objectFit! } })]
+    }))
+  }
+  private view(node: SduiNode, ctx: RenderContext): RenderNode {
     // `name` renders an app-resolved asset (a maker's picture wins over the template's
     // icon); `systemName` renders a symbol glyph; neither → an empty frame. A raw URL is
     // never taken from the payload.
@@ -335,10 +383,11 @@ export class CardComponent implements Component {
   static readonly type = 'card'
   static readonly category = 'layout'
   static readonly acceptsChildren = true
+  static readonly action = 'tap'
   makeView(node: SduiNode, ctx: RenderContext): RenderNode {
     // A grey rounded box is the default; `background`, `cornerRadius`, `padding`,
-    // and `foreground` override it.
-    return renderNode(ctx.keyFor(node), 'div', {
+    // and `foreground` override it. spec 2.5 — with an action the box is the button
+    return tappable(node, ctx, renderNode(ctx.keyFor(node), 'div', {
       type: node.type,
       attrs: a11y(node, ctx),
       style: {
@@ -349,7 +398,7 @@ export class CardComponent implements Component {
         ...sharedStyle(node, { padding: 16, background: 'surface', cornerRadius: 12 })
       },
       children: ctx.children(node)
-    })
+    }))
   }
 }
 

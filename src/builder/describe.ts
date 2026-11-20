@@ -3,7 +3,7 @@
 // whether an image is a frame to fill. Plus the template author's own note
 // (`builderNote`, never delivered to clients). Shown in the Screen Builder (and as a check
 // in the Template Builder inspector).
-import { BUILDER_NOTE_PROP, V11_COMPONENTS, V1_COMPONENTS, type ActionSpec, type ActionUse, type ComponentFactory, type SduiNode } from '../core'
+import { BUILDER_NOTE_PROP, V11_COMPONENTS, V1_COMPONENTS, holdsControl, type ActionSpec, type ActionUse, type ComponentFactory, type SduiNode } from '../core'
 import { describeStateProps } from './state-editor'
 
 const quote = (s: string | undefined) => `"${s ?? '?'}"`
@@ -21,13 +21,14 @@ export const ACTION_USES: Record<string, { params: boolean; chain: ReadonlyArray
 }
 const usesOf = (type: string) => ACTION_USES[type] ?? { params: true, chain: ['onSuccess', 'onError'] as const }
 
-/// What a component type does with its action: `tap` (a button runs it), `source` (a chart
-/// reads its api request), `none` (every other built-in). The factory's own answer wins (a
+/// What a component type does with its action: `tap` (a button — and, spec 2.5, a text, an
+/// image or a card — runs it), `source` (a chart reads its api request), `none` (every other
+/// built-in). The factory's own answer wins (a
 /// custom component declares it); an unknown type is assumed to be tappable.
 export function actionUseOf(type: string, factory?: ComponentFactory): ActionUse {
   const info = factory?.info(type)
   if (info) return info.action
-  if (type === 'button') return 'tap'
+  if (type === 'button' || type === 'text' || type === 'image' || type === 'card') return 'tap'
   if (type === 'chart') return 'source'
   return (V1_COMPONENTS as readonly string[]).includes(type) || (V11_COMPONENTS as readonly string[]).includes(type) ? 'none' : 'tap'
 }
@@ -103,8 +104,11 @@ export function describeComponent(node: SduiNode, factory?: ComponentFactory): s
     default:
       if (node.action && use === 'tap') out.push(`Tappable; ${lower(describeAction(node.action))}`)
   }
-  // a custom tappable component with its own line above: what tapping it does
-  if (use === 'tap' && node.type !== 'button' && node.action && out.length && !out[out.length - 1]!.startsWith('Tappable')) {
+  // spec 2.5 — a card holding a control never runs its own action (no button in a button)
+  const blocked = node.type === 'card' && node.action !== undefined && holdsControl(node)
+  if (blocked) out.push('Its action never runs: it holds a button, a field or another tappable')
+  // a tappable text / image / card or custom component with its own line above: what tapping it does
+  if (use === 'tap' && !blocked && node.type !== 'button' && node.action && out.length && !out[out.length - 1]!.startsWith('Tappable')) {
     out.push(`Tapping it: ${lower(describeAction(node.action))}`)
   }
   // only buttons (and custom components) run an action: say a leftover one never runs
@@ -149,7 +153,9 @@ export function actionWarnings(root: SduiNode, lists: ActionLists, factory?: Com
     const at = `${node.type} #${node.id ?? '?'}`
     if (own) {
       const use = actionUseOf(node.type, factory)
-      if (use === 'none') { out.push(`${at}: a ${node.type} never runs its action (only buttons do) — remove it`); return }
+      if (use === 'none') { out.push(`${at}: a ${node.type} never runs its action (it is not tappable) — remove it`); return }
+      if (node.type === 'card' && holdsControl(node)) { out.push(`${at}: a card holding a button, a field or another tappable never runs its own action — remove it, or the controls inside`); return }
+      if (node.type === 'image' && !node.string('a11yLabel')) out.push(`${at}: a tappable image needs an a11yLabel (screen readers name the button by it)`)
       if (use === 'source' && action.type !== 'api') { out.push(`${at}: a ${node.type} only reads an api data source; its ${action.type} action is ignored`); return }
       // a data source has no follow-up steps or params rules of its own
       if (use === 'source') {
