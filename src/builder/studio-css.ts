@@ -11,6 +11,12 @@ export const STUDIO_CSS = `
 .sdui-studio .tb .st{font-size:12px}
 .sdui-studio .tb .st.ok{color:#16a34a}
 .sdui-studio .tb .st.err{color:#dc2626}
+.sdui-studio .insp .ovr{border-left:3px solid #f59e0b;padding-left:6px}
+.sdui-studio .btn.mini{height:22px;padding:0 6px;font-size:11px;align-self:flex-start}
+.sdui-studio .ovm{color:#d97706;font-weight:700}
+.sdui-studio .insp table.rows{border-collapse:collapse;width:100%;font-size:12px}
+.sdui-studio .insp table.rows th,.sdui-studio .insp table.rows td{border:1px solid #e2e8f0;padding:2px}
+.sdui-studio .insp table.rows input{width:100%;box-sizing:border-box;min-width:60px}
 .sdui-studio .btn{height:28px;padding:0 10px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;cursor:pointer}
 .sdui-studio .btn:disabled{opacity:.4;cursor:default}
 .sdui-studio .btn.pri{background:#2563eb;border-color:#2563eb;color:#fff}

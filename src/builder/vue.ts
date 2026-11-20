@@ -36,7 +36,9 @@ const studioProps = {
   /// template mode: the template's deprecation (null = in use) and `@deprecate` / `@restore`
   deprecation: { type: Object as PropType<TemplateDeprecation | null>, default: undefined },
   onDeprecate: { type: Function as PropType<(info: { reason: string; replacedBy?: string }) => void | Promise<void>>, default: undefined },
-  onRestore: { type: Function as PropType<() => void | Promise<void>>, default: undefined }
+  onRestore: { type: Function as PropType<() => void | Promise<void>>, default: undefined },
+  /// spec 2.6 — a page (a locked document): the template it is made from; differences are marked
+  pageTemplate: { type: Object as PropType<object>, default: undefined }
 }
 
 const studioComponent = (name: string, mount: typeof mountStudio, template: boolean) => defineComponent({
@@ -64,17 +66,18 @@ const studioComponent = (name: string, mount: typeof mountStudio, template: bool
         onSave: props.onSave && ((p) => props.onSave?.(p)),
         onPublish: props.onPublish && ((p) => props.onPublish?.(p)),
         deprecation: props.deprecation,
+        pageTemplate: props.pageTemplate,
         onDeprecate: props.onDeprecate && ((info) => props.onDeprecate?.(info)),
         onRestore: props.onRestore && (() => props.onRestore?.()),
         onChange: (p) => props.onChange?.(p)
       })
     })
     // options that may arrive or change after mounting (lists loaded from a backend, the title)
-    watch(() => [props.title, props.screens, props.requests, props.sources, props.links, props.commands, props.catalog, props.baseline, props.sampleData, props.assetURL, props.deprecation], () => {
+    watch(() => [props.title, props.screens, props.requests, props.sources, props.links, props.commands, props.catalog, props.baseline, props.sampleData, props.assetURL, props.deprecation, props.pageTemplate], () => {
       studio?.update({
         title: props.title, screens: props.screens, requests: props.requests, sources: props.sources, links: props.links,
         commands: props.commands, catalog: props.catalog, baseline: props.baseline,
-        sampleData: props.sampleData, assetURL: props.assetURL, deprecation: props.deprecation
+        sampleData: props.sampleData, assetURL: props.assetURL, deprecation: props.deprecation, pageTemplate: props.pageTemplate
       })
     })
     onBeforeUnmount(() => studio?.destroy())

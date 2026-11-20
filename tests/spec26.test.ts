@@ -1,10 +1,10 @@
 // spec 2.6 — a value set is a PAGE: any prop of a template component (not the builder note)
 // and its action; below 2.6 content only. The builder's page helpers: merge, split (only the
 // differences), the template's structure kept, sample texts found; the locked editor.
-import { describe, expect, it } from 'vitest'
-import { fixture } from './helpers'
-import { SchemaValidator, TemplateDocument, ValuesDocument, compose, isOverridableProp, valuesOverride } from '../src/core'
-import { EditorDocument, assertSameStructure, mergePage, placeholders, splitPage } from '../src/builder'
+import { describe, expect, it, vi } from 'vitest'
+import { devEngine, fixture } from './helpers'
+import { ActionDispatcher, ScreenSource, SduiPayload, SchemaValidator, TemplateDocument, ValuesDocument, compose, isOverridableProp, valuesOverride } from '../src/core'
+import { EditorDocument, assertSameStructure, find, mergePage, placeholders, splitPage } from '../src/builder'
 
 const promo = TemplateDocument.fromJSON(fixture('valid/template_promo.json'))
 const values = (schemaVersion: string, components: object) => ValuesDocument.decode({ schemaVersion, values: { screen: 'p', template: { key: 'promoCard', version: 1 }, components } })
@@ -132,5 +132,85 @@ describe('locked editor (a page)', () => {
     const doc = new EditorDocument({ mode: 'template' })
     expect(doc.locked).toBe(false)
     expect(doc.add('text')).toBeTruthy()
+  })
+})
+
+describe('list rows and token targets (spec 2.6)', () => {
+  it('a list renders an inline items array; a card navigates to {{item.target}}', async () => {
+    const navigate = vi.fn()
+    const engine = devEngine({ actionDispatcher: new ActionDispatcher({ navigator: { navigate } }) })
+    const screen = engine.screen(ScreenSource.inline({ schemaVersion: '2.6', screen: { key: 's', root: {
+      type: 'list', id: 'cards', props: { items: [{ title: 'Kopi', target: 'insightKopi' }, { title: 'Bad', target: 'https://x.example' }] },
+      children: [{ type: 'card', id: 'c', action: { type: 'navigate', screen: '{{item.target}}' }, children: [{ type: 'text', id: 't', props: { value: '{{item.title}}' } }] }]
+    } } }))
+    await screen.load()
+    const rows = screen.render().nodes[0]!.children
+    expect(rows).toHaveLength(2)
+    expect(rows[0]!.children[0]!.children[0]!.text).toBe('Kopi')
+    await screen.handle(rows[0]!.children[0]!.on!.click!)
+    expect(navigate).toHaveBeenCalledWith('insightKopi', {}, { presentation: 'push' })
+    // a value that is not a name never navigates
+    await screen.handle(rows[1]!.children[0]!.on!.click!)
+    expect(navigate).toHaveBeenCalledOnce()
+  })
+
+  it('the validator takes one token as a target, nothing else', () => {
+    const v = new SchemaValidator()
+    const screen = (action: object) => ({ schemaVersion: '2.6', screen: { key: 's', root: { type: 'button', action } } })
+    expect(() => v.validate(SduiPayload.decode(screen({ type: 'navigate', screen: '{{item.target}}' })))).not.toThrow()
+    expect(() => v.validate(SduiPayload.decode(screen({ type: 'openURL', link: '{{item.link}}' })))).not.toThrow()
+    expect(() => v.validate(SduiPayload.decode(screen({ type: 'navigate', screen: 'x{{item.target}}' })))).toThrow()
+    expect(() => v.validate(SduiPayload.decode(screen({ type: 'api', request: '{{item.r}}' })))).toThrow()
+  })
+})
+
+describe('Studio: a page (locked document)', () => {
+  const tpl = TemplateDocument.decode({ schemaVersion: '2.6', template: { key: 'smart', version: 1, root: { type: 'vstack', id: 'root', order: 0, children: [
+    { type: 'text', id: 'title', order: 0, props: { value: '[Insight Title]', size: 20 } },
+    { type: 'list', id: 'cards', order: 1, props: { items: [{ title: '[List Title]' }] }, children: [
+      { type: 'card', id: 'card', order: 0, action: { type: 'navigate', screen: '{{item.target}}' }, children: [{ type: 'text', id: 'cardTitle', order: 0, props: { value: '{{item.title}}' } }] }
+    ] }
+  ] } } })
+  const mount = async () => {
+    const { mountTemplateBuilder } = await import('../src/builder')
+    const host = document.createElement('div')
+    document.body.append(host)
+    const doc = new EditorDocument({ mode: 'template', locked: true })
+    doc.importJSON(tpl.toJSON())
+    const studio = mountTemplateBuilder(host, { document: doc, pageTemplate: tpl.toJSON(), screens: ['insightKopi'] })
+    return { host, doc, done: () => { studio.destroy(); host.remove() } }
+  }
+
+  it('no palette, no move / delete; sample texts are warned', async () => {
+    const { host, doc, done } = await mount()
+    expect(host.querySelector('.pal')).toBeNull()
+    doc.select('title')
+    const buttons = [...host.querySelectorAll('.insp button')].map((b) => b.textContent)
+    expect(buttons).not.toContain('Delete')
+    expect(buttons).not.toContain('Duplicate')
+    expect(host.querySelector('.issues')!.textContent).toContain('title.value: still the template\'s sample text')
+    done()
+  })
+
+  it('a prop set differently is marked and taken back with ↺ template', async () => {
+    const { host, doc, done } = await mount()
+    doc.setProp('title', 'size', 28)
+    doc.select('title')
+    const marked = host.querySelector('.insp .ovr')!
+    expect(marked.textContent).toContain('size')
+    ;(marked.querySelector('button') as HTMLButtonElement).click()
+    expect(find(doc.root, 'title')!.props.size).toBe(20)
+    expect(host.querySelector('.insp .ovr')).toBeNull()
+    done()
+  })
+
+  it('a list typed here: one table row per card, columns from {{item.*}}', async () => {
+    const { host, doc, done } = await mount()
+    doc.select('cards')
+    const table = host.querySelector('table.rows')!
+    expect([...table.querySelectorAll('th')].map((t) => t.textContent)).toEqual(['target', 'title', ''])
+    ;[...host.querySelectorAll<HTMLButtonElement>('.insp button')].find((b) => b.textContent === '+ row')!.click()
+    expect((find(doc.root, 'cards')!.props.items as unknown[]).length).toBe(2)
+    done()
   })
 })

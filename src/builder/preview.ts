@@ -22,12 +22,18 @@ export function renderPreview(factory: ComponentFactory, root: SduiNode, options
   const ids = new Set<string>()
   const collect = (n: SduiNode) => { if (n.id) ids.add(n.id); n.children.forEach(collect) }
   collect(root)
+  // a component inside a list row is keyed `<list>:r<i>:<id>` (spec 2.6): it is still that id
+  const idOf = (key: string): string | undefined => {
+    if (ids.has(key)) return key
+    const m = /:r\d+:([^:]+)$/.exec(key)
+    return m && ids.has(m[1]!) ? m[1] : undefined
+  }
   const tag = (n: RenderNode): RenderNode => {
-    const own = ids.has(n.key)
+    const id = idOf(n.key)
     return {
       ...n,
-      attrs: own ? { ...n.attrs, 'data-sdui-node': n.key } : n.attrs,
-      style: own && n.key === options.selected ? { ...n.style, outline: '2px solid #2563EB', outlineOffset: '2px' } : n.style,
+      attrs: id ? { ...n.attrs, 'data-sdui-node': id } : n.attrs,
+      style: id && id === options.selected ? { ...n.style, outline: '2px solid #2563EB', outlineOffset: '2px' } : n.style,
       children: n.children.map(tag)
     }
   }

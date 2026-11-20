@@ -655,8 +655,8 @@
           ]
         },
         "screen": {
-          "$ref": "#/$defs/identifier",
-          "description": "navigate: a ScreenFactory key."
+          "$ref": "#/$defs/target",
+          "description": "navigate: a ScreenFactory key. v2.6: or ONE {{token}} resolved at tap time (e.g. a list item's {{item.target}}); the resolved value must be an identifier, else nothing happens."
         },
         "presentation": {
           "enum": [
@@ -671,8 +671,8 @@
           "description": "api: an allow-listed NamedRequest, mapped to method + path by the app bundle."
         },
         "link": {
-          "$ref": "#/$defs/identifier",
-          "description": "openURL: an allow-listed NAMED link. Not a raw URL — the identifier pattern structurally rejects 'https://...'."
+          "$ref": "#/$defs/target",
+          "description": "openURL: an allow-listed NAMED link. Not a raw URL — the identifier pattern structurally rejects 'https://...'. v2.6: or ONE {{token}} resolved at tap time to such a name."
         },
         "message": {
           "type": "string",
@@ -788,6 +788,19 @@
               "command"
             ]
           }
+        }
+      ]
+    },
+    "target": {
+      "description": "v2.6 — a named target: an identifier, or exactly one {{token}} (a data key path) that must resolve to an identifier when the action runs.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/identifier"
+        },
+        {
+          "type": "string",
+          "pattern": "^\\{\\{[A-Za-z_$][A-Za-z0-9_.$]*\\}\\}$",
+          "maxLength": 128
         }
       ]
     },

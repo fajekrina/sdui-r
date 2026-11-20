@@ -4,13 +4,14 @@
 
 import {
   ActionDispatcher, ActionSpec, ActionType, BUILDER_NOTE_PROP, ComponentFactory, DataContext, FIELD_PATTERNS, PayloadSecurity, SduiNode, SPEC_VERSION,
-  FONT_STACKS, Symbols, TemplateSpec, compose, createEngine, evaluate, holdsControl, type ActionUse, type SduiProps, type SduiValue
+  FONT_STACKS, Symbols, TemplateDocument, TemplateSpec, compose, createEngine, evaluate, holdsControl, type ActionUse, type SduiProps, type SduiValue
 } from '../core'
 import { mount, renderNodeDOM, type MountedScreen } from '../vanilla'
 import { REQUEST_VALUES, conditionEditor, describeCondition, requestNames, simulatedState, stateNames, stateValues, stateWarnings } from './state-editor'
 import { EditorDocument } from './document'
 import { ancestorsOf, find, flatten, flattenVisible, isGeneratedId, ordersOf, outlineLabel } from './tree'
 import { ACTION_USES, actionUseOf, actionWarnings, describeComponent } from './describe'
+import { placeholders } from './page'
 import { colorField, multilineText, optionsTable } from './controls'
 import { clippedContainers, findNodeJsonRange, renderPreview } from './preview'
 import { STUDIO_CSS } from './studio-css'
@@ -58,6 +59,10 @@ export interface StudioOptions {
   onDeprecate?: (info: { reason: string; replacedBy?: string }) => void | Promise<void>
   /// template mode: take the deprecation back
   onRestore?: () => void | Promise<void>
+  /// sdui-r 2.6 — a page (an EditorDocument with `locked: true`): the template it is made from
+  /// (a template document JSON). What the page sets differently is marked in the inspector,
+  /// with "↺ template" to take the template's value back.
+  pageTemplate?: unknown
 }
 
 /// A deprecated template: why, what to use instead, who and when.
@@ -70,7 +75,7 @@ export interface TemplateDeprecation {
 }
 
 /// Options that may change after mounting (async lists, a new title, …).
-export type StudioUpdate = Pick<StudioOptions, 'title' | 'screens' | 'requests' | 'sources' | 'links' | 'commands' | 'catalog' | 'baseline' | 'sampleData' | 'assetURL' | 'uploadAsset' | 'deprecation'>
+export type StudioUpdate = Pick<StudioOptions, 'title' | 'screens' | 'requests' | 'sources' | 'links' | 'commands' | 'catalog' | 'baseline' | 'sampleData' | 'assetURL' | 'uploadAsset' | 'deprecation' | 'pageTemplate'>
 
 /// A picture to upload: a picked / dropped file, or an https link the backend copies once.
 export type AssetSource = { file: Blob & { name?: string } } | { url: string }
@@ -262,6 +267,8 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
   const doc = options.document ?? new EditorDocument({ factory: options.factory })
   const factory = options.factory ?? doc.factory
   const templateMode = doc.mode === 'template'
+  /// sdui-r 2.6 — a page: the template's components, nothing added / removed / moved
+  const pageMode = doc.locked
   const d = target.ownerDocument
   const el = <K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string, string> = {}, ...kids: Array<Node | string>) => {
     const e = d.createElement(tag)
@@ -327,7 +334,8 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
   versionInput.addEventListener('change', () => doc.setVersion(Number(versionInput.value)))
   const tplTitleInput = el('input', { 'aria-label': 'Template title', placeholder: 'Template title', class: 'key' }) as HTMLInputElement
   tplTitleInput.addEventListener('change', () => doc.setTitle(tplTitleInput.value.trim()))
-  const templateFields = templateMode ? [el('span', { class: 'lbl' }, 'v'), versionInput, tplTitleInput] : []
+  const templateFields = templateMode && !pageMode ? [el('span', { class: 'lbl' }, 'v'), versionInput, tplTitleInput] : []
+  if (pageMode) { keyInput.readOnly = true; keyInput.setAttribute('aria-label', 'Page key') }
   const undo = button('↶ Undo', () => doc.undo())
   const redo = button('↷ Redo', () => doc.redo())
   const widthSel = el('select', { 'aria-label': 'Preview width', class: 'btn' }, el('option', { value: '375' }, 'Compact 375'), el('option', { value: '768' }, 'Wide 768')) as HTMLSelectElement
@@ -376,9 +384,9 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
   const depOpen = button('Deprecate…', () => { depFormOpen = !depFormOpen; paint() })
   const paintDeprecation = () => {
     const dep = opts.deprecation
-    const canAct = templateMode
-    depOpen.hidden = !templateMode || !!dep || !opts.onDeprecate
-    if (!templateMode || (!dep && !depFormOpen)) { depBar.hidden = true; return }
+    const canAct = templateMode && !pageMode
+    depOpen.hidden = !canAct || !!dep || !opts.onDeprecate
+    if (!canAct || (!dep && !depFormOpen)) { depBar.hidden = true; return }
     depBar.hidden = false
     if (dep) {
       depBar.replaceChildren(el('strong', {}, 'Deprecated'), el('span', {}, deprecationText(doc.key, dep)),
@@ -395,9 +403,9 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
   }
 
   const toolbar = el('div', { class: 'tb' },
-    el('strong', {}, templateMode ? 'Template Builder' : 'SDUI Studio'), titleEl,
+    el('strong', {}, pageMode ? 'Page' : templateMode ? 'Template Builder' : 'SDUI Studio'), titleEl,
     keyInput, ...templateFields, undo, redo, widthSel, previewBtn, el('span', { class: 'sp' }), statusEl,
-    importBtn,
+    ...(pageMode ? [] : [importBtn]),
     button('Export DSL', () => { void navigator.clipboard?.writeText(doc.exportDSL()); message = 'DSL copied to clipboard'; paint() }),
     ...saving,
     depOpen
@@ -449,7 +457,7 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
     }
     surface.addEventListener('dragover', (event) => {
       const next = currentDrag(event)
-      const at = next && !previewMode ? resolve(event) : undefined
+      const at = next && !previewMode && !pageMode ? resolve(event) : undefined
       if (!at) return
       const zone = zoneOf(at[0], event, at[1])
       if (!doc.placement(at[1], zone) || (next!.kind === 'node' && next!.id === at[1])) { mark(undefined); return }
@@ -495,12 +503,14 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
   device.addEventListener('dragstart', (event) => {
     const hit = (event.target as Element).closest?.('[data-sdui-node]')
     const id = hit?.getAttribute('data-sdui-node')
-    if (id && id !== doc.root.id) startDrag(event, { kind: 'node', id })
+    if (id && id !== doc.root.id && !pageMode) startDrag(event, { kind: 'node', id })
   })
   device.addEventListener('dragend', endDrag)
   dropSurface(device, 'data-sdui-node', true)
   const inspector = el('div', { class: 'insp' })
-  const paletteBox = el('div', {}, el('h3', {}, 'Components'), el('div', { class: 'tip' }, 'Click to insert, or drag onto the canvas / outline.'), palette)
+  const paletteBox = pageMode
+    ? el('div', { class: 'tip' }, 'The components come from the template: change their content, look and actions here. Adding, removing or moving one is done in the template.')
+    : el('div', {}, el('h3', {}, 'Components'), el('div', { class: 'tip' }, 'Click to insert, or drag onto the canvas / outline.'), palette)
   // spec 2.3 — the page's states: declare one (and its initial value), and try values on the canvas
   const statePanel = el('div', { class: 'state', 'aria-label': 'Screen state' })
   const main = el('div', { class: 'main' },
@@ -617,10 +627,20 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
       const deprecated = list === 'screens' ? new Set(opts.catalog?.deprecated ?? []) : new Set<string>()
       const select = el('select', { 'aria-label': field }, el('option', { value: '' }, none),
         ...names.map((p) => el('option', { value: p }, deprecated.has(p) ? `${p} (deprecated)` : p))) as HTMLSelectElement
-      if (current && !names.includes(current)) select.append(el('option', { value: current }, `${current} (${foreign})`))
-      select.value = current
-      select.addEventListener('change', () => set(field, select.value))
-      box.append(el('label', {}, field, select))
+      // spec 2.6 — a navigate / openURL target may come from a list row: {{item.target}}
+      const tokenTarget = (field === 'screen' || field === 'link') && (inListRow || /^\{\{.+\}\}$/.test(current))
+      const isToken = /^\{\{.+\}\}$/.test(current)
+      if (current && !names.includes(current) && !isToken) select.append(el('option', { value: current }, `${current} (${foreign})`))
+      if (tokenTarget) select.append(el('option', { value: '{{}}' }, 'from the data (a row field)…'))
+      select.value = isToken ? '{{}}' : current
+      const token = el('input', { 'aria-label': `${field} token`, placeholder: '{{item.target}}' }) as HTMLInputElement
+      token.value = isToken ? current : ''
+      token.hidden = !isToken
+      token.addEventListener('change', () => { if (/^\{\{\s*[A-Za-z_$][A-Za-z0-9_.$]*\s*\}\}$/.test(token.value.trim())) set(field, token.value.replace(/\s+/g, '')) })
+      select.addEventListener('change', () => {
+        if (select.value === '{{}}') { token.hidden = false; token.focus() } else set(field, select.value)
+      })
+      box.append(el('label', {}, field, select, ...(tokenTarget ? [token] : [])))
     } else if (target) box.append(textField(target[0], listId(target[1])))
     if (type === 'navigate') {
       const select = selectOf(['', 'push', 'sheet', 'fullScreen'], raw.presentation)
@@ -670,14 +690,93 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
 
   /// inspector groups the author folded (survive repaints and selection changes)
   const foldedGroups = new Set<string>()
+
+  /// spec 2.6 — a list's columns: the fields its row components read (`{{item.title}}` …) and
+  /// any field a row already has
+  const itemColumns = (list: SduiNode, rows: readonly unknown[]): string[] => {
+    const as = list.string('as') || 'item'
+    const found = new Set<string>()
+    const scan = (v: unknown): void => {
+      if (typeof v === 'string') for (const m of v.matchAll(/\{\{\s*([A-Za-z_$][A-Za-z0-9_$]*)\.([A-Za-z0-9_$]+)/g)) { if (m[1] === as) found.add(m[2]!) }
+      else if (Array.isArray(v)) v.forEach(scan)
+      else if (v && typeof v === 'object') Object.values(v).forEach(scan)
+    }
+    for (const child of list.children) for (const [n] of flatten(child)) { scan(n.props); scan(n.action?.toJSON()) }
+    for (const row of rows) if (row && typeof row === 'object' && !Array.isArray(row)) Object.keys(row).forEach((k) => found.add(k))
+    return [...found]
+  }
+  /// spec 2.6 — a list's rows typed in the inspector: one line per row (card), one column per field
+  const rowsTable = (list: SduiNode, key: string, rows: readonly unknown[]): HTMLElement => {
+    const columns = itemColumns(list, rows)
+    const objects = rows.map((r) => (r && typeof r === 'object' && !Array.isArray(r) ? r as Record<string, SduiValue> : {}))
+    const commit = (next: Array<Record<string, SduiValue>>) => doc.setProp(list.id!, key, next)
+    const table = el('table', { class: 'rows', 'aria-label': `${key} rows` })
+    table.append(el('tr', {}, ...columns.map((c) => el('th', {}, c)), el('th', {}, '')))
+    objects.forEach((row, i) => {
+      const cells = columns.map((c) => {
+        const input = el('input', { 'aria-label': `row ${i + 1} ${c}` }) as HTMLInputElement
+        const v = row[c]
+        input.value = v === undefined || v === null ? '' : typeof v === 'string' ? v : JSON.stringify(v)
+        input.addEventListener('change', () => commit(objects.map((r, j) => (j === i ? { ...r, [c]: input.value } : r))))
+        return el('td', {}, input)
+      })
+      const up = button('↑', () => { if (i > 0) { const next = [...objects]; [next[i - 1], next[i]] = [next[i]!, next[i - 1]!]; commit(next) } }, 'btn mini')
+      const remove = button('✕', () => commit(objects.filter((_, j) => j !== i)), 'btn mini')
+      remove.setAttribute('aria-label', `Remove row ${i + 1}`)
+      table.append(el('tr', {}, ...cells, el('td', {}, up, remove)))
+    })
+    const add = button('+ row', () => commit([...objects, Object.fromEntries(columns.map((c) => [c, '']))]), 'btn mini')
+    const column = el('input', { 'aria-label': 'New column', placeholder: 'new field' }) as HTMLInputElement
+    column.addEventListener('change', () => {
+      const name = column.value.trim()
+      if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) commit(objects.map((r) => ({ ...r, [name]: r[name] ?? '' })))
+    })
+    return el('div', {}, table, el('div', { class: 'srow' }, add, column), el('div', { class: 'tip' }, `Each row is one ${list.children[0]?.type ?? 'item'}; its components read {{${list.string('as') || 'item'}.<field>}}.`))
+  }
+
+  // sdui-r 2.6 — a page: its template's components by id (to mark what the page sets differently)
+  let baseCache: { raw: unknown; nodes: Map<string, SduiNode> } | undefined
+  const baseNodes = (): Map<string, SduiNode> => {
+    if (baseCache && baseCache.raw === opts.pageTemplate) return baseCache.nodes
+    const nodes = new Map<string, SduiNode>()
+    try {
+      if (opts.pageTemplate) for (const [n] of flatten(TemplateDocument.decode(opts.pageTemplate).template.root)) if (n.id) nodes.set(n.id, n)
+    } catch { /* not a template: nothing to compare with */ }
+    baseCache = { raw: opts.pageTemplate, nodes }
+    return nodes
+  }
+  const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
+  /// a page's component that sets a prop or its action differently from the template
+  const overridden = (n: SduiNode): boolean => {
+    const base = n.id ? baseNodes().get(n.id) : undefined
+    if (!base) return false
+    const keys = new Set([...Object.keys(n.props), ...Object.keys(base.props)])
+    if ([...keys].some((k) => !same(n.props[k], base.props[k]))) return true
+    return n.action && base.action ? !n.action.equals(base.action) : n.action !== base.action
+  }
+  /// the inspected component sits in a list row: its targets may come from the row's data
+  let inListRow = false
   const inspectorFor = (node: SduiNode) => {
     const id = node.id!
+    inListRow = ancestorsOf(doc.root, id).some((a) => find(doc.root, a)?.type === 'list')
     const props = node.props
     // a chart shows only what its kind reads; values its kind ignores are listed, never dropped silently
     const chartKind = node.type === 'chart' ? node.string('kind') || 'bar' : undefined
     const unused = chartKind ? (FIELDS.chart ?? []).map(([k]) => k).filter((k) => !chartReads(chartKind, k) && props[k] !== undefined) : []
     const fields = [...(FIELDS[node.type] ?? []), ...SHARED].filter(([k]) => !chartKind || chartReads(chartKind, k))
-    const control = (key: string, kind: FieldKind): HTMLElement => {
+    // a page: the template's value of each prop, to mark (and take back) what the page sets differently
+    const base = pageMode ? baseNodes().get(id) : undefined
+    const marked = (key: string, box: HTMLElement): HTMLElement => {
+      if (!base || same(props[key], base.props[key])) return box
+      box.classList.add('ovr')
+      const back = button('↺ template', () => doc.setProp(id, key, base.props[key] ?? undefined), 'btn mini')
+      back.setAttribute('aria-label', `Take the template's ${key} back`)
+      back.title = `Template: ${base.props[key] === undefined ? '(not set)' : JSON.stringify(base.props[key])}`
+      box.append(back)
+      return box
+    }
+    const control = (key: string, kind: FieldKind): HTMLElement => marked(key, field(key, kind))
+    const field = (key: string, kind: FieldKind): HTMLElement => {
       const current = props[key]
       if (kind === 'bool') {
         const input = el('input', { type: 'checkbox' }) as HTMLInputElement
@@ -751,18 +850,25 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
       }
       if (kind === 'options') return optionsTable(d, key, current, (v) => doc.setProp(id, key, v))
       if (kind === 'items') {
-        // a list repeats over an array in the screen data: a `screen.load` result, or a key path
+        // a list repeats over an array in the screen data: a `screen.load` result, or a key path —
+        // or (spec 2.6) rows typed here, one per card (`[]`)
         const loads = doc.load.map((l) => l.request)
+        const rows = Array.isArray(current) ? current : undefined
         const value = typeof current === 'string' ? current : ''
-        const select = selectOf(['', ...loads], loads.includes(value) ? value : value ? '#' : '', (v) => v === '' ? '— none —' : v === '#' ? 'key path…' : `load: ${v}`)
+        const select = selectOf(['', ...loads], rows ? '[]' : loads.includes(value) ? value : value ? '#' : '', (v) => v === '' ? '— none —' : v === '#' ? 'key path…' : `load: ${v}`)
         if (!select.querySelector('option[value="#"]')) select.append(el('option', { value: '#' }, 'key path…'))
-        select.value = loads.includes(value) ? value : value ? '#' : ''
+        if (!select.querySelector('option[value="[]"]')) select.append(el('option', { value: '[]' }, 'rows typed here'))
+        select.value = rows ? '[]' : loads.includes(value) ? value : value ? '#' : ''
         const path = el('input', { 'aria-label': `${key} key path`, placeholder: 'e.g. catalog.items' }) as HTMLInputElement
-        path.value = loads.includes(value) ? '' : value
+        path.value = loads.includes(value) || rows ? '' : value
         path.hidden = select.value !== '#'
-        select.addEventListener('change', () => { if (select.value === '#') { path.hidden = false; path.focus() } else doc.setProp(id, key, select.value || undefined) })
+        select.addEventListener('change', () => {
+          if (select.value === '#') { path.hidden = false; path.focus() }
+          else if (select.value === '[]') doc.setProp(id, key, [Object.fromEntries(itemColumns(node, []).map((c) => [c, '']))])
+          else doc.setProp(id, key, select.value || undefined)
+        })
         path.addEventListener('change', () => doc.setProp(id, key, path.value.trim() || undefined))
-        return el('label', {}, key, select, path)
+        return el('label', {}, key, select, path, ...(rows ? [rowsTable(node, key, rows)] : []))
       }
       if (Array.isArray(kind)) {
         const select = selectOf(kind, current)
@@ -819,7 +925,7 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
 
     // parent picker (moves the node to the end of another container)
     const placement: Node[] = []
-    const candidates = doc.parentCandidates(id)
+    const candidates = pageMode ? [] : doc.parentCandidates(id)
     if (candidates.length) {
       const parentId = flatten(doc.root).find(([n]) => n.children.some((c) => c.id === id))?.[0].id ?? ''
       const select = selectOf(candidates.map((c) => c.id!), parentId, (v) => {
@@ -845,12 +951,16 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
     actionJSON.addEventListener('change', () => { try { commitAction(actionJSON.value ? JSON.parse(actionJSON.value) : undefined) } catch { /* keep editing */ } })
     const use: ActionUse = actionUseOf(node.type, factory)
     const actionSection: Node[] = []
+    // a page: an action that differs from the template's, and the way back
+    const actionBack: Node[] = base && !(node.action && base.action ? node.action.equals(base.action) : node.action === base.action)
+      ? [el('div', { class: 'tip warn' }, 'This page sets its own action (the template has another). ', button('↺ template', () => doc.setAction(id, base.action), 'btn mini'))]
+      : []
     if (use === 'tap') {
-      actionSection.push(section('Interaction',
+      actionSection.push(section('Interaction', ...actionBack,
         ...(node.type === 'card' && node.action && holdsControl(node) ? [el('div', { class: 'tip warn' }, 'This card holds a button, a field or another tappable, so its own action never runs (a button cannot hold a button).')] : []),
         actionEditor(node.action?.toJSON(), commitAction, 0), el('details', {}, el('summary', {}, 'Action JSON'), actionJSON)))
     } else if (use === 'source') {
-      actionSection.push(section('Data source', sourceEditor(node, commitAction)))
+      actionSection.push(section('Data source', ...actionBack, sourceEditor(node, commitAction)))
     } else if (node.action) {
       actionSection.push(section('Action (ignored)',
         el('div', { class: 'tip warn' }, `A ${node.type} does nothing when tapped: this action never runs.`),
@@ -864,7 +974,13 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
     // template mode: the component id is what makers' value sets are keyed by — generated
     // once (`text1`, `button2` …) and never edited, so a released value set never loses its key
     const identity: Node[] = []
-    if (templateMode) {
+    if (pageMode) {
+      const note = typeof props[NOTE_PROP] === 'string' ? props[NOTE_PROP] as string : ''
+      identity.push(el('div', { class: 'tip' }, `component ${id} (from the template)`),
+        ...(note ? [el('div', { class: 'tip fn' }, `Note: ${note}`)] : []),
+        el('div', { class: 'tip fn' }, describeComponent(node, factory).join(' · ')),
+        ...(base && overridden(node) ? [button('↺ Everything back to the template', () => { doc.setProps(id, base.props); doc.setAction(id, base.action) }, 'btn mini')] : []))
+    } else if (templateMode) {
       const idInput = el('input', { 'aria-label': 'Component id', class: 'cid', readonly: '', tabindex: '-1' }) as HTMLInputElement
       idInput.value = id
       idInput.readOnly = true
@@ -885,9 +1001,9 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
       ...controls,
       ...actionSection,
       section('Props (JSON)', propsJSON),
-      el('div', { class: 'acts' },
+      ...(pageMode ? [] : [el('div', { class: 'acts' },
         button('↑', () => doc.move(id, -1)), button('↓', () => doc.move(id, 1)),
-        button('Duplicate', () => doc.duplicate(id)), button('Delete', () => doc.delete(id)))
+        button('Duplicate', () => doc.duplicate(id)), button('Delete', () => doc.delete(id)))])
     )
   }
 
@@ -899,10 +1015,10 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
       const id = element.getAttribute('data-sdui-node')!
       const node = nodes.get(id)
       if (!node) continue
-      if (id !== doc.root.id) (element as HTMLElement).draggable = true
+      if (id !== doc.root.id && !pageMode) (element as HTMLElement).draggable = true
       element.setAttribute('title', `${node.type}${isGeneratedId(id) ? '' : ` #${id}`}`)
       if (id === doc.selection) element.setAttribute('data-label', element.getAttribute('title')!)
-      if (doc.isContainer(id) && node.children.length === 0) element.append(el('div', { class: 'hint' }, `Empty ${node.type} — drop components here`))
+      if (!pageMode && doc.isContainer(id) && node.children.length === 0) element.append(el('div', { class: 'hint' }, `Empty ${node.type} — drop components here`))
       // an image without a picture is a frame the maker fills in the Screen Builder
       if (element.hasAttribute('data-sdui-frame')) element.setAttribute('data-frame-label', element.getAttribute('data-sdui-frame') === 'missing'
         ? `unknown image "${node.string('name')}"` : 'Image frame — the maker uploads the picture')
@@ -945,9 +1061,10 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
         const v = initial.value.trim()
         doc.setScreenState({ ...doc.state, [name]: v ? { initial: v } : {} })
       })
-      const remove = declared ? [button('✕', () => { const next = { ...doc.state }; delete next[name]; delete sim[name]; doc.setScreenState(next) })] : []
+      const remove = declared && !pageMode ? [button('✕', () => { const next = { ...doc.state }; delete next[name]; delete sim[name]; doc.setScreenState(next) })] : []
       remove.forEach((b) => b.setAttribute('aria-label', `Remove state ${name}`))
       // a chart's pick starts from its initialSelection: no initial value here
+      if (pageMode) initial.readOnly = true
       const extra = picker && !declared ? [el('div', { class: 'tip' }, `picked by chart #${picker.id}`)] : [initial]
       return el('div', { class: 'srow' }, el('strong', {}, name), ...remove, el('label', {}, 'try', value), ...extra)
     })
@@ -965,7 +1082,7 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
     })
     statePanel.replaceChildren(
       el('div', { class: 'tip' }, names.length ? 'Pick a value to see the canvas in that state. Preview runs the page for real (taps, requests, animations); a request answers as picked here.' : 'No state yet: a button with a group or a toggle makes one, or add one here.'),
-      ...rows, ...requests, el('div', { class: 'srow' }, add, addBtn))
+      ...rows, ...requests, ...(pageMode ? [] : [el('div', { class: 'srow' }, add, addBtn)]))
   }
 
   /// Preview = the page running for real (the client engine; requests answered as simulated)
@@ -1020,7 +1137,8 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
       if (n.children.length > 0) row.setAttribute('aria-expanded', String(!folded.has(n.id!)))
       row.style.paddingLeft = `${4 + depth * 14}px`
       row.addEventListener('click', () => doc.select(n.id))
-      if (n.id !== doc.root.id) {
+      if (pageMode && overridden(n)) row.append(el('span', { class: 'ovm', title: 'Set differently from the template' }, ' •'))
+      if (n.id !== doc.root.id && !pageMode) {
         row.draggable = true
         row.addEventListener('dragstart', (event) => startDrag(event, { kind: 'node', id: n.id! }))
         row.addEventListener('dragend', endDrag)
@@ -1072,7 +1190,9 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
         .map((w) => el('div', { class: 'warn' }, `⚠ ${w}`)),
       // spec 2.3 — conditions no button can change, states nothing writes, …
       ...stateWarnings(doc.root, doc.state).map((w) => el('div', { class: 'warn' }, `⚠ ${w}`)),
-      ...doc.importWarnings.map((w) => el('div', { class: 'warn' }, `↳ ${w}`))
+      ...doc.importWarnings.map((w) => el('div', { class: 'warn' }, `↳ ${w}`)),
+      // a page: sample texts of the template still in it ([Insight Title]) — published as they are
+      ...(pageMode ? placeholders(doc.root) : []).map((w) => el('div', { class: 'warn' }, `⚠ ${w}: still the template's sample text`))
     )
     const payload = templateMode ? doc.templateDocument().toJSON() : doc.payload().toJSON()
     paintChanges(opts.baseline === undefined ? undefined : diff(asScreenJSON(opts.baseline), asScreenJSON(payload)))

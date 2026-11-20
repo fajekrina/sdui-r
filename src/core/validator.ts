@@ -183,9 +183,9 @@ export class SchemaValidator {
     const b = this.bounds
     if (chainDepth > b.maxChainDepth) throw SduiError.bounds(`action chain depth exceeds ${b.maxChainDepth}`)
     switch (action.type) {
-      case 'navigate': this.requireNamedTarget(action.screen, 'navigate.screen'); break
+      case 'navigate': this.requireNamedTarget(action.screen, 'navigate.screen', true); break
       case 'api': this.requireNamedTarget(action.request, 'api.request'); break
-      case 'openURL': this.requireNamedTarget(action.link, 'openURL.link'); break
+      case 'openURL': this.requireNamedTarget(action.link, 'openURL.link', true); break
       case 'native': this.requireNamedTarget(action.command, 'native.command'); break
       case 'toast':
         if (action.message === undefined) throw SduiError.schema('toast.message is required')
@@ -216,8 +216,11 @@ export class SchemaValidator {
     if (Number(parts[0]) !== this.schemaMajor) throw SduiError.unsupportedVersion(version)
   }
 
-  private requireNamedTarget(value: string | undefined, label: string): void {
+  /// `token`: v2.6 — a navigate screen / openURL link may be ONE `{{token}}` (resolved when the
+  /// action runs; the result must be an identifier then)
+  private requireNamedTarget(value: string | undefined, label: string, token = false): void {
     if (value === undefined) throw SduiError.schema(`${label} is required`)
+    if (token && TARGET_TOKEN.test(value) && length(value) <= this.bounds.maxIdentifierLength) return
     this.requireIdentifier(value, label)
   }
 
@@ -237,6 +240,9 @@ const CONDITION_PROPS = ['visibleWhen', 'disabledWhen', 'maskedWhen'] as const
 function isComponentId(value: string): boolean {
   return /^[A-Za-z][A-Za-z0-9_-]*$/.test(value)
 }
+
+/// v2.6 — a target given as exactly one token: `{{item.target}}`
+export const TARGET_TOKEN = /^\{\{[A-Za-z_$][A-Za-z0-9_.$]*\}\}$/
 
 function isIdentifier(value: string, allowDot = false): boolean {
   return (allowDot ? /^[A-Za-z][A-Za-z0-9_.]*$/ : /^[A-Za-z][A-Za-z0-9_]*$/).test(value)

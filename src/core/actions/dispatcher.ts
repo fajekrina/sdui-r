@@ -1,6 +1,7 @@
 import { parseJSON } from '../payload'
 import { SduiValue, type SduiProps } from '../value'
 import { resolveValue } from '../token'
+import { TARGET_TOKEN } from '../validator'
 import { NamedRequest, NoNetworkClient, noHost, noopNavigator, type HostPort, type NetworkClient, type Navigator } from '../../ports'
 import type { DataContext } from '../data-context'
 import type { ActionSpec, ActionType, ToastLevel } from './spec'
@@ -36,6 +37,14 @@ export interface Command {
   execute(spec: ActionSpec, context: ActionContext, dispatcher: ActionDispatcher): Promise<void>
 }
 
+/// v2.6 — a navigate screen / openURL link given as ONE `{{token}}`: its value at tap time,
+/// used only when it is an identifier (a named target, never a URL); else undefined.
+function target(value: string | undefined, data: DataContext): string | undefined {
+  if (value === undefined || !TARGET_TOKEN.test(value)) return value
+  const v = data.value(value.slice(2, -2).trim())
+  return typeof v === 'string' && /^[A-Za-z][A-Za-z0-9_]*$/.test(v) ? v : undefined
+}
+
 /// Resolve `{{token}}`s in params against the data at dispatch time.
 function params(spec: ActionSpec, data: DataContext): SduiProps {
   if (!spec.params) return {}
@@ -44,10 +53,11 @@ function params(spec: ActionSpec, data: DataContext): SduiProps {
 
 class NavigateCommand implements Command {
   async execute(spec: ActionSpec, ctx: ActionContext, d: ActionDispatcher) {
-    if (spec.screen === undefined) return
-    ctx.navigator.navigate(spec.screen, params(spec, ctx.data), { presentation: spec.presentation ?? 'push' })
+    const screen = target(spec.screen, ctx.data)
+    if (screen === undefined) { if (spec.screen !== undefined) ctx.emit?.({ type: 'action_dispatched', action: 'navigate', ok: false }); return }
+    ctx.navigator.navigate(screen, params(spec, ctx.data), { presentation: spec.presentation ?? 'push' })
     if (ctx.outcome) ctx.outcome.navigated = true
-    ctx.emit?.({ type: 'action_dispatched', action: 'navigate', ok: true, target: spec.screen })
+    ctx.emit?.({ type: 'action_dispatched', action: 'navigate', ok: true, target: screen })
     if (spec.onSuccess) await d.dispatch(spec.onSuccess, ctx)
   }
 }
@@ -69,9 +79,10 @@ class RefreshCommand implements Command {
 
 class OpenURLCommand implements Command {
   async execute(spec: ActionSpec, ctx: ActionContext) {
-    if (spec.link === undefined) return
-    ctx.navigator.openLink(spec.link)
-    ctx.emit?.({ type: 'action_dispatched', action: 'openURL', ok: true, target: spec.link })
+    const link = target(spec.link, ctx.data)
+    if (link === undefined) { if (spec.link !== undefined) ctx.emit?.({ type: 'action_dispatched', action: 'openURL', ok: false }); return }
+    ctx.navigator.openLink(link)
+    ctx.emit?.({ type: 'action_dispatched', action: 'openURL', ok: true, target: link })
   }
 }
 

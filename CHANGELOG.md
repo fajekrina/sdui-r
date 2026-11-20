@@ -19,6 +19,14 @@ versi mengikuti Semantic Versioning (0.x: breaking change boleh di minor dengan 
   `placeholders` (teks contoh `[...]`); `EditorDocument` opsi `locked` (mode halaman: tidak bisa tambah / hapus /
   pindah komponen, load dan state milik template). `ValuesEditor` lama tetap hanya konten.
 - Fixture `values_page_overrides.json`.
+- `list.items` boleh berupa **array langsung** (baris diketik di halaman), selain key path data. Komponen ber-id di
+  baris list kini dikunci per baris (`<list>:r<i>:<id>`), sehingga action tiap baris tidak saling menimpa.
+- `navigate.screen` / `openURL.link` boleh **satu `{{token}}`** (mis. `{{item.target}}`), diselesaikan saat diketuk;
+  hasilnya harus nama (identifier), bukan URL — selain itu tidak terjadi apa-apa.
+- Studio **mode halaman** (`EditorDocument` `locked` + opsi `pageTemplate`): tanpa palet, tanpa geser / hapus /
+  duplikat / impor; prop dan action yang berbeda dari template ditandai dengan tombol **↺ template** (per prop dan
+  per komponen) dan titik di outline; peringatan teks contoh `[...]`; state hanya bisa dicoba. Inspector `list`:
+  **tabel baris** (kolom dari `{{item.*}}`), dan tujuan navigate / openURL "dari data baris" untuk komponen di list.
 
 ### Ditambah: text, image, dan card bisa diklik (spec 2.5)
 

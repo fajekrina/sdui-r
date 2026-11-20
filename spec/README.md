@@ -129,7 +129,7 @@ v1.1:
 | `divider` | — |
 | `grid` | `columns` (number), `spacing` |
 | `scroll` | `axis` `vertical`·`horizontal` |
-| `list` | `items` (data key path to an array), `as` (row name, default `item`), `spacing`; the children are the row template, rendered once per item with `{{<as>.*}}` |
+| `list` | `items` (data key path to an array — or, v2.6, the array itself), `as` (row name, default `item`), `spacing`; the children are the row template, rendered once per item with `{{<as>.*}}`; a component with an id is keyed `<list>:r<i>:<id>` per row |
 | `form` | `spacing`; opens the `form.*` data scope for its fields |
 | `textField` | `name`, `label`, `placeholder`, `keyboard` `text`·`number`·`email`·`phone`, `required`, `minLength`, `maxLength`, `pattern` (a **name**, see below), `secure` |
 | `textArea` | `name`, `label`, `placeholder`, `rows`, `required`, `minLength`, `maxLength` |
@@ -336,11 +336,17 @@ legend (above / below: entries side by side, wrapping; beside: one per line).
 The tip (and a point's marker) slides to a new pick; a pulled-out slice changes at once. A 2.4 client
 picks bars only (line / area / pie / donut are static).
 
+
+**v2.6 — a target from the data.** `navigate.screen` and `openURL.link` may be exactly one
+`{{token}}` (e.g. `{{item.target}}` in a list row). It is resolved when the action runs; the
+value must be an identifier (a screen key / a named link — never a URL), else nothing happens.
+Other targets (`api.request`, `native.command`) stay literal names.
+
 ## Actions
 
 | `type` | Required | Optional | Effect |
 | --- | --- | --- | --- |
-| `navigate` | `screen` | `params`, `presentation` `push`·`sheet`·`fullScreen` (v1.1) | host navigator |
+| `navigate` | `screen` (v2.6: or one `{{token}}`, see below) | `params`, `presentation` `push`·`sheet`·`fullScreen` (v1.1) | host navigator |
 | `api` | `request` | `params` | named request → response merged into data under the request name |
 | `dismiss` | — | — | close / pop |
 | `refresh` | — | — | reload the screen |

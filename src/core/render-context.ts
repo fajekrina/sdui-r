@@ -65,7 +65,9 @@ export class RenderContext {
     readonly formId?: string,
     /// how the parent lays this node out: a flex `column` (vstack, card, form), a flex `row`
     /// (hstack), or anything else (`block`)
-    readonly layout: 'column' | 'row' | 'block' = 'block'
+    readonly layout: 'column' | 'row' | 'block' = 'block',
+    /// a list row: ids repeat once per row, so a node with an id is keyed `<scope>:<id>`
+    readonly scope?: string
   ) {}
 
   get interactive(): boolean { return this.env.interactive }
@@ -83,14 +85,15 @@ export class RenderContext {
 
   /// A key for a node: its id, else its position.
   keyFor(node: SduiNode): string {
-    return node.id ?? `p${this.path}`
+    if (node.id === undefined) return `p${this.path}`
+    return this.scope ? `${this.scope}:${node.id}` : node.id
   }
 
   /// The context for a child at `index`, optionally with extra scoped data
   /// (a list row, a form) that never leaks into the parent.
-  child(index: number | string, extra?: Record<string, SduiValue>, formId?: string, layout?: 'column' | 'row' | 'block'): RenderContext {
+  child(index: number | string, extra?: Record<string, SduiValue>, formId?: string, layout?: 'column' | 'row' | 'block', scope?: string): RenderContext {
     const data = extra ? new DataContext({ ...this.data.snapshot, ...extra }) : this.data
-    return new RenderContext(data, this.env, `${this.path}.${index}`, formId ?? this.formId, layout)
+    return new RenderContext(data, this.env, `${this.path}.${index}`, formId ?? this.formId, layout, scope ?? this.scope)
   }
 
   /// Render a node: Composite recursion with the Null-Object fallback.

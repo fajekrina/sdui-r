@@ -164,7 +164,7 @@ export function actionWarnings(root: SduiNode, lists: ActionLists, factory?: Com
       }
     }
     const uses = usesOf(action.type)
-    if (action.type === 'openURL' && action.link && links.length > 0 && !links.includes(action.link)) {
+    if (action.type === 'openURL' && action.link && links.length > 0 && !links.includes(action.link) && !/^\{\{.+\}\}$/.test(action.link)) {
       out.push(`${at} opens "${action.link}", which is not a known link`)
     }
     if (action.params !== undefined && !uses.params) out.push(`${at}: ${action.type} ignores params`)

@@ -41,10 +41,10 @@ function StudioHost({ className, style, mount, ...options }: SduiBuilderProps & 
   }, [options.document])
   // options that may arrive or change after mounting (lists, the title, a new active
   // release after publishing)
-  const { title, screens, requests, sources, links, commands, catalog, baseline, sampleData, assetURL, deprecation } = options
+  const { title, screens, requests, sources, links, commands, catalog, baseline, sampleData, assetURL, deprecation, pageTemplate } = options
   useEffect(() => {
-    studio.current?.update({ title, screens, requests, sources, links, commands, catalog, baseline, sampleData, assetURL, deprecation })
-  }, [title, screens, requests, sources, links, commands, catalog, baseline, sampleData, assetURL, deprecation])
+    studio.current?.update({ title, screens, requests, sources, links, commands, catalog, baseline, sampleData, assetURL, deprecation, pageTemplate })
+  }, [title, screens, requests, sources, links, commands, catalog, baseline, sampleData, assetURL, deprecation, pageTemplate])
   return <div ref={host} className={className} style={{ height: '100%', minHeight: 0, ...style }} />
 }
 

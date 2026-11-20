@@ -480,10 +480,13 @@ export class ListComponent implements Component {
   static readonly acceptsChildren = true
   static readonly defaultProps = { items: 'items', as: 'item' }
   makeView(node: SduiNode, ctx: RenderContext): RenderNode {
-    const items = SduiValue.arrayValue(ctx.data.value(node.string('items'))) ?? []
+    // `items`: a data key path to an array — or, v2.6, the array itself (a page fills its rows)
+    const raw = node.props.items
+    const items = Array.isArray(raw) ? raw : SduiValue.arrayValue(ctx.data.value(node.string('items'))) ?? []
     const as = node.string('as') || 'item'
     const rows = items.map((item, i) => {
-      const rowCtx = ctx.child(`r${i}`, { [as]: item })
+      // each row keys its components apart (`<list>:r<i>:<id>`): their handlers and state differ
+      const rowCtx = ctx.child(`r${i}`, { [as]: item }, undefined, 'column', `${ctx.keyFor(node)}:r${i}`)
       return renderNode(`${ctx.keyFor(node)}:row${i}`, 'li', {
         style: { listStyle: 'none', display: 'flex', flexDirection: 'column', gap: px(DEFAULT_SPACING) },
         children: rowCtx.children(node)
