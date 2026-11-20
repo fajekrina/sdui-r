@@ -100,6 +100,9 @@ export interface StudioCatalog {
   fonts?: readonly string[]
   /// deprecated template keys: marked in the page picker of `navigate` (and the Screen Builder)
   deprecated?: readonly string[]
+  /// sdui-r 2.6 — the template keys (a template's replacement when it is deprecated), when the
+  /// pages a `navigate` offers (`screens`) are not the templates
+  templates?: readonly string[]
 }
 
 /// The deprecation banner text: what it means for makers and pages.
@@ -393,7 +396,8 @@ export function mountStudio(target: HTMLElement, options: StudioOptions = {}): M
         ...(opts.onRestore && canAct ? [button('Restore', () => void runDeprecation(() => opts.onRestore?.(), 'Restored ✔', 'Restore failed'))] : []))
       return
     }
-    const others = namesOf('screens').filter((k) => k !== doc.key && !(opts.catalog?.deprecated ?? []).includes(k))
+    // the templates that may replace this one (`catalog.templates`; else the screens: a page IS its template)
+    const others = (opts.catalog?.templates ?? namesOf('screens')).filter((k) => k !== doc.key && !(opts.catalog?.deprecated ?? []).includes(k))
     const current = depReplace.value
     depReplace.replaceChildren(el('option', { value: '' }, '— no replacement —'), ...others.map((k) => el('option', { value: k }, `use ${k}`)))
     depReplace.value = others.includes(current) ? current : ''
