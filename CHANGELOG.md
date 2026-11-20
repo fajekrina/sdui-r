@@ -5,6 +5,12 @@ versi mengikuti Semantic Versioning (0.x: breaking change boleh di minor dengan 
 
 ## [Unreleased]
 
+### Ditambah: `button.iconCornerRadius` (spec 2.5)
+
+- Latar ikon (`iconBackground`) tidak lagi harus lingkaran: `iconCornerRadius` (px) membuatnya kotak bersudut bulat,
+  `0` kotak. Tanpa prop ini (atau nilai negatif) tetap lingkaran, jadi template lama tidak berubah.
+- Studio: `iconCornerRadius` ada di inspector button, di sebelah `iconPadding`.
+
 ### Ditambah: spec 2.5 — pilih dan tip untuk semua jenis chart
 
 - `SPEC_VERSION` 2.5. Properti 2.4 (`selectState`, `initialSelection`, `selectedColor`, `tip`) kini berlaku untuk

@@ -67,6 +67,11 @@ describe('button (spec 2.2)', () => {
     expect(b.style).toMatchObject({ display: 'inline-flex', flexDirection: 'column', fontSize: '14px', fontWeight: '600' })
     const icon = byKey(b, 'like:icon')!
     expect(icon.style).toMatchObject({ borderRadius: '50%', padding: '13px', fontSize: '30px' })
+    // spec 2.5 — iconCornerRadius: a rounded square (0: square); a negative value keeps the circle
+    const radius = async (r: number) => byKey(await render({ type: 'button', id: 'sq', props: { title: '', systemName: 'star.fill', iconBackground: '#F7F7F7', iconCornerRadius: r } }), 'sq:icon')!.style.borderRadius
+    expect(await radius(8)).toBe('8px')
+    expect(await radius(0)).toBe('0px')
+    expect(await radius(-1)).toBe('50%')
     expect(byKey(b, 'like:title')!.text).toBe('Suka!')
     // icon only (a back button): no title span
     const back = await render({ type: 'button', id: 'back', props: { title: '', systemName: 'arrow.left' } })

@@ -14,7 +14,8 @@ export const V11_COMPONENTS = ['spacer', 'divider', 'grid', 'scroll', 'list', 'f
 /// sdui-r 2.0 additions.
 export const V20_COMPONENTS = ['chart'] as const
 /// sdui-r 2.5: the 2.4 chart props work on every kind — line / area pick a point (a round marker, the
-/// tip above it), pie / donut a slice (pulled out, the tip outside it, legend entries are buttons).
+/// tip above it), pie / donut a slice (pulled out, the tip outside it, legend entries are buttons);
+/// button `iconCornerRadius` (the icon background as a rounded square instead of a circle).
 /// sdui-r 2.4 additions (props only): the interactive bar chart — `selectState` (a tapped bar writes
 /// `$selected.<state>` = its item key), `initialSelection`, `selectedColor`, `tip` (`{{item.x}}` of the
 /// picked item, markup); web hover previews the tip (`RenderNode.on.hover` / `hoverEnd`).

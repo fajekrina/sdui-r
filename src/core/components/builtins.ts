@@ -302,14 +302,16 @@ export class ButtonComponent implements Component {
     }
     const title = ctx.resolve(node.string('title'))
     // spec 2.2 — an icon (`systemName`) before the title, or above it (`iconPosition: top`);
-    // `iconBackground` puts it in a circle: `iconSize` (default 20) + `iconPadding` (default 0.6 × size) around it
+    // `iconBackground` puts it in a circle: `iconSize` (default 20) + `iconPadding` (default 0.6 × size) around it;
+    // spec 2.5 — `iconCornerRadius` (px) makes it a rounded square instead (0: square)
     const symbol = node.string('systemName')
     let children: RenderNode[] | undefined
     if (symbol) {
       const iconSize = numberProp(node, 'iconSize') ?? 20
       const iconStyle: Record<string, string> = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: px(iconSize), lineHeight: '1' }
       const iconBg = pick('iconBackground')
-      if (iconBg) Object.assign(iconStyle, { background: iconBg, borderRadius: '50%', padding: px(numberProp(node, 'iconPadding') ?? Math.round(iconSize * 0.6)) })
+      const iconRadius = numberProp(node, 'iconCornerRadius')
+      if (iconBg) Object.assign(iconStyle, { background: iconBg, borderRadius: iconRadius !== undefined && iconRadius >= 0 ? px(iconRadius) : '50%', padding: px(numberProp(node, 'iconPadding') ?? Math.round(iconSize * 0.6)) })
       const iconFg = pick('iconForeground')
       if (iconFg) iconStyle.color = iconFg
       const top = node.string('iconPosition') === 'top'

@@ -195,7 +195,7 @@ warns about one. A third-party component may run its own (`ComponentInfo.action`
 | every component | `borderColor`, `borderWidth` (default 1) | an outline (a width alone uses the `border` token) |
 | every component | `shadow` | `small` · `medium` (below) · `top` (above: a pinned footer) |
 | every component | `pin` | `bottom` · `top`: stays at that edge of the screen while the page scrolls |
-| `button` | `systemName`, `iconPosition` (`leading` · `top`), `iconSize` (20), `iconPadding`, `iconBackground`, `iconForeground` | an icon before or above the title; `iconBackground` draws a circle behind it |
+| `button` | `systemName`, `iconPosition` (`leading` · `top`), `iconSize` (20), `iconPadding`, `iconBackground`, `iconForeground`, `iconCornerRadius` (v2.5) | an icon before or above the title; `iconBackground` draws a circle behind it — or, with `iconCornerRadius` (px, `0` = square), a rounded square |
 | `button` | `size`, `weight` | the title's size and weight |
 | `button` | `group`, `value` | a **choice**: a tap selects `value` (default: the button id) in `group` |
 | `button` | `selectedBackground`, `selectedForeground`, `selectedIconBackground`, `selectedIconForeground` | colors of the selected button |

@@ -144,7 +144,7 @@ export const FIELDS: Record<string, Array<[string, FieldKind]>> = {
   zstack: [['width', 'number'], ['height', 'number']],
   // spec 2.2: an icon, the title's size / weight, and a choice (group + value; selected colors)
   button: [['title', 'text'], ['variant', ['', 'primary', 'secondary', 'plain']], ['size', 'number'], ['weight', ['', 'regular', 'medium', 'semibold', 'bold', 'heavy']],
-    ['systemName', 'text'], ['iconPosition', ['', 'leading', 'top']], ['iconSize', 'number'], ['iconPadding', 'number'], ['iconBackground', 'color'], ['iconForeground', 'color'],
+    ['systemName', 'text'], ['iconPosition', ['', 'leading', 'top']], ['iconSize', 'number'], ['iconPadding', 'number'], ['iconCornerRadius', 'number'], ['iconBackground', 'color'], ['iconForeground', 'color'],
     ['group', 'text'], ['value', 'text'], ['toggle', 'state'], ['selectedBackground', 'color'], ['selectedForeground', 'color'], ['selectedIconBackground', 'color'], ['selectedIconForeground', 'color'],
     ['disabledWhen', 'condition']],
   spacer: [['height', 'number'], ['width', 'number']],
