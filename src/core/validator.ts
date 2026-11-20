@@ -6,7 +6,7 @@ import type { TemplateDocument, ValuesDocument } from './template'
 import type { ScreenState } from './payload'
 import type { ActionSpec } from './actions/spec'
 import type { SduiValue } from './value'
-import { isContentProp } from '../spec'
+import { isOverridableProp, valuesOverride } from '../spec'
 
 /// Validation layers 2 (schema conformance) and the bounds JSON Schema can't
 /// express. Pure — it walks an already-decoded tree (layer 1) and throws
@@ -62,9 +62,9 @@ export class SchemaValidator {
   }
 
   /// sdui-r — a value set against its template: same major, same template key and
-  /// version, only ids the template has, and only CONTENT props of each component's type
-  /// (`isContentProp`: style, layout and the action are the template's). Bounds are
-  /// checked again on the composed screen.
+  /// version, only ids the template has. Below 2.6 only CONTENT props of each component's
+  /// type and no action; from 2.6 any prop but the builder note, and an action checked like
+  /// a template's (`isOverridableProp`). Bounds are checked again on the composed screen.
   validateValues(doc: ValuesDocument, template: TemplateDocument): void {
     this.validateVersion(doc.schemaVersion)
     const v = doc.values
@@ -85,9 +85,13 @@ export class SchemaValidator {
       if (type === undefined) throw SduiError.schema(`values.components.${id}: no such component in template ${t.key}@${t.version}`)
       if (value.props) {
         for (const key of Object.keys(value.props)) {
-          if (!isContentProp(type, key)) throw SduiError.schema(`values.components.${id}.props.${key}: not content of a ${type} — the template decides it`)
+          if (!isOverridableProp(type, key, doc.schemaVersion)) throw SduiError.schema(`values.components.${id}.props.${key}: not content of a ${type} — the template decides it`)
         }
         this.validateParams(value.props)
+      }
+      if (value.action) {
+        if (!valuesOverride(doc.schemaVersion)) throw SduiError.schema(`values.components.${id}.action: the action is decided by the template (a value set may set it from 2.6)`)
+        this.validateAction(value.action, 1)
       }
     }
   }

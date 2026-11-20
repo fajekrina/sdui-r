@@ -3,7 +3,7 @@
 // gracefully); a different MAJOR is rejected.
 
 /// The spec version this engine writes and fully understands.
-export const SPEC_VERSION = '2.5'
+export const SPEC_VERSION = '2.6'
 
 /// The only accepted MAJOR.
 export const SUPPORTED_MAJOR = 2
@@ -13,6 +13,9 @@ export const V1_COMPONENTS = ['text', 'image', 'vstack', 'hstack', 'zstack', 'bu
 export const V11_COMPONENTS = ['spacer', 'divider', 'grid', 'scroll', 'list', 'form', 'textField', 'textArea', 'picker'] as const
 /// sdui-r 2.0 additions.
 export const V20_COMPONENTS = ['chart'] as const
+/// sdui-r 2.6: a value set (a page) may override EVERY prop of a template component and its
+/// `action` — the template decides only which components there are (`type`, `id`,
+/// `children`, `order`). A value set below 2.6 still holds content props only.
 /// sdui-r 2.5: the 2.4 chart props work on every kind — line / area pick a point (a round marker, the
 /// tip above it), pie / donut a slice (pulled out, the tip outside it, legend entries are buttons);
 /// button `iconCornerRadius` (the icon background as a rounded square instead of a circle);
@@ -55,6 +58,23 @@ export const SHARED_CONTENT_PROPS: readonly string[] = ['a11yLabel']
 /// Whether a value set may set `key` on a component of `type`.
 export function isContentProp(type: string, key: string): boolean {
   return SHARED_CONTENT_PROPS.includes(key) || (CONTENT_PROPS[type]?.includes(key) ?? false)
+}
+
+/// sdui-r 2.6 — the first minor whose value sets may override any prop and the action
+export const OVERRIDES_SINCE_MINOR = 6
+
+/// Whether a value set of `schemaVersion` may set `key` on a component of `type`: below
+/// 2.6 only content props (`isContentProp`); from 2.6 every prop but the template-only
+/// builder note. Structure (`type`, `id`, `children`, `order`) is never a prop.
+export function isOverridableProp(type: string, key: string, schemaVersion: string = SPEC_VERSION): boolean {
+  if (!valuesOverride(schemaVersion)) return isContentProp(type, key)
+  return key !== BUILDER_NOTE_PROP
+}
+
+/// Whether a value set of `schemaVersion` may override style, layout and the action (2.6+).
+export function valuesOverride(schemaVersion: string): boolean {
+  const [major, minor] = schemaVersion.split('.').map(Number)
+  return major! > SUPPORTED_MAJOR || (major === SUPPORTED_MAJOR && minor! >= OVERRIDES_SINCE_MINOR)
 }
 
 /// sdui-r — a template author's note for makers on one component ("Buy ticket — goes to

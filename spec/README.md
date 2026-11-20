@@ -1,4 +1,4 @@
-# SDUI-R spec (v2.5)
+# SDUI-R spec (v2.6)
 
 The contract between the backend and `@fajekrina/sdui-r`. The machine-readable source
 of truth is [`sdui.schema.json`](./sdui.schema.json) (JSON Schema Draft 2020-12);
@@ -14,7 +14,9 @@ children, overlap, outlines, per-side padding, shadow, pin, button icons and cho
 and transitions — no new components and no new action types, so a 2.2 client still renders a 2.3
 screen (see the table in [State and transitions (v2.3)](#state-and-transitions-v23)). **v2.4** makes
 the bar chart interactive and **v2.5** every other chart kind — see
-[Interactive chart (v2.4, v2.5)](#interactive-chart-v24-v25).
+[Interactive chart (v2.4, v2.5)](#interactive-chart-v24-v25). **v2.6** lets a value set (a page)
+override any prop of a template component and its action — see
+[Content props and page overrides](#content-props-and-page-overrides-v26).
 
 ## v2.0 — template + value set
 
@@ -70,15 +72,22 @@ vocabulary (unknown types render a Null-Object placeholder); `props` is an open 
 | 3 · Client-only bounds | client validator | depth, total nodes, chain depth |
 | 4 · Render fallback | renderer | unknown type → Null Object |
 
-## Content props (what a value set may fill)
+## Content props and page overrides (v2.6)
 
-A value set carries **content only**: per component type, the props listed in
-[`content.json`](./content.json) (texts, labels, image names, data arrays) plus `a11yLabel`.
-Style, layout, form rules and the action belong to the template: a value set that sets
-anything else, or any `action`, is invalid. The client validator (`validateValues`) and the
-backend (on save and publish) both check it against the template. A type not listed (an
-adapter slot) has no content props. `tests/spec.test.ts` fails if the file and
-`CONTENT_PROPS` disagree.
+**From 2.6** a value set is a **page**: the template decides which components there are
+(`type`, `id`, `children`, `order`); the page may set **any prop** of those components except
+the template-only `builderNote` — content, style, layout, state-bound props — and replace a
+component's **`action`** (a CTA's target, a chart's data source). Props merge over the
+template's (shallow), so a page stores only what differs and a template change still reaches
+the props a page did not set. An action from a value set is validated exactly like a template's.
+
+**Below 2.6** a value set carries **content only**: per component type, the props listed in
+[`content.json`](./content.json) (texts, labels, image names, data arrays) plus `a11yLabel`,
+and no action. A 2.5 client therefore rejects a 2.6 value set that overrides anything else
+(fail closed). `content.json` still lists the content props (what a page usually fills) and
+states the 2.6 rule under `overrides`. The client validator (`validateValues`) and the backend
+(on save and publish) both check a value set against its template. `tests/spec.test.ts` fails
+if the file and `CONTENT_PROPS` / `OVERRIDES_SINCE_MINOR` disagree.
 
 ## Bounds
 

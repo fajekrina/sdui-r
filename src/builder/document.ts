@@ -8,6 +8,7 @@ import {
   strippingGeneratedIds, withAction, withEnsuredIds, withOrders, withProps
 } from './tree'
 import { DSLExport } from './dsl-export'
+import { assertSameStructure } from './page'
 
 export interface ValidationIssue {
   message: string
@@ -42,9 +43,15 @@ export class EditorDocument {
   /// component's id never comes back on a different component (value sets are keyed by ids).
   private readonly seen = new Map<string, string>()
 
-  constructor(init: { key?: string; root?: SduiNode; load?: LoadRequest[]; factory?: ComponentFactory; mode?: EditorMode; version?: number; title?: string; state?: ScreenState } = {}) {
+  /// sdui-r 2.6 — template mode, a PAGE (the Konten tab): the structure is the template's.
+  /// Adding, removing, moving, duplicating components and changing the screen's load / state
+  /// do nothing; a JSON edit that changes the structure is refused. Props and actions edit.
+  readonly locked: boolean
+
+  constructor(init: { key?: string; root?: SduiNode; load?: LoadRequest[]; factory?: ComponentFactory; mode?: EditorMode; version?: number; title?: string; state?: ScreenState; locked?: boolean } = {}) {
     this.factory = init.factory ?? ComponentFactory.withBuiltins()
     this.mode = init.mode ?? 'screen'
+    this.locked = init.locked === true && this.mode === 'template'
     this._key = init.key ?? (this.mode === 'template' ? 'template' : 'screen')
     this._version = init.version ?? 1
     this._title = init.title
@@ -202,6 +209,7 @@ export class EditorDocument {
 
   /// Insert a new component of `type` (with its palette default props).
   add(type: string, at = this.insertionPoint()): string {
+    if (this.locked) throw SduiError.schema('a page cannot add components — the template decides them')
     const info = this.factory.info(type)
     const node = this.ensureIds(new SduiNode({ type, props: { ...(info?.defaultProps ?? {}) } as SduiProps }))
     this.insert(node, at.parentId, at.index)
@@ -210,6 +218,7 @@ export class EditorDocument {
   }
 
   insert(child: SduiNode, parentId: string, index?: number): void {
+    if (this.locked) return
     this.mutate({ root: insertingChild(this._root, this.ensureIds(child), parentId, index) })
   }
 
@@ -250,7 +259,7 @@ export class EditorDocument {
   /// node; returns whether the tree changed.
   reparent(id: string, parentId: string, index?: number): boolean {
     const node = find(this._root, id)
-    if (!node || id === this._root.id || !this.isContainer(parentId) || find(node, parentId)) return false
+    if (this.locked || !node || id === this._root.id || !this.isContainer(parentId) || find(node, parentId)) return false
     const from = parentOf(this._root, id)!
     const oldIndex = from.children.findIndex((c) => c.id === id)
     // removing the node first shifts later siblings of the same parent up by one
@@ -261,12 +270,13 @@ export class EditorDocument {
   }
 
   delete(id: string): void {
-    if (id === this._root.id) return
+    if (this.locked || id === this._root.id) return
     this.mutate({ root: removing(this._root, id) })
     if (this._selection === id) this.select(undefined)
   }
 
   duplicate(id: string): void {
+    if (this.locked) return
     const node = find(this._root, id)
     const parent = parentOf(this._root, id)
     if (!node || !parent) return
@@ -275,8 +285,15 @@ export class EditorDocument {
     this.select(copy.id)
   }
 
-  move(id: string, delta: number): void { this.mutate({ root: movingChild(this._root, id, delta) }) }
-  replace(id: string, node: SduiNode): void { this.mutate({ root: replacing(this._root, id, node) }) }
+  move(id: string, delta: number): void { if (!this.locked) this.mutate({ root: movingChild(this._root, id, delta) }) }
+  replace(id: string, node: SduiNode): void {
+    // a page: only the node's props / action change — the same id, type and children
+    if (this.locked) {
+      const old = find(this._root, id)
+      if (!old || old.id !== node.id || old.type !== node.type || old.children.length !== node.children.length || old.children.some((c, i) => c.id !== node.children[i]!.id || c.type !== node.children[i]!.type)) return
+    }
+    this.mutate({ root: replacing(this._root, id, node) })
+  }
 
   /// `typing: true` — a keystroke: consecutive ones into the same field are one undo step.
   setProp(id: string, key: string, value: SduiProps[string] | undefined, options: { typing?: boolean } = {}): void {
@@ -310,9 +327,9 @@ export class EditorDocument {
   templateDocument(): TemplateDocument {
     return new TemplateDocument(SPEC_VERSION, new TemplateSpec(this._key, this._version, withOrders(this._root), { title: this._title, load: this._load, state: this._state }))
   }
-  setLoad(load: LoadRequest[]): void { this.mutate({ load }) }
-  /// v2.3 — replace the declared screen state
-  setScreenState(state: ScreenState): void { this.mutate({ state }) }
+  setLoad(load: LoadRequest[]): void { if (!this.locked) this.mutate({ load }) }
+  /// v2.3 — replace the declared screen state (a page cannot: the template declares it)
+  setScreenState(state: ScreenState): void { if (!this.locked) this.mutate({ state }) }
 
   /// The payload (generated ids stripped).
   payload(): SduiPayload {
@@ -343,6 +360,8 @@ export class EditorDocument {
       // a template document: ids kept, children in `order`
       const t = TemplateDocument.decode(raw).template
       if (options.keepIds && this.mode === 'template') this.assertIdsKept(t.root)
+      // a page: a JSON edit keeps the structure (the first import sets it)
+      if (options.keepIds && this.locked) assertSameStructure(t, this.templateDocument().template)
       this.undoStack.push(this.snapshot())
       this.redoStack = []
       this.restore({ root: this.ensureIds(sortedByOrder(t.root)), load: t.load, key: t.key, version: t.version, title: t.title, state: t.state })

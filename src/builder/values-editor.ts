@@ -4,7 +4,7 @@
 // (`isContentProp` — texts, labels, image names, data arrays). That is the value set.
 import {
   SchemaValidator, isContentProp, SduiNode, SduiPayload, TemplateDocument, ValueSet, ValuesDocument, compose, parseJSON,
-  sortedJSONStringify, SPEC_VERSION, type BytesLike, type ComponentValue, type ScreenSpec, type SduiProps, type SduiValue
+  sortedJSONStringify, SPEC_VERSION, SUPPORTED_MAJOR, OVERRIDES_SINCE_MINOR, type BytesLike, type ComponentValue, type ScreenSpec, type SduiProps, type SduiValue
 } from '../core'
 import type { ValidationIssue } from './document'
 
@@ -214,7 +214,8 @@ export class ValuesEditor {
     if (t && (t.key !== values.template.key || t.version !== values.template.version)) {
       throw new TypeError(`these values are for ${values.template.key}@${values.template.version}; the chosen template is ${t.key}@${t.version}`)
     }
-    if (this._template) new SchemaValidator().validateValues(new ValuesDocument(SPEC_VERSION, values), this._template)
+    // this editor fills CONTENT only (the pre-2.6 rule), whatever version the document says
+    if (this._template) new SchemaValidator().validateValues(new ValuesDocument(`${SUPPORTED_MAJOR}.${OVERRIDES_SINCE_MINOR - 1}`, values), this._template)
     this._screen = values.screen
     this.mutate({ components: { ...values.components } })
   }

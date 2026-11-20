@@ -1,5 +1,5 @@
 {
-  "$comment": "sdui-r content props: per component type, the props a value set (maker) may fill; everything else - style, layout, form rules, the action - is decided by the template. A value set setting anything else is invalid. Types not listed have no content props. Must equal CONTENT_PROPS / SHARED_CONTENT_PROPS in src/spec/index.ts (gated by tests/spec.test.ts).",
+  "$comment": "sdui-r content props: per component type, the props that are CONTENT (what a page usually fills). Below 2.6 a value set may set only these and no action. From 2.6 (overrides.since) a value set may set any prop except overrides.except, and the action (overrides.action) - the template decides only which components there are. Must equal CONTENT_PROPS / SHARED_CONTENT_PROPS / OVERRIDES_SINCE_MINOR in src/spec/index.ts (gated by tests/spec.test.ts).",
   "schemaVersion": "2.0",
   "shared": [
     "a11yLabel"
@@ -39,5 +39,12 @@
       "valueKey"
     ]
   },
-  "action": false
+  "action": false,
+  "overrides": {
+    "since": "2.6",
+    "except": [
+      "builderNote"
+    ],
+    "action": true
+  }
 }

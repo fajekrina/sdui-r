@@ -15,5 +15,6 @@ export { renderPreview, findNodeJsonRange, findValueJsonRange, clippedContainers
 export { mountStudio, mountTemplateBuilder, deprecationText, groupOf, GROUPS, CHART_KINDS, chartReads, type FieldGroup, type StudioCatalog, type StudioOptions, type StudioUpdate, type MountedStudio, type TemplateDeprecation } from './studio'
 export { diff, type ChangeKind, type ScreenChange } from './diff'
 export { mergeContent, splitContent } from './content'
+export { mergePage, splitPage, assertSameStructure, placeholders } from './page'
 export { fromUniversal, toIdentifier, type ConversionResult } from '../compat'
 export { CONDITION_PROPS, CONDITION_OPS, REQUEST_VALUES, conditionEditor, conditionOf, conditionParts, describeCondition, describeStateProps, requestNames, simulatedState, stateNames, stateValues, stateWarnings, type ConditionOp, type ConditionParts, type ConditionProp } from './state-editor'

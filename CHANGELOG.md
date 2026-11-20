@@ -5,6 +5,21 @@ versi mengikuti Semantic Versioning (0.x: breaking change boleh di minor dengan 
 
 ## [Unreleased]
 
+### Ditambah: spec 2.6 — halaman boleh menimpa semua prop dan action template
+
+- `SPEC_VERSION` 2.6. Value set (sebuah **halaman**) boleh mengisi **prop apa pun** komponen template, kecuali
+  `builderNote`, dan mengganti **`action`**-nya (tujuan CTA, sumber data chart). Template hanya menentukan komponen apa
+  saja (`type`, `id`, `children`, `order`). Value set di bawah 2.6 tetap hanya konten, tanpa action; client 2.5 menolak
+  value set 2.6 yang menimpa prop lain (fail closed).
+- `null` di value set menghapus prop template. `compose` memakai action halaman bila ada.
+- Core: `isOverridableProp(type, key, schemaVersion)`, `valuesOverride`, `OVERRIDES_SINCE_MINOR`; `ComponentValue.action`;
+  `validateValues` memeriksa action halaman seperti action template. Schema `componentValue.action`;
+  `spec/content.json` mendapat `overrides`.
+- Builder: `mergePage` / `splitPage` (halaman menyimpan **selisih** terhadap template), `assertSameStructure`,
+  `placeholders` (teks contoh `[...]`); `EditorDocument` opsi `locked` (mode halaman: tidak bisa tambah / hapus /
+  pindah komponen, load dan state milik template). `ValuesEditor` lama tetap hanya konten.
+- Fixture `values_page_overrides.json`.
+
 ### Ditambah: text, image, dan card bisa diklik (spec 2.5)
 
 - `text`, `image`, dan `card` dengan `action` kini menjalankannya saat diketuk (sebelumnya hanya `button`). Dirender

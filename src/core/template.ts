@@ -96,11 +96,12 @@ export class TemplateDocument {
   toJSON() { return { schemaVersion: this.schemaVersion, template: this.template.toJSON() } }
 }
 
-/// The content of one template component: content props merged over the template's
-/// defaults (shallow). Style, layout and the action belong to the template
-/// (`isContentProp` says which props a value set may fill).
+/// What one page sets on one template component: props merged over the template's
+/// defaults (shallow) and, from 2.6, an `action` that replaces the template's. Below 2.6
+/// only content props (`isOverridableProp` says which props a value set may set).
 export interface ComponentValue {
   props?: SduiProps
+  action?: ActionSpec
 }
 
 /// The content of one merchant screen, for one template release.
@@ -120,7 +121,7 @@ export class ValueSet {
       for (const [id, entry] of Object.entries(asObject(o.components, `${path}.components`))) {
         const e = asObject(entry, `${path}.components.${id}`)
         const value: ComponentValue = {}
-        if (e.action !== undefined) throw SduiError.schema(`${path}.components.${id}.action: the action is decided by the template`)
+        if (e.action != null) value.action = ActionSpec.decode(e.action, `${path}.components.${id}.action`)
         if (e.props != null) value.props = SduiValue.decodeObject(e.props, `${path}.components.${id}.props`)
         components[id] = value
       }
@@ -134,6 +135,7 @@ export class ValueSet {
       const v = this.components[id]!
       const out: Record<string, unknown> = {}
       if (v.props && Object.keys(v.props).length > 0) out.props = v.props
+      if (v.action) out.action = v.action.toJSON()
       components[id] = out
     }
     return { screen: this.screen, template: { key: this.template.key, version: this.template.version }, components }
@@ -189,7 +191,12 @@ export function compose(template: TemplateSpec, values?: ValueSet): ScreenSpec {
       .map((child, index) => ({ child, index }))
       .sort((a, b) => (a.child.order ?? a.index) - (b.child.order ?? b.index) || a.index - b.index)
       .map(({ child }) => build(child))
-    let props = v?.props ? { ...n.props, ...v.props } : n.props
+    let props = n.props
+    if (v?.props) {
+      props = { ...n.props, ...v.props }
+      // spec 2.6 — a page removes a template prop with null
+      for (const [k, x] of Object.entries(v.props)) if (x === null) delete props[k]
+    }
     // the author's note for makers is template-only: it never reaches a client
     if (props[BUILDER_NOTE_PROP] !== undefined) { props = { ...props }; delete props[BUILDER_NOTE_PROP] }
     return new SduiNode({
@@ -197,8 +204,9 @@ export function compose(template: TemplateSpec, values?: ValueSet): ScreenSpec {
       type: n.type,
       props,
       children,
-      action: n.action,
-      skippedAction: n.skippedAction
+      // spec 2.6 — a page may replace the action
+      action: v?.action ?? n.action,
+      skippedAction: v?.action ? undefined : n.skippedAction
     })
   }
   const variants: ScreenVariants = {}

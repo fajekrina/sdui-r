@@ -240,7 +240,7 @@
       "properties": {
         "screen": {
           "$ref": "#/$defs/identifier",
-          "description": "The merchant screen key these values are for."
+          "description": "The page key these values are for (a page of a kanal)."
         },
         "template": {
           "$ref": "#/$defs/templateRef",
@@ -266,9 +266,13 @@
         "props": {
           "$ref": "#/$defs/props",
           "description": "Merged over the template props (shallow)."
+        },
+        "action": {
+          "$ref": "#/$defs/action",
+          "description": "v2.6 - replaces the template component's action (a page's CTA target, a chart's data source). Below 2.6 a value set has no action."
         }
       },
-      "description": "Content props merged over the template props (shallow). Only the content props of the component type (spec/content.json) are valid - style, layout and the action belong to the template (checked against the template by the client validator and the backend)."
+      "description": "What a page sets on one template component, merged over the template props (shallow). Below 2.6 only the content props of the component type (spec/content.json); from 2.6 any prop but builderNote, and the action - the template decides only which components there are (type, id, children, order). Checked against the template by the client validator and the backend."
     },
     "bundle": {
       "type": "object",
